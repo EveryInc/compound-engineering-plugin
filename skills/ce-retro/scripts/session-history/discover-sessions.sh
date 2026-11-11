@@ -22,8 +22,8 @@
 
 set -euo pipefail
 
-REPO_NAME="${1:?Usage: discover-sessions.sh <repo-name> <days> [--cwd /abs/repo/root] [--platform claude|codex|cursor|pi|omp]}"
-DAYS="${2:?Usage: discover-sessions.sh <repo-name> <days> [--cwd /abs/repo/root] [--platform claude|codex|cursor|pi|omp]}"
+REPO_NAME="${1:?Usage: discover-sessions.sh <repo-name> <days> [--cwd /abs/repo/root]... [--platform claude|codex|cursor|pi|omp] [--include-subagents]}"
+DAYS="${2:?Usage: discover-sessions.sh <repo-name> <days> [--cwd /abs/repo/root]... [--platform claude|codex|cursor|pi|omp] [--include-subagents]}"
 PLATFORM="all"
 REPO_CWD=""
 EXTRA_CWDS=()

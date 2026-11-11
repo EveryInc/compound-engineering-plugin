@@ -23,7 +23,7 @@ For each candidate, return:
 
 - **What happened:** one or two sentences in your own words. Do not quote the transcript.
 - **Sessions:** the session ids and harness where it shows.
-- **Cost:** what it cost in each session, such as calls, minutes, a correction, or a failure.
+- **Cost:** what it cost in each session, such as calls, minutes, a correction, or a failure. Codex child rollouts replay their parent's earlier turns, and Claude logs can repeat a tool call. Count a repeated event once, and credit it to the session that produced it.
 - **Target:** the repo file or setting a fix would most likely touch, if one is apparent.
 - **Kind:** a short label for the kind of friction.
 - **Confidence:** high when the transcript shows the cost clearly, low when it might be ordinary work.

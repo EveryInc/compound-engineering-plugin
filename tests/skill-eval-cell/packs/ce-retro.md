@@ -71,6 +71,9 @@ Run Codex at three trials or more on `planted-friction`, `many-findings`, `clean
 
 - **Codex:** the fixture rollouts move into the host's private `CODEX_HOME`, and `CLAUDE_CONFIG_DIR` points at the fixture Claude store.
 - **Claude:** `CLAUDE_CONFIG_DIR` and `CODEX_HOME` are set on the `claude` process itself. Claude Code still authenticates, its tool subprocesses see the fixture stores, and its own session log lands in the fixture store as the current session. A project settings `env` entry does not work for this: on 2026-11-10 a Bash tool call in such a cell saw `CODEX_HOME` but not `CLAUDE_CONFIG_DIR`, so Claude Code drops that one variable before tool subprocesses run.
+- **Both hosts:** `HOME` is a fresh `<out>/home`, so discovery finds nothing in the operator's `~/.agents/sessions`, Cursor, Pi, or oh-my-pi stores. `PI_CODING_AGENT_DIR` and `XDG_DATA_HOME` point at an empty `<out>/empty-store`, `PI_CONFIG_DIR` is the default folder name (resolved under the fresh `HOME`), and `PI_CODING_AGENT_SESSION_DIR` is empty, which discovery treats as unset. Nothing is linked into the fresh `HOME`: on 2026-11-10 `claude -p` (keychain login, `CLAUDE_CONFIG_DIR` set) and `codex exec` (private `CODEX_HOME` with `auth.json` linked) both authenticated with it, and the cell's repos carry their own git identity.
+
+Not sealed: the host processes still run as the operator's user, so an agent that types an absolute path to the operator's real home can read it, and `TMPDIR`, `PATH`, and the macOS keychain are the operator's. The seal stops discovery from listing other stores, not a deliberate read.
 
 ## Recall corpus (maintainer machine only)
 

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
 import {
   chmodSync,
@@ -8,11 +8,14 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+
+setDefaultTimeout(30_000)
 
 const SCRIPT = path.join(__dirname, "../../skills/ce-retro/scripts/retro-state.py")
 
@@ -149,6 +152,21 @@ describe("retro-state store", () => {
     expect(readdirSync(elsewhere)).toEqual([])
   })
 
+  test("an existing shared .context/compound-engineering keeps its mode; the store is owner-only", () => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const shared = path.join(main, ".context/compound-engineering")
+    mkdirSync(shared, { recursive: true })
+    chmodSync(path.join(main, ".context"), 0o755)
+    chmodSync(shared, 0o755)
+
+    const r = run(env, main, ["store"])
+    expect(r.code).toBe(0)
+    expect(statSync(path.join(main, ".context")).mode & 0o777).toBe(0o755)
+    expect(statSync(shared).mode & 0o777).toBe(0o755)
+    expect(statSync(r.json.store).mode & 0o777).toBe(0o700)
+  })
+
   test.skipIf(process.getuid?.() === 0)(
     "a read-only store exits with the unwritable status and writes nothing",
     () => {
@@ -209,6 +227,18 @@ describe("retro-state ledger", () => {
     expect(run(env, main, ["read"]).json.decisions).toEqual([])
   })
 
+  test.each([
+    ["an unknown state", { ...rejected, state: "maybe" }],
+    ["an accepted record without a signal", { ...rejected, state: "accepted", reason: undefined }],
+    ["a rejected record without a reason", { ...rejected, reason: undefined }],
+  ])("%s is refused and nothing is written", (_, rec) => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const r = record(env, main, rec)
+    expect(r.code).toBe(EXIT_INVALID)
+    expect(existsSync(path.join(main, ".context/compound-engineering/ce-retro/decisions.jsonl"))).toBe(false)
+  })
+
   test("concurrent writers lose no records", async () => {
     const { root, env } = sandbox()
     const main = repo(env, root)
@@ -235,5 +265,46 @@ describe("retro-state ledger", () => {
     const store = path.join(main, ".context/compound-engineering/ce-retro")
     expect(r.json.backup.startsWith(path.join(store, "backups/2026-11-10-a") + path.sep)).toBe(true)
     expect(readFileSync(r.json.backup).equals(bytes)).toBe(true)
+  })
+
+  test("a second backup in the same run keeps the first copy", () => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const outside = path.join(root, "home", "settings.json")
+    writeFileSync(outside, "original\n")
+    const first = run(env, main, ["backup", "--run", "r1", "--file", outside])
+    expect(first.code).toBe(0)
+    writeFileSync(outside, "changed\n")
+
+    const second = run(env, main, ["backup", "--run", "r1", "--file", outside])
+    expect(second.code).toBe(0)
+    expect(second.json.existing).toBe(true)
+    expect(second.json.backup).toBe(first.json.backup)
+    expect(readFileSync(first.json.backup, "utf8")).toBe("original\n")
+  })
+
+  test("--dest-root places the backup there and writes nothing into the repo", () => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const outside = path.join(root, "home", "CLAUDE.md")
+    writeFileSync(outside, "x\n")
+    const scratch = path.join(root, "scratch")
+    mkdirSync(scratch)
+
+    const r = run(env, main, ["backup", "--run", "r1", "--file", outside, "--dest-root", scratch])
+    expect(r.code).toBe(0)
+    expect(r.json.backup).toBe(path.join(scratch, "backups/r1", outside))
+    expect(readFileSync(r.json.backup, "utf8")).toBe("x\n")
+    expect(existsSync(path.join(main, ".context"))).toBe(false)
+  })
+
+  test.each(["..", ".", "a/b"])("--run %p is refused", (name) => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const outside = path.join(root, "home", "CLAUDE.md")
+    writeFileSync(outside, "x\n")
+    const r = run(env, main, ["backup", "--run", name, "--file", outside])
+    expect(r.code).toBe(EXIT_INVALID)
+    expect(existsSync(path.join(main, ".context"))).toBe(false)
   })
 })

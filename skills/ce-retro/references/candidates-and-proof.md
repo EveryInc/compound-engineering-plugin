@@ -12,7 +12,7 @@ Miners rank. They do not decide. A retry, a correction, or a long search can be 
 
 ## Merge
 
-Merge miner returns that describe the same friction, even when they word it differently. Union their sessions and costs. Count a subagent's evidence toward its parent session.
+Merge miner returns that describe the same friction, even when they word it differently. Union their sessions and costs. Count a subagent's evidence toward its parent session. Codex child rollouts replay their parent's earlier turns, and Claude logs can repeat a tool call. Count a repeated event once, and credit it to the session that produced it.
 
 ## Grade earlier accepted changes
 

@@ -2264,6 +2264,61 @@ describe("discover-sessions", () => {
     expect(files).toEqual([sessionPath])
   })
 
+  test("--platform cursor with two --cwd roots finds the project folder named for the second root", async () => {
+    // The second root's basename shares nothing with the repo name, so only
+    // the per-root basename match can find its project folder.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "cursor-home-"))
+    const sessionPath = path.join(
+      tempHome,
+      ".cursor/projects/Users-test-Code-wt-side/agent-transcripts/test.jsonl"
+    )
+    await writeFixture(sessionPath, "cursor-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      [
+        "my-repo",
+        "7",
+        "--cwd",
+        "/Users/test/Code/my-repo",
+        "--cwd",
+        "/Users/test/Code/wt-side",
+        "--platform",
+        "cursor",
+      ],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files.map((f) => path.normalize(f))).toEqual([sessionPath])
+  })
+
+  test("--platform omp with two --cwd roots probes the second root's raw bucket", async () => {
+    // "-Code-wt-side" does not contain the repo name, so the basename globs
+    // miss it and only the exact raw probe for the second root can find it.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const mainDir = path.join(tempHome, "Code", "my-repo")
+    const worktreeDir = path.join(tempHome, "Code", "wt-side")
+    await fs.promises.mkdir(mainDir, { recursive: true })
+    await fs.promises.mkdir(worktreeDir, { recursive: true })
+    const sessionPath = path.join(
+      tempHome,
+      ".omp/agent/sessions/-Code-wt-side/2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--cwd", mainDir, "--cwd", worktreeDir, "--platform", "omp"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
   test("--platform omp discovers sessions under hashed bucket directories", async () => {
     const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
     const bucket =

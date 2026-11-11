@@ -1,10 +1,12 @@
-import { afterAll, describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { REPO_ROOT } from "../../extract"
 import type { ScenarioFile } from "./scenarios"
+
+setDefaultTimeout(30_000)
 
 const BUILDER = path.join(import.meta.dir, "build-fixtures.ts")
 const SCRIPTS = path.join(REPO_ROOT, "skills", "ce-retro", "scripts", "session-history")

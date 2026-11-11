@@ -15,7 +15,12 @@ Store location:
 Store files:
   decisions.jsonl          one decision record per line, append-only
   runs.jsonl               one run record per line, append-only
-  backups/<run>/<path>     pre-edit copies of files outside the repo
+  backups/<run>/<path>     pre-edit copies of files outside the repo, unless
+                           backup --dest-root puts them under <dest-root>/backups/
+
+Directories the script creates are made 0700. An existing directory above the
+store, such as a shared .context/, keeps its mode; the store and everything
+under it are restricted to the owner.
 
 Exit statuses:
   0  success
@@ -98,7 +103,7 @@ def roots(cwd):
     }
 
 
-def guard_dir(path, create):
+def guard_dir(path, create, restrict):
     if os.path.islink(path):
         raise Failure(EXIT_UNSAFE, "store-unsafe", f"refusing symlink: {path}")
     if not os.path.exists(path):
@@ -118,7 +123,7 @@ def guard_dir(path, create):
         raise Failure(EXIT_UNSAFE, "store-unsafe", f"not a directory: {path}")
     if st.st_uid != os.getuid():
         raise Failure(EXIT_UNSAFE, "store-unsafe", f"not owned by the current user: {path}")
-    if st.st_mode & 0o077:
+    if restrict and st.st_mode & 0o077:
         try:
             os.chmod(path, st.st_mode & 0o700)
         except OSError as e:
@@ -126,11 +131,11 @@ def guard_dir(path, create):
     return True
 
 
-def guard_chain(base, parts, create):
+def guard_chain(base, parts, create, restrict_from=0):
     path = base
-    for part in parts:
+    for i, part in enumerate(parts):
         path = os.path.join(path, part)
-        if not guard_dir(path, create):
+        if not guard_dir(path, create, i >= restrict_from):
             break
     return os.path.join(base, *parts)
 
@@ -146,7 +151,7 @@ def resolve_store(cwd, create=True):
         chain = [".context", "compound-engineering", "ce-retro"]
         gitignored = git(base, "check-ignore", "-q", ".context/compound-engineering/").returncode == 0
 
-    store = guard_chain(base, chain, create)
+    store = guard_chain(base, chain, create, restrict_from=len(chain) - 1)
 
     if create:
         try:
@@ -325,9 +330,14 @@ def cmd_backup(args):
     source = os.path.realpath(args.file)
     if not os.path.isfile(source):
         raise Failure(EXIT_INVALID, "invalid-input", f"not a file: {args.file}")
-    store = resolve_store(os.getcwd())["store"]
+    if args.dest_root:
+        root = os.path.abspath(args.dest_root)
+        if not guard_dir(root, False, False):
+            raise Failure(EXIT_INVALID, "invalid-input", f"--dest-root does not exist: {args.dest_root}")
+    else:
+        root = resolve_store(os.getcwd())["store"]
 
-    path = guard_chain(store, ("backups", run), True)
+    path = guard_chain(root, ("backups", run), True)
     dest = os.path.join(path, source.lstrip(os.sep))
     old = os.umask(0o077)
     try:
@@ -373,6 +383,7 @@ def main():
     bk = sub.add_parser("backup", help="copy a file outside the repo into backups/<run>/ before editing it")
     bk.add_argument("--run", required=True, help="run name, one path component")
     bk.add_argument("--file", required=True)
+    bk.add_argument("--dest-root", help="put backups/<run>/ under this existing directory instead of the store")
     args = p.parse_args()
 
     handlers = {

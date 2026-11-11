@@ -111,6 +111,20 @@ function sealClaude(cell: string): Record<string, string> {
   return { CLAUDE_CONFIG_DIR: path.join(cell, "stores", "claude"), CODEX_HOME: path.join(cell, "stores", "codex") }
 }
 
+/**
+ * A per-run HOME, so discovery cannot list the operator's ~/.agents/sessions, Cursor, Pi, or oh-my-pi
+ * stores. Auth needs nothing in it: Claude reads the macOS keychain and Codex its private CODEX_HOME
+ * (both observed 2026-11-10), and the cell's repos carry their own git identity. PI_CONFIG_DIR is a
+ * folder name under HOME, and an empty PI_CODING_AGENT_SESSION_DIR counts as unset, so neither can
+ * point discovery back at an operator store.
+ */
+function sealHome(out: string): Record<string, string> {
+  const home = path.join(out, "home")
+  const empty = path.join(out, "empty-store")
+  for (const d of [home, empty]) fs.mkdirSync(d, { recursive: true })
+  return { HOME: home, PI_CODING_AGENT_DIR: empty, PI_CONFIG_DIR: ".omp", PI_CODING_AGENT_SESSION_DIR: "", XDG_DATA_HOME: empty }
+}
+
 /** Codex: a login shell would rerun the operator's profile and put the real curl ahead of the shim. */
 function hostArgv(host: Host, argv: string[], finalFile: string): string[] {
   if (host === "claude") {
@@ -357,7 +371,7 @@ async function main() {
   const argv = hostArgv(host, plan.argv, finalFile)
   const zdotdir = path.join(out, "zdotdir")
   fs.mkdirSync(zdotdir, { recursive: true })
-  const env = { ...plan.env, ...sealed, ZDOTDIR: zdotdir, PATH: [...pathPrefix, plan.env.PATH ?? ""].join(path.delimiter) }
+  const env = { ...plan.env, ...sealed, ...sealHome(out), ZDOTDIR: zdotdir, PATH: [...pathPrefix, plan.env.PATH ?? ""].join(path.delimiter) }
   writeJSON(path.join(out, "argv.json"), argv.map((a) => (a === prompt ? "<prompt.md>" : a)))
 
   const eventsFile = path.join(out, "events.jsonl")
