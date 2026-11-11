@@ -23,24 +23,23 @@ Give each file you read its own tool call, so its output comes back on its own, 
 
 Invoking this skill authorizes these actions without asking each time: reading every agent session store on this machine, running read-only checks against the tree, writing scratch files and the ledger, and, for items the user approved, editing environment files inside the repo (instruction files, docs, small scripts, the repo's harness settings), committing each such edit with only its own files, and invoking `ce-compound`, `ce-setup`, or `ce-plan` with an approved item. It does not authorize editing product code or its tests, pushing, posting to any issue tracker, or writing a file outside the repo without that item's own diff approval. A project or user rule that requires asking first still wins. When one refuses an edit, report that item as stopped rather than finding another way to make it.
 
-## Before reading anything
+## Writing to the user
 
-Tell the user in a few plain sentences what is about to happen: which sessions you will read and why (this session by default, or the scope they named), what you are looking for, and that nothing in the repo or their settings changes until they approve it. When the run has to search for sessions, say that it briefly opens recent session files from other projects on this machine only to find this repo's. Send it as its own message before the first command that lists or reads a session file, even when the user already stated their decisions. This is a notice, not a question; invoking the skill already asked for the run.
-
-Write this notice, the approval account, and the final report through the `ce-noslop` skill. When it is unavailable, write them plainly yourself.
+Write the notice, the approval account, and the final report through the `ce-noslop` skill. When it is unavailable, write them plainly yourself.
 
 ## Run
 
 Each step names the reference that governs it. Read that reference when you reach the step. A read made earlier, such as at skill load, does not count for the step.
 
-1. **Sessions and window.** Read `references/sessions-and-window.md`. It resolves this repo's directories, the ledger, and which sessions to read: the scope the user named, or this session by default.
-2. **Candidates and proof.** Read `references/candidates-and-proof.md`. It mines the sessions, grades earlier accepted changes, drops decided items without newer cost, and confirms each remaining candidate on the current tree.
-3. **Placement and routing.** Read `references/placement-and-routing.md`. It picks the cheapest fix for each candidate, where that fix lives, and who owns it.
-4. **Approval and apply.** Read `references/approval-and-apply.md`. It presents one account, takes the user's decisions, applies or routes each approved item, and verifies it.
-5. **Ledger and report.** Read `references/ledger.md` before writing any ledger record, and `references/report.md` before the final report.
+1. **Notice.** Before your first command that lists or reads a session file, send the user a short message of its own, even when they already stated their decisions. Say which sessions you will read and why (this session by default, or the scope they named), what you are looking for, and that nothing in the repo or their settings changes until they approve it. When the run has to search for sessions, say that it briefly opens recent session files from other projects on this machine only to find this repo's. This is a notice, not a question; invoking the skill already asked for the run.
+2. **Sessions and window.** Read `references/sessions-and-window.md`. It resolves this repo's directories, the ledger, and which sessions to read: the scope the user named, or this session by default.
+3. **Candidates and proof.** Read `references/candidates-and-proof.md`. It mines the sessions, grades earlier accepted changes, drops decided items without newer cost, and confirms each remaining candidate on the current tree.
+4. **Placement and routing.** Read `references/placement-and-routing.md`. It picks the cheapest fix for each candidate, where that fix lives, and who owns it.
+5. **Approval and apply.** Read `references/approval-and-apply.md`. It presents one account, takes the user's decisions, applies or routes each approved item, and verifies it.
+6. **Ledger and report.** Read `references/ledger.md` before writing any ledger record, and `references/report.md` before the final report.
 
-When no user can answer, run steps 1 through 3, then follow the no-user branch in `references/report.md`. Apply nothing and record no decisions, because a missing answer is not a rejection.
+When no user can answer, run steps 1 through 4, then follow the no-user branch in `references/report.md`. Apply nothing and record no decisions, because a missing answer is not a rejection.
 
 ## Pacing
 
-Before the first batch of tool calls in each step, list what that step needs and issue every call that does not depend on another's result in one response. Dispatch all session-mining batches together. After step 2, tell the user in one line how many sessions were read and how many candidates survived proof. A step is done only after it ran. Do not end the turn with an approved item still described but not applied or routed.
+Before the first batch of tool calls in each step, list what that step needs and issue every call that does not depend on another's result in one response. Dispatch all session-mining batches together. After step 3, tell the user in one line how many sessions were read and how many candidates survived proof. A step is done only after it ran. Do not end the turn with an approved item still described but not applied or routed.
