@@ -1244,6 +1244,24 @@ describe("extract-skeleton", () => {
     expect(stdout).not.toContain("exec_command:")
   })
 
+  test("keeps a Codex correction repeated in a later turn, but not one turn logged twice", async () => {
+    const said = "No console.log in src, use the logger in src/log.js."
+    const ev = (ts: string, payload: object) => JSON.stringify({ timestamp: ts, type: "event_msg", payload })
+    const userItem = (turn: string, id: string) =>
+      ({ type: "item_completed", turn_id: turn, item: { type: "UserMessage", id, content: [{ type: "text", text: said }] } })
+    const lines = [
+      JSON.stringify({ timestamp: "2026-11-06T17:00:00.000Z", type: "session_meta", payload: { id: "repeat", cwd: "/x" } }),
+      ev("2026-11-06T17:00:01.000Z", { type: "task_started", turn_id: "t1" }),
+      ev("2026-11-06T17:00:02.000Z", { type: "user_message", message: said }),
+      ev("2026-11-06T17:00:02.100Z", userItem("t1", "u1")),
+      ev("2026-11-06T17:05:00.000Z", { type: "task_started", turn_id: "t2" }),
+      ev("2026-11-06T17:05:01.000Z", userItem("t2", "u2")),
+    ]
+    const { stdout } = await runScript("extract-skeleton.py", [], lines.join("\n"))
+    const meta = JSON.parse(stdout.trim().split("\n").at(-1)!)
+    expect(meta.user).toBe(2)
+  })
+
   test("extracts Codex item_completed user turns, commands, edits, and MCP calls", async () => {
     const fixture = await Bun.file(
       path.join(FIXTURES_DIR, "codex-items-session.jsonl")

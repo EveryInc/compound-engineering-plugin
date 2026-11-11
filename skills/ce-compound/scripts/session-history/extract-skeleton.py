@@ -223,14 +223,18 @@ def handle_claude(obj):
                     pending_tools.append(entry)
 
 
-codex_user_texts = set()
+# A few rollouts log one user turn twice, as user_message and as a UserMessage
+# item. Repeating the same words in a later turn is evidence, so key on the turn.
+codex_user_turns = set()
+codex_turn = {"id": None}
 
 
-def _codex_user(ts, text):
+def _codex_user(ts, text, turn_id):
     user_text = text.split("</system_instruction>")[-1].strip()
-    if len(user_text) <= 15 or user_text in codex_user_texts:
+    key = (turn_id or codex_turn["id"], user_text)
+    if len(user_text) <= 15 or key in codex_user_turns:
         return
-    codex_user_texts.add(user_text)
+    codex_user_turns.add(key)
     flush_tools()
     print(f"[{ts}] [user] {user_text[:800]}")
     print("---")
@@ -246,7 +250,7 @@ def _codex_item_status(item):
     return "ok"
 
 
-def _codex_item(ts, item):
+def _codex_item(ts, item, turn_id):
     if not isinstance(item, dict):
         return
     kind = item.get("type")
@@ -256,7 +260,7 @@ def _codex_item(ts, item):
             for block in item.get("content", [])
             if isinstance(block, dict) and isinstance(block.get("text"), str)
         ]
-        _codex_user(ts, "\n".join(texts))
+        _codex_user(ts, "\n".join(texts), turn_id)
     elif kind == "CommandExecution":
         command = item.get("command")
         cmd_str = command[-1] if isinstance(command, list) and command else command
@@ -278,13 +282,16 @@ def handle_codex(obj):
 
     if msg_type == "event_msg":
         p = obj.get("payload", {})
-        if p.get("type") == "user_message":
+        if p.get("type") == "task_started":
+            codex_turn["id"] = p.get("turn_id")
+
+        elif p.get("type") == "user_message":
             text = p.get("message", "")
             if isinstance(text, str):
-                _codex_user(ts, text)
+                _codex_user(ts, text, p.get("turn_id"))
 
         elif p.get("type") == "item_completed":
-            _codex_item(ts, p.get("item"))
+            _codex_item(ts, p.get("item"), p.get("turn_id"))
 
         elif p.get("type") == "exec_command_end":
             # This is the deduplicated result — has status info
