@@ -493,7 +493,9 @@ def root_patterns(roots):
     for root in roots:
         root = _normalize_cwd(root)
         if _is_abs_cwd(root):
-            patterns.append(re.compile(re.escape(root) + r"(?![\w.-])"))
+            # Windows drive paths are case-insensitive; POSIX paths are not.
+            flags = re.IGNORECASE if root[1:2] == ":" else 0
+            patterns.append(re.compile(re.escape(root) + r"(?![\w.-])", flags))
     return patterns
 
 
@@ -501,6 +503,9 @@ def content_names_root(filepath, patterns):
     try:
         with open(filepath, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
+                # Transcripts are JSON, so Windows paths arrive as C:\\Users\\...; match them
+                # with the same forward slashes the normalized roots use.
+                line = line.replace("\\\\", "/").replace("\\", "/")
                 if any(p.search(line) for p in patterns):
                     return True
     except (OSError, IOError):

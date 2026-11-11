@@ -342,19 +342,24 @@ def cmd_backup(args):
     old = os.umask(0o077)
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        try:
-            out = open(dest, "xb")
-        except FileExistsError:
+        if os.path.lexists(dest):
             emit({"backup": dest, "existing": True})
             return
-        with out:
-            try:
-                src = open(source, "rb")
-            except OSError:
-                os.unlink(dest)
-                raise
-            with src:
+        # Copy to a private temp file and publish it with a hard link, which fails if dest
+        # exists: an interrupted copy must never be accepted later as a finished backup.
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(dest), prefix=".partial-")
+        try:
+            with os.fdopen(fd, "wb") as out, open(source, "rb") as src:
                 shutil.copyfileobj(src, out)
+                out.flush()
+                os.fsync(out.fileno())
+            try:
+                os.link(tmp, dest)
+            except FileExistsError:
+                emit({"backup": dest, "existing": True})
+                return
+        finally:
+            os.unlink(tmp)
     except OSError as e:
         raise Failure(EXIT_UNWRITABLE, "store-unwritable", f"could not back up {source}: {e}")
     finally:

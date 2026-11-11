@@ -283,6 +283,24 @@ describe("retro-state ledger", () => {
     expect(readFileSync(first.json.backup, "utf8")).toBe("original\n")
   })
 
+  test.skipIf(process.getuid?.() === 0)("a failed backup leaves nothing a retry would accept as finished", () => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const outside = path.join(root, "home", "settings.json")
+    writeFileSync(outside, "original\n")
+    chmodSync(outside, 0o000)
+
+    const failed = run(env, main, ["backup", "--run", "r1", "--file", outside])
+    expect(failed.code).not.toBe(0)
+
+    chmodSync(outside, 0o600)
+    const retry = run(env, main, ["backup", "--run", "r1", "--file", outside])
+    expect(retry.code).toBe(0)
+    expect(retry.json.existing).toBe(false)
+    expect(readFileSync(retry.json.backup, "utf8")).toBe("original\n")
+    expect(readdirSync(path.dirname(retry.json.backup)).filter((n) => n.startsWith("."))).toEqual([])
+  })
+
   test("--dest-root places the backup there and writes nothing into the repo", () => {
     const { root, env } = sandbox()
     const main = repo(env, root)

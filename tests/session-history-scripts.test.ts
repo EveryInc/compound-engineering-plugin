@@ -665,6 +665,29 @@ describe("extract-metadata", () => {
       )
       expect(kept).toEqual(["home-edits-repo", "main"])
     })
+
+    test("--no-ancestor matches a Windows repo path written with JSON-escaped backslashes and other casing", async () => {
+      const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "ancestor-win-"))
+      try {
+        const rollout = (name: string, mentioned: string) =>
+          [
+            { timestamp: "2026-04-06T14:00:00.000Z", type: "session_meta", payload: { id: name, timestamp: "2026-04-06T14:00:00.000Z", cwd: "C:\\Users\\Test", originator: "codex_cli_rs", source: "cli" } },
+            { timestamp: "2026-04-06T14:00:02.000Z", type: "event_msg", payload: { type: "user_message", message: `fix ${mentioned}` } },
+          ].map((l) => JSON.stringify(l)).join("\n") + "\n"
+        const edits = path.join(tempDir, "edits.jsonl")
+        const elsewhere = path.join(tempDir, "elsewhere.jsonl")
+        await fs.promises.writeFile(edits, rollout("edits", "c:\\users\\test\\repo\\src\\main.py"))
+        await fs.promises.writeFile(elsewhere, rollout("elsewhere", "C:\\Users\\Test\\RepoOld\\src\\main.py"))
+        const { stdout, exitCode } = await runScript("extract-metadata.py", [
+          "--cwd-filter", "C:\\Users\\Test\\Repo", "--no-ancestor", edits, elsewhere,
+        ])
+        expect(exitCode).toBe(0)
+        const kept = parseJsonLines(stdout).filter((l) => !l._meta).map((l) => l.session)
+        expect(kept).toEqual(["edits"])
+      } finally {
+        await fs.promises.rm(tempDir, { recursive: true, force: true })
+      }
+    })
   })
 
   test("reports clean zero-file result for empty stdin", async () => {
