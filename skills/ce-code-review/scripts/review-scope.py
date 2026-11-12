@@ -137,9 +137,13 @@ def repo_root() -> Path:
     works there), where ``Path.cwd()`` would join docs_root under the subdir and
     wrongly report the corpus absent. Fall back to cwd when git can't answer.
     """
-    result = git("rev-parse", "--show-toplevel")
-    if result.returncode == 0 and result.stdout.strip():
-        return Path(result.stdout.strip()).resolve()
+    # fsdecode, not git()'s UTF-8: the toplevel is reused as a filesystem path and must round-trip to its bytes.
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, check=False
+    )
+    toplevel = os.fsdecode(result.stdout.strip())
+    if result.returncode == 0 and toplevel:
+        return Path(toplevel).resolve()
     return Path.cwd().resolve()
 
 
