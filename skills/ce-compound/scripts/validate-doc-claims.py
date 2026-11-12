@@ -107,10 +107,10 @@ def git(args: list[str], cwd: str) -> tuple[int, str]:
             ["git", *args],
             cwd=cwd,
             capture_output=True,
+            text=True,
             timeout=30,
         )
-        # fsdecode: UTF-8 on Windows, and a toplevel path that round-trips as cwd on POSIX.
-        return result.returncode, os.fsdecode(result.stdout).strip()
+        return result.returncode, result.stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         return 1, ""
 

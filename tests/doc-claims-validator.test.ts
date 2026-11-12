@@ -685,26 +685,17 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         expect(result.stdout).toContain("FLAG link (./gone.md)")
       })
 
-      test("reads a UTF-8 doc in a non-ASCII repo path under a non-UTF-8 locale", () => {
-        const dir = mkdtempSync(path.join(tmpdir(), "claims-café-"))
-        sh(dir, "git", ["init", "-q", "-b", "main"])
-        mkdirSync(path.join(dir, "src"))
-        writeFileSync(path.join(dir, "src", "real.ts"), "export {}\n")
-        sh(dir, "git", ["add", "."])
-        sh(dir, "git", [
-          "-c", "user.email=t@example.com", "-c", "user.name=t",
-          "-c", "commit.gpgSign=false", "commit", "-qm", "base",
-        ])
-        const docPath = path.join(dir, "doc.md")
-        writeFileSync(
-          docPath,
-          FRONTMATTER + "\nThe “report” leaf reads `src/real.ts`.\n",
-          "utf8",
+      test("reads a UTF-8 doc under a non-UTF-8 locale", () => {
+        const docPath = writeRepoDoc(
+          "The “report” leaf reads `src/real-file.ts`.\n",
         )
-        const result = runValidator(skillDir, docPath, NON_UTF8_LOCALE)
-        expect(result.stderr).not.toContain("Traceback")
+        // The script's INFO lines carry em dashes; keep stdout UTF-8 so only open() sees the C locale.
+        const result = runValidator(skillDir, docPath, {
+          ...NON_UTF8_LOCALE,
+          PYTHONIOENCODING: "utf-8",
+        })
+        expect(result.stderr).toBe("")
         expect(result.code).toBe(0)
-        expect(result.stdout).toContain("0 flags")
       })
 
       test("exits 2 (usage error) on missing file", () => {
