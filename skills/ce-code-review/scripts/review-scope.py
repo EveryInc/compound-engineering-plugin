@@ -85,8 +85,13 @@ AGENT_SURFACE_PATTERN = re.compile(
 
 
 def git(*args: str) -> subprocess.CompletedProcess[str]:
+    # surrogateescape keeps paths holding non-UTF-8 bytes (Latin-1 filesystems) from crashing the decode.
     return subprocess.run(
-        ["git", *args], capture_output=True, encoding="utf-8", check=False
+        ["git", *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="surrogateescape",
+        check=False,
     )
 
 

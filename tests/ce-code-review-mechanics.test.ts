@@ -386,6 +386,25 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.changed_files).toEqual(["src/café.ts", "src/“quoted”.ts"])
   })
 
+  test("scope helper completes when a changed git path holds non-UTF-8 bytes", () => {
+    const { dir, base } = fixtureRepo()
+    // Argv strings can't carry a raw 0xe9 byte, and APFS rejects it as a file name, so stage it by index entry.
+    const stage = spawnSync("python3", ["-c", [
+      "import subprocess",
+      "blob = subprocess.run(['git', 'hash-object', '-w', '--stdin'], input=b'x = 1\\n', capture_output=True, check=True).stdout.strip()",
+      "subprocess.run(['git', 'update-index', '--add', '--cacheinfo', b'100644,' + blob + b',caf\\xe9.ts'], check=True)",
+    ].join("\n")], { cwd: dir, encoding: "utf8" })
+    expect(stage.stderr).toBe("")
+    git(dir, "-c", "commit.gpgSign=false", "commit", "-qm", "latin-1 path")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base, "--head", "HEAD"], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.status).toBe("complete")
+    expect(scope.changed_files).toEqual(["caf\udce9.ts"])
+  })
+
   test("scope helper still hard-blocks a deleted file whose path class forces full", () => {
     const { dir } = fixtureRepo()
     const pruneBase = commitDeadFiles(dir, { "db/migrate/001_add_users.rb": "class AddUsers; end\n" })
