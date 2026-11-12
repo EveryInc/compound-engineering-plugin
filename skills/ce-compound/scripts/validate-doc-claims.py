@@ -245,7 +245,7 @@ def main(argv: list[str]) -> int:
     if not os.path.isfile(doc_path):
         usage_fail(f"file not found: {doc_path}")
 
-    with open(doc_path) as f:
+    with open(doc_path, encoding="utf-8") as f:
         text = f.read()
 
     doc_dir = os.path.dirname(os.path.abspath(doc_path))

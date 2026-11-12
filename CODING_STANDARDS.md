@@ -59,3 +59,9 @@ Applies to `src/`, `scripts/`, and `skills/*/scripts/`.
 - Acknowledgements and externally visible effects happen after the durable commit. Audit and diagnostic writes after the commit are best-effort and never turn success into failure.
 - For each state a script persists, resume handles a crash immediately after that write, including held locks and stale receipts.
 - Code that spawns detached process groups installs INT/TERM/HUP/QUIT handlers before spawning and kills the group on every exit path, including normal completion. Liveness checks go through `tests/helpers/process.ts`, which treats zombies as dead.
+
+## Script text decoding
+
+Applies to Python under `scripts/` and `skills/*/scripts/`.
+
+- A script that reads repository files or git output names its decoding instead of using the locale codec, which is cp1252 on Windows. Git output that carries paths decodes as UTF-8 with `errors="surrogateescape"`, because a path can hold bytes that are not UTF-8 and strict decoding crashes on them. A decoded path that is reused as a `cwd` or argument has to round-trip to the same bytes.

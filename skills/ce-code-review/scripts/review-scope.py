@@ -85,8 +85,13 @@ AGENT_SURFACE_PATTERN = re.compile(
 
 
 def git(*args: str) -> subprocess.CompletedProcess[str]:
+    # surrogateescape keeps paths holding non-UTF-8 bytes (Latin-1 filesystems) from crashing the decode.
     return subprocess.run(
-        ["git", *args], capture_output=True, text=True, check=False
+        ["git", *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="surrogateescape",
+        check=False,
     )
 
 
@@ -132,9 +137,13 @@ def repo_root() -> Path:
     works there), where ``Path.cwd()`` would join docs_root under the subdir and
     wrongly report the corpus absent. Fall back to cwd when git can't answer.
     """
-    result = git("rev-parse", "--show-toplevel")
-    if result.returncode == 0 and result.stdout.strip():
-        return Path(result.stdout.strip()).resolve()
+    # fsdecode, not git()'s UTF-8: the toplevel is reused as a filesystem path and must round-trip to its bytes.
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, check=False
+    )
+    toplevel = os.fsdecode(result.stdout.strip())
+    if result.returncode == 0 and toplevel:
+        return Path(toplevel).resolve()
     return Path.cwd().resolve()
 
 

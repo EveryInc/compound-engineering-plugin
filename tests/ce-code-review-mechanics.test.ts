@@ -11,6 +11,10 @@ const SKILL_DIR = path.join(process.cwd(), "skills", "ce-code-review")
 const SCOPE_SCRIPT = path.join(SKILL_DIR, "scripts", "review-scope.py")
 const FINDINGS_SCRIPT = path.join(SKILL_DIR, "scripts", "findings-mechanics.py")
 
+const CHILD_ENV = { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT }
+// PYTHONCOERCECLOCALE=0 and PYTHONUTF8=0 keep Python on the C locale's ascii codec.
+const NON_UTF8_LOCALE = { ...CHILD_ENV, LC_ALL: "C", LANG: "C", LC_CTYPE: "C", PYTHONUTF8: "0", PYTHONCOERCECLOCALE: "0" }
+
 function run(command: string, args: string[], cwd?: string, input?: string) {
   return spawnSync(command, args, { cwd, input, encoding: "utf8" })
 }
@@ -364,6 +368,65 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.deleted_files).toEqual(["src/café.ts"])
     expect(scope.deleted_exec_nontest_lines).toBe(220)
     expect(scope.deleted_band).toBe("large")
+  })
+
+  test("scope helper decodes non-ASCII git paths as UTF-8 under a non-UTF-8 locale", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "src"))
+    writeFileSync(path.join(dir, "src", "café.ts"), "export const a = 1\n")
+    writeFileSync(path.join(dir, "src", "“quoted”.ts"), "export const b = 1\n")
+    git(dir, "add", ".")
+
+    const result = spawnSync("python3", [SCOPE_SCRIPT, "--base", base], {
+      cwd: dir,
+      encoding: "utf8",
+      env: NON_UTF8_LOCALE,
+    })
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.status).toBe("complete")
+    expect(scope.changed_files).toEqual(["src/café.ts", "src/“quoted”.ts"])
+  })
+
+  test("scope helper completes when a changed git path holds non-UTF-8 bytes", () => {
+    const { dir, base } = fixtureRepo()
+    // Argv can't carry a raw 0xe9 byte on every OS, and APFS rejects it as a file name, so stage it through stdin.
+    const blob = run("git", ["hash-object", "-w", "--stdin"], dir, "x = 1\n").stdout.trim()
+    const stage = spawnSync("git", ["update-index", "--index-info"], {
+      cwd: dir,
+      env: CHILD_ENV,
+      input: Buffer.concat([Buffer.from(`100644 ${blob}\tcaf`), Buffer.from([0xe9]), Buffer.from(".ts\n")]),
+    })
+    expect(stage.status).toBe(0)
+    git(dir, "-c", "commit.gpgSign=false", "commit", "-qm", "latin-1 path")
+
+    const result = spawnSync("python3", [SCOPE_SCRIPT, "--base", base, "--head", "HEAD"], {
+      cwd: dir,
+      encoding: "utf8",
+      env: CHILD_ENV,
+    })
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.status).toBe("complete")
+    expect(scope.changed_files).toEqual(["caf\udce9.ts"])
+  })
+
+  test("scope helper finds the learnings corpus in a non-ASCII repo directory under a non-UTF-8 locale", () => {
+    const parent = mkdtempSync(path.join(tmpdir(), "ce-review-scope-"))
+    const dir = path.join(parent, "repo-café")
+    mkdirSync(path.join(dir, "docs", "solutions"), { recursive: true })
+    git(dir, "init", "-q", "-b", "main")
+    git(dir, "-c", "user.email=eval@example.com", "-c", "user.name=Eval", "-c", "commit.gpgSign=false", "commit", "-q", "--allow-empty", "-m", "base")
+
+    const result = spawnSync("python3", [SCOPE_SCRIPT, "--base", "HEAD"], {
+      cwd: dir,
+      encoding: "utf8",
+      env: NON_UTF8_LOCALE,
+    })
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout).has_learnings_corpus).toBe(true)
   })
 
   test("scope helper still hard-blocks a deleted file whose path class forces full", () => {
