@@ -1,6 +1,7 @@
 ---
 title: "Narrowing what a rewrite skill may change exposes every tell its catalog never named"
 date: 2026-11-13
+last_updated: 2026-11-13
 category: skill-design
 module: skills/ce-noslop
 problem_type: design_pattern
@@ -33,7 +34,7 @@ The fix added a "What an edit may change" paragraph to `skills/ce-noslop/referen
 
 The measured case: the first draft said "change only the span the rule names". On Claude, the edit-scope eval row (`ce-noslop/passing-sentences-beside-slop-stay`) regressed. The pre-change skill had rewritten "I'm thrilled to share that the warehouse migration marks a pivotal turning point..." into a plain sentence. The narrowed skill deleted the puffery and model vocabulary that rules 1 and 10 name and kept "I'm thrilled to share", because no rule named it. Adding "I'm thrilled to share" and "Excited to announce" to rule 36 fixed it: 3 of 3 Claude runs then passed.
 
-The phrase had a history. `tests/skills/ce-noslop-contract.test.ts` (`REMOVED_SUBSTRINGS`) asserts that `skills/ce-promote/SKILL.md` no longer carries "thrilled/excited to announce", on the premise that ce-noslop owns anti-slop rules. Nothing checked that the phrase arrived in ce-noslop's catalog. Whole-sentence rewrites hid that gap until the scope narrowed.
+The phrase had a history. `tests/skills/ce-noslop-contract.test.ts` asserted that `skills/ce-promote/SKILL.md` no longer carried "thrilled/excited to announce", on the premise that ce-noslop owns anti-slop rules, but nothing checked that the phrase arrived in ce-noslop's catalog. Whole-sentence rewrites hid that gap until the scope narrowed. The same test then turned up a second lost list: the intensifiers ce-plan and ce-brainstorm dropped ("Critically", "genuinely", "actually", "simply"), which no catalog rule named until rule 44. The test's `REMOVED_BLOCKS` now names, for every removed block, the ce-noslop file and phrases that carry its rule.
 
 A second exposure of the same kind: the false-positive floor protected "a heading or sign-off in a letter". Under the narrowed scope, Claude kept "Let me know if you have any questions!" and called it "a normal sign-off for an email". The floor now defines the sign-off as the closing word and the name, not a stock line before them.
 
@@ -48,7 +49,7 @@ A single-row check on the weaker model would not catch it either. Haiku's edit-s
 ## When to Apply
 
 - A skill that rewrites text against a named catalog gains a rule limiting what an edit may change. Re-run every existing rewrite row, not only the new restraint rows, on at least one strong host and one weaker one.
-- A phrase list is removed from one skill because another skill "owns" it. Check that the owner actually carries each phrase. A removal guard that does not also check arrival at the owner cannot fail when the move is incomplete.
+- A phrase list is removed from one skill because another skill "owns" it. A removal guard that does not also check arrival at the owner cannot fail when the move is incomplete; for ce-noslop, `REMOVED_BLOCKS` in its contract test checks both ends.
 - A protected class in a false-positive floor (sign-off, title, greeting) borders a tell the catalog removes. State what the protected class is, so a stock line next to it does not inherit its protection.
 
 ## Examples
