@@ -344,6 +344,8 @@ const IDEATE_RUN_SCALING: Scenario[] = IDEATE_RUN_SCALING_ROWS.map(({ merge, ...
 const NOSLOP_FIX_LIMITS_BASE_REF = "67035e931c5cb26e80f198a7019a4502a9788273"
 /** main before ce-noslop bounded what an edit may change (#2065). */
 const NOSLOP_EDIT_SCOPE_BASE_REF = "d8f8e03237bded06e77bcb3930b43ef841e7eeda"
+/** main before ce-noslop restored the intensifier rule ce-plan and ce-brainstorm handed off. */
+const NOSLOP_INTENSIFIER_BASE_REF = "41216b7ec84816397f7d3d621bad2373f2fca974"
 
 /**
  * A handoff-probe row runs live, so it loses the read-only `actions: "none"` restraint.
@@ -2191,6 +2193,24 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
       workspace_read: ["sycophant-reply.md"],
       result_must_include: ["Hassan", "locale", "purge the cache"],
       result_must_not_include: ["absolutely right", "Great catch"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-noslop/intensifiers-go-unless-they-carry-the-claim",
+    skill: "ce-noslop",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: NOSLOP_INTENSIFIER_BASE_REF,
+    fixture: `${FIX}/noslop-drafts`,
+    why: "The intensifier list ce-plan and ce-brainstorm dropped when ce-noslop took over (#1653) never reached the catalog. Empty intensifiers go; \"deliberately skipped, not lost\" carries the claim and stays. Claude, Codex, and Grok at default tier passed before the rule; Haiku 5.5 failed 4 of 6 runs, mostly by cutting \"deliberately\", so run with ANTHROPIC_MODEL=claude-haiku-5-5 to see red.",
+    pre_contract: "Every fact survives; nothing is added; a sentence that passes stays as written.",
+    task: "Use the ce-noslop skill to edit intensifiers.md for a repo document. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
+    grade: {
+      workspace_read: ["intensifiers.md"],
+      result_must_include: ["manifest", "line number", "3", "90 days", "deliberately skipped", "archive job"],
+      result_must_not_include: ["actually", "simply", "genuinely", "Critically"],
       actions: "none",
     },
   },

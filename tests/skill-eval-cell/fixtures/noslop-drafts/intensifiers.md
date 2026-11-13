@@ -1,0 +1,1 @@
+The importer actually reads the manifest before it touches any row. It simply skips a row with no id and genuinely logs the line number of every skipped row. Critically, the retry limit is 3. Rows older than 90 days are deliberately skipped, not lost, because the archive job already holds them.

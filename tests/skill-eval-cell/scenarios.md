@@ -206,4 +206,5 @@ bun run test:skill-eval-pack -- --skill ce-noslop --arm post
 | `ce-noslop/clean-letter-returns-unchanged` | A/B (#2065): a letter with no tell returns byte for byte |
 | `ce-noslop/title-and-closer-keep-the-request` | A/B (#2065): unmarked title loses its emoji, stock closers go, the request inside a closer stays |
 | `ce-noslop/sycophant-opener-keeps-the-name` | A/B (#2065): praise goes, the answer still addresses the reader by name |
+| `ce-noslop/intensifiers-go-unless-they-carry-the-claim` | A/B: empty intensifiers go; "deliberately skipped, not lost" stays because it carries the claim |
 | `ce-noslop/detect-uses-plain-labels` | Detect names the patterns without grammar-term labels |
