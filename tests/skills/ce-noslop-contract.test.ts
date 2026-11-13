@@ -41,13 +41,16 @@ const PRESENTATION_CONTRACTS = [
   "skills/ce-babysit-pr/references/report.md",
 ]
 
-// Generic blocks deleted from the consolidation set. Domain rules in the same
-// files (commit subject form, value-first lead, severity vocabulary, per-channel
-// register) stay and are pinned by each sibling's own contract test.
-const REMOVED_SUBSTRINGS: Array<[string, string[]]> = [
-  [
-    "ASD-STE100",
-    [
+// Generic blocks deleted from the consolidation set, each with the ce-noslop
+// text that now carries its rule. A removal is safe only once the rule
+// arrived: two lists left their siblings and reached no ce-noslop file (#2065).
+// Domain rules in the same files (commit subject form, value-first lead,
+// severity vocabulary, per-channel register) stay and are pinned by each
+// sibling's own contract test.
+const REMOVED_BLOCKS: Array<{ needle: string; removedFrom: string[]; arrivedIn: string; carriedBy: string[] }> = [
+  {
+    needle: "ASD-STE100",
+    removedFrom: [
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
       "skills/ce-code-review/references/finish-report.md",
       "skills/ce-code-review/references/finish-merge.md",
@@ -55,15 +58,24 @@ const REMOVED_SUBSTRINGS: Array<[string, string[]]> = [
       "skills/ce-brainstorm/references/brainstorm-sections.md",
       "skills/ce-doc-review/references/rendering-floor.md",
     ],
-  ],
-  ["thrilled/excited to announce", ["skills/ce-promote/SKILL.md"]],
-  [
-    '"Critically", "deliberately", "explicitly"',
-    [
+    arrivedIn: "skills/ce-noslop/SKILL.md",
+    carriedBy: ["**One idea.**", "Keep exact identifiers"],
+  },
+  {
+    needle: "thrilled/excited to announce",
+    removedFrom: ["skills/ce-promote/SKILL.md"],
+    arrivedIn: "skills/ce-noslop/references/patterns.md",
+    carriedBy: ['"I\'m thrilled to share"', '"Excited to announce"'],
+  },
+  {
+    needle: '"Critically", "deliberately", "explicitly"',
+    removedFrom: [
       "skills/ce-plan/references/plan-sections.md",
       "skills/ce-brainstorm/references/brainstorm-sections.md",
     ],
-  ],
+    arrivedIn: "skills/ce-noslop/references/patterns.md",
+    carriedBy: ['"Critically"', '"genuinely"', '"actually"', '"simply"'],
+  },
 ]
 
 describe("ce-noslop kernel", () => {
@@ -98,11 +110,15 @@ describe("ce-noslop distribution", () => {
     })
   }
 
-  for (const [needle, files] of REMOVED_SUBSTRINGS) {
-    for (const rel of files) {
+  for (const { needle, removedFrom, arrivedIn, carriedBy } of REMOVED_BLOCKS) {
+    for (const rel of removedFrom) {
       test(`${rel} no longer carries the generic block: ${needle}`, () => {
         expect(readRepoFile(rel)).not.toContain(needle)
       })
     }
+    test(`${arrivedIn} carries the rule removed as: ${needle}`, () => {
+      const owner = readRepoFile(arrivedIn)
+      expect(carriedBy.filter((phrase) => !owner.includes(phrase))).toEqual([])
+    })
   }
 })
