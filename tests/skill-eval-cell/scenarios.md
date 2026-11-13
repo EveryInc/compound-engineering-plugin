@@ -202,4 +202,8 @@ bun run test:skill-eval-pack -- --skill ce-noslop --arm post
 | `ce-noslop/figurative-verbs-become-literal` | Figurative verbs and code credited with intent go; literal verbs and all numbers stay |
 | `ce-noslop/single-figure-becomes-literal` | One figurative verb among plain sentences goes; the plain sentences stay byte for byte |
 | `ce-noslop/expected-fragments-stay` | Table cells and changelog lines stay byte for byte |
+| `ce-noslop/passing-sentences-beside-slop-stay` | A/B (#2065): passing sentences next to rewritten ones come back verbatim; the excited opener and stock closer go |
+| `ce-noslop/clean-letter-returns-unchanged` | A/B (#2065): a letter with no tell returns byte for byte |
+| `ce-noslop/title-and-closer-keep-the-request` | A/B (#2065): unmarked title loses its emoji, stock closers go, the request inside a closer stays |
+| `ce-noslop/sycophant-opener-keeps-the-name` | A/B (#2065): praise goes, the answer still addresses the reader by name |
 | `ce-noslop/detect-uses-plain-labels` | Detect names the patterns without grammar-term labels |
