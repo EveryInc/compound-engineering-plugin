@@ -180,6 +180,7 @@ function skillFiles(root: string, depth = 0, seen = new Set<string>()): string[]
     return []
   }
   if (seen.has(real) || depth > 6) return []
+  if (!fs.statSync(real).isDirectory()) return []
   seen.add(real)
   const found: string[] = []
   for (const entry of fs.readdirSync(real, { withFileTypes: true })) {

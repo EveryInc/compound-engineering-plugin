@@ -73,6 +73,9 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     fs.writeFileSync(skill, "---\nname: mine\n---\n")
     fs.writeFileSync(linkedReal, "---\nname: linked\n---\n")
     fs.symlinkSync(path.dirname(linkedReal), path.join(root, "home", ".agents", "skills", "linked"))
+    // A skill may bundle a symlink to a file (e.g. a tool's python binary); the walk must not scandir it.
+    fs.writeFileSync(path.join(root, "elsewhere", "python3"), "")
+    fs.symlinkSync(path.join(root, "elsewhere", "python3"), path.join(path.dirname(skill), "python"))
     const { env } = privateCodexHome(path.join(root, "codex-home"), { HOME: path.join(root, "home"), CODEX_HOME: path.join(root, "none") })
     const config = fs.readFileSync(path.join(env.CODEX_HOME!, "config.toml"), "utf8")
     for (const p of [skill, path.join(root, "home", ".agents", "skills", "linked", "SKILL.md"), fs.realpathSync(linkedReal)]) {
