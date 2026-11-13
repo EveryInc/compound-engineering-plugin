@@ -342,6 +342,8 @@ const IDEATE_RUN_SCALING: Scenario[] = IDEATE_RUN_SCALING_ROWS.map(({ merge, ...
 }))
 /** main before ce-noslop named claim certainty and ruled out semicolons as em dash substitutes. */
 const NOSLOP_FIX_LIMITS_BASE_REF = "67035e931c5cb26e80f198a7019a4502a9788273"
+/** main before ce-noslop bounded what an edit may change (#2065). */
+const NOSLOP_EDIT_SCOPE_BASE_REF = "d8f8e03237bded06e77bcb3930b43ef841e7eeda"
 
 /**
  * A handoff-probe row runs live, so it loses the read-only `actions: "none"` restraint.
@@ -2112,6 +2114,85 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     pre_contract: "A sentence that passes stays as written; every fact survives.",
     task: "Use the ce-noslop skill to edit fragments.md for a repo document. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
     grade: { workspace_read: ["fragments.md"], result_must_include: ["| retries | 3 | per request |\n| timeout | 30 s | read only |\n", "- Fix crash on empty config\n- Add retry backoff\n", "migrate", "restart", "downtime"], actions: "none" },
+  },
+  {
+    id: "ce-noslop/passing-sentences-beside-slop-stay",
+    skill: "ce-noslop",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: NOSLOP_EDIT_SCOPE_BASE_REF,
+    fixture: `${FIX}/noslop-drafts`,
+    why: "Issue #2065: on Haiku 5.5, edit mode reworded passing sentences that sat next to failing ones (\"sits on\" to \"is on\", \"has room for 45 desks\" to \"has 45 desks\", a sentence merged into its rewritten neighbor). Run with ANTHROPIC_MODEL=claude-haiku-5-5 to reach the tier that drifts.",
+    pre_contract: "Rewrite only the sentences a test fails on; a sentence that passes stays as written.",
+    task: "Use the ce-noslop skill to edit edit-scope.md before I send it to the team. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
+    grade: {
+      workspace_read: ["edit-scope.md"],
+      result_must_include: [
+        "The night shift will keep using the old pick lists until the dry run is signed off by Shifza.",
+        "The building sits on Fehi Hingun Road and has room for 45 desks across two floors.",
+        "Dr. Mohamed Zahir will lead the field team, and the first survey window runs from 11 January to 29 January 2027.",
+        "Hi team,",
+        "Aishath",
+      ],
+      result_must_not_include: ["thrilled", "pivotal", "Let me know if you have any questions"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-noslop/clean-letter-returns-unchanged",
+    skill: "ce-noslop",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: NOSLOP_EDIT_SCOPE_BASE_REF,
+    fixture: `${FIX}/noslop-drafts`,
+    why: "Issue #2065: on Haiku 5.5, clean text came back edited (\"Thank you for\" to \"Thanks for\", \"will stop\" to \"stop\"). A letter with no tell returns byte for byte. Only Haiku 5.5 failed it before the fix (1 of 10 runs; Claude and Codex at default tier passed), so run with ANTHROPIC_MODEL=claude-haiku-5-5 to see red.",
+    pre_contract: "A sentence that passes stays as written, so a second pass on the returned text changes nothing.",
+    task: "Use the ce-noslop skill to edit clean-reply.md before I send it. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
+    grade: {
+      workspace_read: ["clean-reply.md"],
+      result_must_include: [
+        "Hi Ibrahim,\n\nThank you for sending the screenshots. The export job will stop at 14:00 on Friday while we move the database. It will restart by 18:00, and any export queued in that window will run then.\n\nIf the restart slips past 18:00, I will post the new time in #ops before 17:00.\n\nThanks,\nMariyam",
+      ],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-noslop/title-and-closer-keep-the-request",
+    skill: "ce-noslop",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: NOSLOP_EDIT_SCOPE_BASE_REF,
+    fixture: `${FIX}/noslop-drafts`,
+    why: "Issue #2065: a title line with no # marker kept its Title Case and emoji, and stock closers survived. The greeting stays, the closers go, and the real request inside a closer survives. The grader is case-insensitive, so read the title's case in the transcript.",
+    pre_contract: "Title Case headings become sentence case; decorative emoji go; chatbot closers go; every fact survives; a heading or sign-off in a letter is never flagged.",
+    task: "Use the ce-noslop skill to edit title-closer.md before I send it to the office. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
+    grade: {
+      workspace_read: ["title-closer.md"],
+      result_must_include: ["Hi all,", "extra boxes", "3 March", "08:00", "17:00", "2 March", "Friday"],
+      result_must_not_include: ["\u{1F69A}", "Hope this helps", "Don't hesitate"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-noslop/sycophant-opener-keeps-the-name",
+    skill: "ce-noslop",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: NOSLOP_EDIT_SCOPE_BASE_REF,
+    fixture: `${FIX}/noslop-drafts`,
+    why: "Issue #2065: deleting \"You're absolutely right, Hassan!\" also dropped the reader's name. The praise goes and the answer still addresses Hassan. Only Haiku 5.5 failed it before the fix (2 of 10 runs; Claude and Codex at default tier passed), so run with ANTHROPIC_MODEL=claude-haiku-5-5 to see red.",
+    pre_contract: "Sycophancy before the answer goes; every name in the input survives.",
+    task: "Use the ce-noslop skill to edit sycophant-reply.md, my reply on a PR. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
+    grade: {
+      workspace_read: ["sycophant-reply.md"],
+      result_must_include: ["Hassan", "locale", "purge the cache"],
+      result_must_not_include: ["absolutely right", "Great catch"],
+      actions: "none",
+    },
   },
   {
     id: "ce-noslop/detect-uses-plain-labels",

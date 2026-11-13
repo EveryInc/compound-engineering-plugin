@@ -1,0 +1,1 @@
+You're absolutely right, Hassan! Great catch. The cache key leaves out the locale, so a French page can be served to an English reader. I'll add the locale to the key in this PR and purge the cache after the deploy.

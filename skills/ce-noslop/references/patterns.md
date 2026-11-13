@@ -2,7 +2,9 @@
 
 Rule numbers are stable ids. A removed rule leaves a gap; never renumber. Each rule names the pattern and the fix. The tests in `SKILL.md` decide whether a passage is a finding; this catalog names what to look for and what to write instead.
 
-**False-positive floor.** A single device is a choice, not a tell. Flag a passage when patterns accumulate (SKILL.md test 5), and never flag: text inside quotation marks, titles, or code; a term the domain uses for one exact meaning; deliberate repetition for emphasis; a scope statement, safety notice, or real correction; one short sentence for emphasis; a heading or sign-off in a letter.
+**False-positive floor.** A single device is a choice, not a tell. Flag a passage when patterns accumulate (SKILL.md test 5), and never flag: text inside quotation marks, the title of a cited work, or code; a term the domain uses for one exact meaning; deliberate repetition for emphasis; a scope statement, safety notice, or real correction; one short sentence for emphasis; a letter's greeting, heading, or sign-off, where the sign-off is the closing word and the name, not a stock line before them.
+
+**What an edit may change.** Decide for each sentence whether a test or rule fails on it before you rewrite anything. A sentence nothing fails on comes back exactly as written, even when the sentence beside it is rewritten. In a failing sentence, change only the span that fails and keep the rest of its words. When a deleted span holds a fact, keep the fact in plain words. Before returning, compare each sentence with its source and restore every change no test or rule required. The usual failure is a passing sentence reworded while its neighbor was being fixed: a word swapped for a synonym ("sits on" to "is on", "Thank you" to "Thanks"), a tense or voice changed ("will stop" to "stops", "signed off by Shifza" to "Shifza signs off"), a qualifier trimmed ("has room for 45 desks" to "has 45 desks"), or a sentence split or merged.
 
 ## Content
 
@@ -46,15 +48,15 @@ Rule numbers are stable ids. A removed rule leaves a gap; never renumber. Each r
 29. **Em dash as a rhythm crutch.** Several per paragraph, or a formulaic "this isn't X — it's Y". Use a period or a comma, or split the sentence. A semicolon is not a substitute. Leave dashes alone in code, ranges, and tables.
 30. **Bold label that restates its line.** "**Performance:** performance improved." Convert to prose. Keep a bold lead-in only when the sentence after it says something the label did not.
 31. **Bold sprinkled for emphasis**, every proper noun or acronym bolded. Bold only what the reader must find.
-32. **Title Case headings.** Sentence case.
+32. **Title Case headings.** Sentence case. A document's title line is a heading whether or not it carries a `#` marker.
 33. **Decorative emoji** in headings and bullets. Remove, unless the caller's contract fixes them.
 34. **Bullets where two sentences of prose read better**; headers over two-sentence sections; horizontal rules between every section of a short document. Format follows content.
 35. **Curly quotes** mixed with straight ones. Straight quotes in technical text.
 
 ## Chat artifacts
 
-36. **Chatbot openers and closers.** "Certainly", "Great question", "Happy to help", "Let me know if you need anything else", "Want me to". Remove; state the content.
-37. **Sycophancy.** "You're absolutely right" before the answer. Answer.
+36. **Chatbot openers and closers.** "Certainly", "Great question", "Happy to help", "I'm thrilled to share", "Excited to announce", "Hope this helps", "Feel free to", "Don't hesitate to reach out", "Let me know if you need anything else", "Want me to". A courtesy that names something the reader did or must do carries content, so thanks for specific screenshots stays and a request for something specific stays. Delete the stock phrase; do not reword it into a milder one. When it wraps a request or fact, keep that request or fact in plain words.
+37. **Sycophancy.** Praise for the reader before the answer, such as "You're absolutely right" or "Great catch". Delete all of it and answer. When the praise names the reader, start the answer with that name.
 38. **Announcing the next point.** "Let's dive in", "here's what you need to know", "without further ado". State the point.
 39. **Process narration in a report.** Steps the agent took that do not change what the reader does next. A cause that was ruled out or a fix that failed stays, stated as a finding; the account of how the agent spent its time goes.
 40. **Knowledge-limit disclaimers and gap-filling.** "While details are limited, it likely..." State what the source does not show, or cut the sentence. Never present a guess as a fact.
