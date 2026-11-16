@@ -75,6 +75,8 @@ Preferred mappings run first. Only after an observed unavailable, obsolete, or i
 
 Target `antigravity` never takes a host-chosen replacement. Its worker requests Gemini 4 Argon and, when the account does not offer Argon, falls back once to Gemini Flash before any prompt is sent; the run log names the model used. A configured `antigravity` model runs exactly or the pass skips.
 
+The codex worker treats its own editorial request the same way. When the account does not offer the default model, it falls back once to its alternate before any prompt is sent. When the adapter refuses the editorial reasoning effort, it retries once without it and records `effort_requested: unverified`. A configured codex model or effort runs exactly or the pass skips.
+
 ## Step 2 — Provider model + reasoning tier (defined in the script)
 
 The peer runs on **one editorially selected model and reasoning tier per provider**. The concrete model IDs and route effort flags live in one mapping in `scripts/cross-model-adversarial-review.sh`; this reference does not repeat them. Codex, Claude Opus, and Antigravity currently use high; native Grok uses extra-high. The cursor-agent Grok route uses Cursor's high/fast preset, because Cursor offers one preset per model; composer's fast tier is its ceiling. Users choose the peer target, and may pin that target's model and effort through `cross_model_model` / `cross_model_effort` (Step 1); the script validates and never substitutes. Never inherit a harness-configured default model. A lower tier is adopted only after an eval shows it finds the same issues, never from cost alone.

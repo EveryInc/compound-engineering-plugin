@@ -163,6 +163,18 @@ describe.skipIf(process.env.ACPX_CONTRACT !== "1" || process.platform === "win32
     ])
   })
 
+  test("a refused config option ends the run before any session/prompt, with the error under that request's id", async () => {
+    const ws = workspace()
+    const run = withLines(await acpx([
+      "--cwd", ws.cwd, "--format", "json", "--timeout", "5", "--agent", `node ${STUB} refuse-effort`, "exec",
+      "--config-option", "mode=read-only", "--config-option", "reasoning_effort=high", "--file", ws.prompt,
+    ], ws))
+    expect(run.code).not.toBe(0)
+    expect(promptRequest(run)).toBeUndefined()
+    const refused = run.lines.find((line) => line.method === "session/set_config_option" && line.params?.configId === "reasoning_effort")
+    expect(run.lines.find((line) => line.method === undefined && line.id === refused?.id)?.error?.code).toBe(-32602)
+  })
+
   test("a reply that ends the turn exits 0 with one message chunk and an end_turn result", async () => {
     const run = await exec("end_turn")
     expect(run.code).toBe(0)

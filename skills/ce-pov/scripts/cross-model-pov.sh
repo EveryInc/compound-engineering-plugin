@@ -87,6 +87,9 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 # ONE model per provider at its editorial tier (native Grok is xhigh; Codex and Claude stay high). Concrete IDs are the CURRENT instance of the tier principle
 # and the single maintenance point when model families change.
 M_CODEX="gpt-6.1-sol"          # codex     (reasoning_effort=high)
+# Codex offers only the effort levels the signed-in account lists for the model.
+CODEX_EFFORT="high"
+CODEX_EFFORT_DROPPED=""
 M_CLAUDE="claude-opus-5-5"     # claude    (effort=high)
 M_GROK="grok-4.7"              # grok CLI  (reasoning_effort=xhigh)
 # Cursor's ACP server offers one preset per model and rejects effort variants,
@@ -480,7 +483,8 @@ adapter_argv() {
   [ "$model" = auto ] || printf '%s\0' --model "$model"
   acpx_agent_argv "$route"
   case "$route" in
-    codex)    printf '%s\0' --config-option mode=read-only --config-option reasoning_effort=high ;;
+    codex)    printf '%s\0' --config-option mode=read-only
+      [ -n "$CODEX_EFFORT_DROPPED" ] || printf '%s\0' --config-option "reasoning_effort=$CODEX_EFFORT" ;;
     claude)   printf '%s\0' --config-option mode=default --config-option effort=high ;;
     grok-cli) printf '%s\0' --config-option reasoning_effort=xhigh ;;
     grok-cursor|cursor|composer) printf '%s\0' --config-option mode=ask ;;
@@ -962,10 +966,17 @@ bounded_failure_evidence() {   # <logfile>; bounded head+tail of a plain-text lo
   printf '%s' "$evidence"
 }
 
+acpx_refused_config_option() {   # <stream-log>
+  jq -nrR '[inputs | fromjson?] as $m
+    | first($m[] | select(.method == "session/set_config_option") as $req
+        | select(any($m[]; .method == null and .id == $req.id and .error != null))
+        | "\($req.params.configId)=\($req.params.value)") // empty' "$1" 2>/dev/null
+}
+
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
 # Success is the prompt's own end_turn result, not acpx's exit status.
 attempt_route() {   # <provider> <route>
-  local provider="$1" route="$2" outcome reason started remaining node_line cancel_reason
+  local provider="$1" route="$2" outcome reason started remaining node_line cancel_reason refused
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT" "$TEXT_OUT"
   RUN_SUCCEEDED=false
   build_cmd "$route"
@@ -1006,6 +1017,8 @@ attempt_route() {   # <provider> <route>
         else
           reason="$(acpx_npm_failure_reason "$PEERLOG")"
           [ -n "$reason" ] || reason="$(acpx_failure_evidence "$PEERLOG")"
+          refused="$(acpx_refused_config_option "$PEERLOG")"
+          [ -z "$refused" ] || reason="${reason:-session option refused} (the adapter refused $refused)"
           PRE_EGRESS="transport unavailable (pre-egress, route): ${reason:-acpx exited $PEER_EXIT before sending the prompt}"
         fi
       fi
@@ -1048,6 +1061,18 @@ run_fixed_route() {
         fi
         ;;
     esac
+  fi
+  if [ "$FIXED_ROUTE" = codex ] && [ -n "$PRE_EGRESS" ] && [ -z "$CODEX_EFFORT_DROPPED" ] &&
+     [ "$(acpx_refused_config_option "$PEERLOG")" = "reasoning_effort=$CODEX_EFFORT" ]; then
+    remaining=$(( HARD_SECS - ( $(date +%s) - ROUTE_STARTED_AT ) ))
+    if [ "$remaining" -gt 0 ]; then
+      log "Codex refused reasoning_effort=$CODEX_EFFORT for $(route_model codex) on this account; retrying once at the account's default effort"
+      CODEX_EFFORT_DROPPED=1
+      PRE_EGRESS=""
+      HARD_SECS="$remaining"
+      ROUTE_STARTED_AT="$(date +%s)"
+      attempt_route "$provider" "$FIXED_ROUTE"
+    fi
   fi
   [ -z "$PRE_EGRESS" ] || { cleanup_private_scratch; skip "$PRE_EGRESS"; }
   # One bounded retry on the same route, target, model, and scope; the only

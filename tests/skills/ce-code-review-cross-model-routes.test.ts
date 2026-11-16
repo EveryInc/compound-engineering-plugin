@@ -1644,6 +1644,54 @@ describe("cross-model-adversarial-review antigravity route", () => {
   })
 })
 
+// What acpx@0.22.0 prints when codex-acp refuses a session option the account's
+// model does not list: the option request fails before any prompt is sent.
+function configRejectedStream(configId: string, value: string, base: string) {
+  const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
+  const sessionId = "stub-session-1"
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+    rpc({ id: 1, result: { sessionId } }),
+    rpc({ id: 2, method: "session/set_config_option", params: { sessionId, configId, value } }),
+    rpc({ id: 2, error: { code: -32602, message: "Invalid params" } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.exit`, "1\n")
+}
+
+describe("cross-model-adversarial-review codex account catalog (#2074, #2075)", () => {
+  const codexRun = (base: string, env: Record<string, string> = {}) => {
+    const sb = sandbox(["codex"], base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, { ...sb.env, ...env })
+    return { sb, runDir, r }
+  }
+
+  test("an account without gpt-6.1-terra or the editorial effort recovers with gpt-6.1-sol at its default effort", () => {
+    const base = path.join(temp("xmodel-cr-stream-"), "s")
+    unadvertisedStream("gpt-6.1-terra", "gpt-6.1-sol", `${base}.1`)
+    configRejectedStream("reasoning_effort", "high", `${base}.2`)
+    acpStream({ text: review() }, `${base}.3`)
+    const { sb, runDir, r } = codexRun(base)
+    expect(calls(sb)).toBe(3)
+    expect(r.stderr).toContain("falling back to gpt-6.1-sol")
+    expect(r.stderr).toContain("refused reasoning_effort=high")
+    expect(argv(sb).some((a) => a.startsWith("reasoning_effort="))).toBe(false)
+    const out = published(runDir, "adversarial-codex.json")
+    expect([out.model_requested, out.effort_requested]).toEqual(["gpt-6.1-sol", "unverified"])
+  })
+
+  test("a refused configured effort skips and names the refused option", () => {
+    const base = path.join(temp("xmodel-cr-stream-"), "s")
+    configRejectedStream("reasoning_effort", "xhigh", `${base}.1`)
+    const { sb, r } = codexRun(base, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })
+    expect(calls(sb)).toBe(1)
+    expect(r.stderr).toMatch(/transport unavailable \(pre-egress, route\): Invalid params .*reasoning_effort=xhigh/)
+    expect(peerOutputs(r.files)).toEqual([])
+  })
+})
+
 describe("cross-model provider kernel parity (code-review vs doc-review)", () => {
   test.each([
     ["route mapping", "route_effort() {", "# --- acpx transport"],
