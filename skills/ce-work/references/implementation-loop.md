@@ -31,7 +31,7 @@ When a unit carries an `Execution note`, honor its intent rather than matching a
 
 Guardrails for execution evidence:
 - Do not write the test and implementation in the same step when working proof-first
-- Do not skip verifying that a new or changed test fails for the expected reason before implementing the fix or feature
+- Do not skip verifying that a new or changed test fails for the expected reason before implementing the fix or feature. When the behavior rests on more than one guard, also confirm after implementing that the test fails when each guard alone is removed, restoring each one afterward
 - Do not over-implement beyond the current behavior slice when working proof-first
 - Do not add a duplicate regression test when an existing test is the right home; update or strengthen that test instead, then observe the failure before changing code
 - A new or changed test must fail when the behavior it names breaks, and keep passing when only the implementation changes. It fails that bar when its expected value comes from the code under test, when a mock or fixture supplies the result the code should produce, or when it asserts calls between internal parts instead of what the code returns, stores, or sends across its boundary
