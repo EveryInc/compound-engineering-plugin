@@ -38,7 +38,7 @@ Merging is the user's unless they granted it for this run. When they did, pass t
 
 ## Step 10 — common result gate
 
-This check applies to whichever handoff produced the result. Keep the `needs-human` residuals it returned unchanged, with every field they carry. Before DONE, render the complete set under `## Needs your decision`, including each residual's quoted feedback, investigation, decision reason, options and tradeoffs, recommendation if any, and every open-thread link. A non-empty set means the run hands decisions to the user; it is never successful completion. A generic count or a PR link does not count as passing the set on. Unfixable CI still belongs in the babysitter's run-report comment, never a PR-body section.
+This check applies to whichever handoff produced the result. Keep the `needs-human` residuals it returned unchanged, with every field they carry. On the defect route, add the `residuals` that `ce-debug`'s `fixed` return carried, also unchanged. Before DONE, render the complete set under `## Needs your decision`, including each residual's quoted feedback, investigation, decision reason, options and tradeoffs, recommendation if any, and every open-thread link. A non-empty set means the run hands decisions to the user; it is never successful completion. A generic count or a PR link does not count as passing the set on. Unfixable CI still belongs in the babysitter's run-report comment, never a PR-body section.
 
 ## Step 11 — close out
 

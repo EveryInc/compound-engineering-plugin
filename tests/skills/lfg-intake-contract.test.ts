@@ -153,6 +153,14 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
     expect(debugReturnGate).toMatch(/Step 11, close-out:[^\n]*`prevention_signal`/)
   })
 
+  // ce-debug can return `fixed` while leaving a sibling site as a needs-human residual
+  // (PR #2080 review); lfg must carry it into the decision set, not drop it with the fix.
+  test("needs-human residuals on a fixed ce-debug return reach the step 10 decision set", () => {
+    expect(readRepoFile("skills/ce-debug/references/fix.md")).toContain("`needs-human` residual beside the fixed status")
+    expect(debugReturnGate).toMatch(/`fixed` return may still carry `needs-human` `residuals`/)
+    expect(shippingTail).toMatch(/Step 10[\s\S]*?`residuals` that `ce-debug`'s `fixed` return carried/)
+  })
+
   // Five audited lfg/babysit runs (2026-11-08) ended ce-debug with a commit and no return,
   // and the same-session caller carried on, so the offered-scope check never ran.
   test("a ce-debug run that ends without its return stops the run like a malformed one", () => {
