@@ -10,6 +10,7 @@ const destinations = read("references/destinations.md")
 const checkIn = read("references/check-in.md")
 const html = read("references/explainer-html.md")
 const markdown = read("references/explainer-markdown.md")
+const orchestration = read("references/orchestration.md")
 
 function phase(start: string, end?: string): string {
   const from = body.indexOf(start)
@@ -78,7 +79,7 @@ describe("ce-explain preserved regressions", () => {
   })
 
   test("missing diff scopes cannot silently become another subject", () => {
-    const grounding = phase("### Phase 2", "### Phase 3")
+    const grounding = orchestration
     expect(grounding).toContain("**Empty range**")
     expect(grounding).toContain("do not silently explain something else")
     expect(grounding).toContain("request permits it or the user agrees")
@@ -86,7 +87,7 @@ describe("ce-explain preserved regressions", () => {
   })
 
   test("recap evidence is independent of the main agent's initial narrative", () => {
-    const grounding = phase("### Phase 2", "### Phase 3")
+    const grounding = orchestration
     expect(grounding).toContain("Do not pre-scan, count, or characterize the window")
     expect(grounding).toContain("dispatch a generic subagent directly")
     expect(grounding).toContain("harness exposes no subagent primitive")

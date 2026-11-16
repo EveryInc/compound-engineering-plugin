@@ -16,21 +16,25 @@ Adapt depth and presentation to the intended readers and use. A person may need 
 
 Resolve discoverable facts before asking. Ask only when missing information materially changes the answer and cannot be resolved from the request or evidence. If interaction is unavailable, return the unresolved question and its consequence rather than waiting or inventing an answer. A result may explain verified behavior while reporting that its historical rationale is unknown.
 
-**Read `references/orchestration.md` before grounding, the first blocking question, or subagent dispatch.** It defines evidence gathering, tool use, model tiers, and their fallbacks.
+**When a request takes the full path below, read `references/orchestration.md` before grounding, the first blocking question, or subagent dispatch.** It defines evidence gathering, tool use, model tiers, and their fallbacks.
+
+## Plain why and how questions
+
+Most requests ask why something in the project has its current shape, or how it works, and want an answer back. Take this short path when an answer satisfies the request, with no document to keep, teach from, or share, and the subject is not a named change, a window of work, the user's own idea, or an external concept. It needs no intake, orchestration, or scouts. If you must ask the user something, follow the interaction method in `references/orchestration.md`.
+
+For a why question, answer from the record: the commits and pull requests that introduced the target and later changed it, their review discussion and linked issues, code comments, and any plan or learning they cite. Cite what the authors wrote, with the commit, pull request, or file it came from. Stay within the request's source restrictions. Access to team chat is not permission to search it when the calling workflow makes that opt-in.
+
+For a how question, read the source and the tests that cover it. A file name or a conversation claim does not establish behavior. Follow the trigger through its state changes and the components it passes between to its effect, citing file and line. Keep the conditions and failure paths that matter to the requested use.
+
+Mark your own inferences as inferences, separate from documented reasons. Say what the record does not answer; a missing search result does not prove there was no reason. Check that a historical constraint still applies before presenting it as a current requirement.
+
+Then compose and deliver under Phases 3 and 4. Switch to the full path below, keeping the evidence already gathered, when the reader wants an artifact, or when one pass cannot name the components a how answer passes between without hand-waving.
 
 ## Artifact Root
 
-An explainer lands under `<root>/explainers/` only when archived to the repo, and learnings may be read under `<root>/solutions/`. Resolve `<root>` only when you compose such a path; a scratch-only or external-concept run never composes one. Pass the resolved path to any subagent, not the config.
+Before composing any `<root>/` path, including reading learnings under `<root>/solutions/`, read `references/artifact-root.md`. It resolves `<root>`.
 
-<!-- ce-docs-root:start -->
-**Resolve the CE artifact root `<root>` before composing any artifact path.**
-
-- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.yaml` only (`<repo-root>` = `git rev-parse --show-toplevel`). Do not read it from `config.local.yaml`. Unset -> `<root>` is `docs`, exactly as before.
-- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
-- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
-<!-- ce-docs-root:end -->
-
-## Execution Flow
+## Full path
 
 ### Phase 1: Establish the question and use
 
@@ -40,24 +44,7 @@ Read `references/intake.md` now. It defines how the subject and time window are 
 
 Follow `references/orchestration.md` for the scoped evidence pass. Use existing evidence when it is adequate and current; check claims whose support is missing, disputed, or affected by source changes.
 
-Create a run directory only when an artifact or an evidence dossier needs one. Use this block before writing either; it rejects a symlink or a scratch root owned by another user:
-
-```bash
-SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
-[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
-if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
-(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
-if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
-chmod 700 "$SCRATCH_ROOT" || exit 1;
-RUN_DIR="$SCRATCH_ROOT/ce-explain/$(date +%Y%m%d)-$(openssl rand -hex 3)";
-(umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
-echo "$RUN_DIR";
-```
-
-A behavior trace that splits across ownership boundaries writes scout dossiers. Create this run directory before dispatching those scouts.
-
-- **Diff mode.** **Empty range** or missing subject: do not silently explain something else. Report that before explaining an adjacent thing. Use a substitute only when the request permits it or the user agrees; name the substitution in the result and artifact `Subject` when present. Otherwise return the unresolved scope to the caller.
-- **Recap mode.** Do not pre-scan, count, or characterize the window in the main conversation. Instead dispatch a generic subagent directly at the extraction tier, seeded with `references/agents/work-recap-scout.md` and passed the resolved window, repo root, and `$RUN_DIR`. **Empty window:** report the absence of activity and finish without an explainer artifact. **When the harness exposes no subagent primitive**, run the scout inline with its prompt's sources and budgets, still write `recap-evidence.md`, and form no view of the window until it is done. If dispatch fails, follow the fallback rule in `references/orchestration.md`.
+Create a run directory only when an artifact or an evidence dossier needs one, with the block in `references/orchestration.md`. A behavior trace that splits across ownership boundaries writes scout dossiers, so create it before dispatching those scouts.
 
 ### Phase 3: Compose the explanation
 

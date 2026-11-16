@@ -28,6 +28,8 @@ Plain language is the ordinary path. `diff:` and `since:` select the subject, `a
 
 The skill establishes the question and intended use before researching or creating files. It reuses adequate current evidence and investigates missing or disputed claims.
 
+A plain why or how question about the project that wants an answer back takes a short path. The skill reads the record directly, meaning the commits and pull requests that introduced and later changed the target, or the source and tests. It skips intake and orchestration. Artifacts, named changes, work windows, ideas, and external concepts take the full path.
+
 For **how**, it follows the relevant trigger, state changes, ownership boundaries, and effect. One pass is enough when that trace can name the boundaries. When one pass cannot, the question is split across read-only scouts, one slice each, and the caller reconciles their dossiers against the source. For **why**, it follows decision records, comments, history, PRs, and linked issues within the allowed sources. It does not search every available service by default, and it preserves a calling workflow's opt-in restrictions on team chat.
 
 Code demonstrates behavior, not necessarily the author's motivation. A missing historical reason stays unknown. Historical constraints are checked before being treated as current requirements. When the explanation informs a change, it identifies the relevant constraints and risks without choosing the implementation.
