@@ -2097,6 +2097,8 @@ def diff(state, cur, now=None, advance_trajectory=True, defer_behind=False):
     has_failing = False
     checks_terminal = True
     seen_keys = {}
+    # The rollup keeps a failed run next to its rerun; the failure is not final until the rerun settles.
+    rerunning_keys = {c["key"] for c in cur["checks"] if c["status"] != "COMPLETED"}
     for c in cur["checks"]:
         key = c["key"]
         if key in seen_keys:
@@ -2114,7 +2116,7 @@ def diff(state, cur, now=None, advance_trajectory=True, defer_behind=False):
         }
         if c["status"] != "COMPLETED":
             checks_terminal = False
-        if c["conclusion"] in FAILING:
+        if c["conclusion"] in FAILING and c["key"] not in rerunning_keys:
             has_failing = True
             failing_check_items[key] = {
                 "key": key, "name": c["name"], "conclusion": c["conclusion"],

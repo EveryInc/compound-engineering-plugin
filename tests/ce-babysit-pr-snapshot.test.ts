@@ -2950,6 +2950,25 @@ print(json.dumps({
     expect(d.has_failing_checks).toBe(false)
   })
 
+  test("a failed check is not actionable while its rerun on the same head is unfinished; the rerun's failure is", () => {
+    const firstRun = { key: "CI/test", name: "test", status: "COMPLETED", conclusion: "FAILURE", details_url: "run-1" }
+    for (const status of ["IN_PROGRESS", "QUEUED"]) {
+      const sd = path.join(dir, `rerun-${status}`)
+      const rerunning = { ...FAILING, threads: [], checks: [firstRun, { key: "CI/test", name: "test", status, conclusion: null, details_url: "run-2" }] }
+      const d = snapshot(sd, fetchFile(dir, `rerun-${status}.json`, rerunning))
+      expect(d.checks_terminal, status).toBe(false)
+      expect(d.has_failing_checks, status).toBe(false)
+      expect(d.all_checks_ok, status).toBe(false)
+      expect(d.counts.ci, status).toBe(0)
+
+      const rerunFailed = { ...rerunning, checks: [firstRun, { key: "CI/test", name: "test", status: "COMPLETED", conclusion: "FAILURE", details_url: "run-2" }] }
+      const after = snapshot(sd, fetchFile(dir, `rerun-${status}-failed.json`, rerunFailed))
+      expect(after.checks_terminal, status).toBe(true)
+      expect(after.has_failing_checks, status).toBe(true)
+      expect(after.actionable.ci.map((c: any) => c.details_url), status).toContain("run-2")
+    }
+  })
+
   test("clean + terminal + approved: all_checks_ok true, mergeStateStatus passthrough, no open needs-human", () => {
     const clean = {
       ...FAILING,
