@@ -1,0 +1,1 @@
+{ "name": "discounts", "private": true, "scripts": { "test": "node tests/discount.check.js && node tests/percent-input.check.js" } }

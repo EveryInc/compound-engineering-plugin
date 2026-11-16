@@ -1392,8 +1392,73 @@ function boundaryDiagnosticScenarios(): Scenario[] {
   ]
 }
 
+/** main before a check or test proving a property that rests on several guards had to be shown failing with each guard broken alone. Per tests/skill-eval-cell/packs/multi-guard-proof.md. */
+const MULTI_GUARD_BASE_REF = "8d2a49cd8ab3a12e11ee2822f56cd57a106f01e1"
+const NEGATIVE_TOTAL_BUG = "A 150% discount produced a negative order total. The fix, already in the tree, added percent range checks in src/discount.js."
+const NAN_TOTAL_BUG = "A non-numeric manual discount such as \"abc\" produced a NaN order total. The fix, already in the tree, added the Number.isFinite check in parsePercent in src/discount.js."
+const NO_ACTION = "Do not edit, run, or commit anything, and do not invoke another skill or dispatch."
+const multiGuardRow = (skill: string, name: string, why: string, task: string, answer: Record<string, string>): Scenario => ({
+  id: `${skill}/${name}`,
+  baseline_ref: MULTI_GUARD_BASE_REF,
+  skill,
+  cohort: "untouched",
+  key_behavior: "judgment",
+  read_only: true,
+  git_init: true,
+  fixture: `${FIX}/multi-guard-discount`,
+  why,
+  pre_contract: "A check or regression test counts as proven once it is seen failing on the defect and passing without it.",
+  task,
+  grade: { declared: answer, actions: "none" },
+})
+const MULTI_GUARD_ROWS: Scenario[] = [
+  multiGuardRow(
+    "ce-compound",
+    "check-two-guards-one-break",
+    "The no-negative-total property rests on two range checks, and the check was only seen failing with one removed; deleting applyCoupon's check leaves it green.",
+    `Use the ce-compound skill mode:non-interactive on this solved, verified problem from this session. ${NEGATIVE_TOTAL_BUG} We are choosing the form, and a check fits: you wrote tests/discount.check.js, saw npm test pass on the current tree, and in a throwaway copy of the tree deleted the range check in parsePercent and saw it fail. ${NO_ACTION} Put PROVEN: yes or PROVEN: no alone on its own line, saying whether those results are enough under this skill's rule to keep the check, and give the reason on a later line.`,
+    { PROVEN: "no" },
+  ),
+  multiGuardRow(
+    "ce-compound",
+    "check-one-guard-one-break",
+    "The restraint half: rejecting a non-numeric percent rests on one guard, so one break proves the check.",
+    `Use the ce-compound skill mode:non-interactive on this solved, verified problem from this session. ${NAN_TOTAL_BUG} We are choosing the form, and a check fits: you wrote tests/percent-input.check.js, saw npm test pass on the current tree, and in a throwaway copy of the tree deleted the Number.isFinite check in parsePercent and saw it fail. ${NO_ACTION} Put PROVEN: yes or PROVEN: no alone on its own line, saying whether those results are enough under this skill's rule to keep the check, and give the reason on a later line.`,
+    { PROVEN: "yes" },
+  ),
+  multiGuardRow(
+    "ce-debug",
+    "regression-test-two-guards",
+    "A red-then-green regression test covers only the manual-discount path; the fix's coupon guard can be removed with every test green.",
+    `Use ce-debug. We are in Phase 3. ${NEGATIVE_TOTAL_BUG} The cause is confirmed: nothing checked the percent range. My regression test tests/discount.check.js went red before the fix and green after, and npm test passes. ${NO_ACTION} Put VERIFIED: yes or VERIFIED: no alone on its own line, saying whether the fix is verified as this skill requires, and give the reason on a later line.`,
+    { VERIFIED: "no" },
+  ),
+  multiGuardRow(
+    "ce-debug",
+    "regression-test-one-guard",
+    "The restraint half: one guard, a red-then-green test through the real function, nothing more to break.",
+    `Use ce-debug. We are in Phase 3. ${NAN_TOTAL_BUG} The cause is confirmed: parsePercent passed NaN through. My regression test tests/percent-input.check.js went red before the fix and green after, and npm test passes. ${NO_ACTION} Put VERIFIED: yes or VERIFIED: no alone on its own line, saying whether the fix is verified as this skill requires, and give the reason on a later line.`,
+    { VERIFIED: "yes" },
+  ),
+  multiGuardRow(
+    "ce-work",
+    "proof-first-two-guards",
+    "Proof-first red before implementation shows nothing about which of the two new guards the test depends on.",
+    `Use ce-work. I am executing this unit: "Reject discount percents outside 0-100, so no order total goes negative." Working proof-first, I wrote tests/discount.check.js and saw it fail, then added the range checks in src/discount.js. The test passes now and npm test is green. ${NO_ACTION} Put VERIFIED: yes or VERIFIED: no alone on its own line, saying whether this unit's proof meets this skill's bar to mark it done, and give the reason on a later line.`,
+    { VERIFIED: "no" },
+  ),
+  multiGuardRow(
+    "ce-work",
+    "proof-first-one-guard",
+    "The restraint half: one guard, proof-first red then green, the unit is done.",
+    `Use ce-work. I am executing this unit: "Reject non-numeric manual discount percents, so no order total becomes NaN." Working proof-first, I wrote tests/percent-input.check.js and saw it fail, then added the Number.isFinite check in parsePercent in src/discount.js. The test passes now and npm test is green. ${NO_ACTION} Put VERIFIED: yes or VERIFIED: no alone on its own line, saying whether this unit's proof meets this skill's bar to mark it done, and give the reason on a later line.`,
+    { VERIFIED: "yes" },
+  ),
+]
+
 export const SCENARIOS: Scenario[] = [
   ...VISUAL_EVIDENCE_ROWS,
+  ...MULTI_GUARD_ROWS,
   ...["md", "html"].map((format): Scenario => ({
     id: `ce-prototype/local-source-${format}`,
     baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
