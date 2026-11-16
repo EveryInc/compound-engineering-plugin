@@ -35,6 +35,8 @@ const CONSUMER_FILES: Record<string, string> = {
   // ce-commit-push-pr composes <root>/ paths only in explainer archival, which this
   // reference owns and states the rule immediately before.
   "ce-commit-push-pr": "references/apply-and-handoff.md",
+  // ce-explain's body points here before any <root>/ path, keeping its why/how short path small.
+  "ce-explain": "references/artifact-root.md",
 }
 const CONSUMER_SKILLS = [
   "ce-help",
