@@ -95,7 +95,7 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 **Problem**: [What was broken]
 **Root Cause**: [Full causal chain, with file:line references — or one line pointing back to the findings block when it is already on screen]
 **Recommended Tests**: [Diagnosis only: tests to add or modify to prevent recurrence, with file, assertion guidance, and one line on what that seam catches and misses. Omit when Phase 3 ran]
-**Fix**: [What was changed and how it was verified — or "diagnosis only" if Phase 3 was skipped]
+**Fix**: [What was changed, including every other site of the same mistake, and how it was verified — or "diagnosis only" if Phase 3 was skipped]
 **Prevention**: [Test coverage added; structural fix or operation guard if applicable, or the structural fix left as follow-up; the always-on signal the findings block proposed, when it proposed one]
 **Confidence**: [High/Medium/Low]
 ```

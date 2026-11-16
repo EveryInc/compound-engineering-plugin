@@ -1,0 +1,7 @@
+{
+  "name": "shop-admin",
+  "private": true,
+  "scripts": {
+    "test": "node tests/orders.check.js"
+  }
+}
