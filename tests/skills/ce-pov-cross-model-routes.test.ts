@@ -871,6 +871,50 @@ function logModelsPerCall(sb: Sandbox) {
   return () => existsSync(log) ? readFileSync(log, "utf8").split("\n").slice(0, -1) : []
 }
 
+// What acpx@0.22.0 prints when codex-acp refuses a session option the account's
+// model does not list: the option request fails before any prompt is sent.
+function configRejectedStream(configId: string, value: string, base: string) {
+  const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
+  const sessionId = "stub-session-1"
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+    rpc({ id: 1, result: { sessionId } }),
+    rpc({ id: 2, method: "session/set_config_option", params: { sessionId, configId, value } }),
+    rpc({ id: 2, error: { code: -32602, message: "Invalid params" } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.exit`, "1\n")
+}
+
+describe("ce-pov codex account catalog (#2074)", () => {
+  test("a refused reasoning_effort retries once without it and publishes", () => {
+    const base = path.join(temp("pov-stream-"), "s")
+    configRejectedStream("reasoning_effort", "high", `${base}.1`)
+    acpStream({ text: pov() }, `${base}.2`)
+    const sb = sandbox(["codex"], base)
+    const dir = runDir()
+    const result = run(["claude", "codex", payload(), dir], dir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(result.stderr).toContain("refused reasoning_effort=high")
+    expect(argv(sb)).toContain("mode=read-only")
+    expect(argv(sb).some((a) => a.startsWith("reasoning_effort="))).toBe(false)
+    expect(published(dir, "codex").model_requested).toBe("gpt-6.1-sol")
+  })
+
+  test("a second refusal is not retried and names the refused option", () => {
+    const base = path.join(temp("pov-stream-"), "s")
+    configRejectedStream("reasoning_effort", "high", `${base}.1`)
+    configRejectedStream("mode", "read-only", `${base}.2`)
+    const sb = sandbox(["codex"], base)
+    const dir = runDir()
+    const result = run(["claude", "codex", payload(), dir], dir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(result.stderr).toMatch(/transport unavailable \(pre-egress, route\): Invalid params \(the adapter refused mode=read-only\)/)
+    expect(result.files.filter((f) => f.endsWith(".json"))).toEqual([])
+  })
+})
+
 describe("ce-pov antigravity route", () => {
   test("--emit-adapter antigravity requests Argon read-only at thinking_level=high with a private GEMINI_HOME", () => {
     const command = emit("antigravity")

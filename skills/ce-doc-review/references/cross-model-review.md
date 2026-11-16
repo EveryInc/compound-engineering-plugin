@@ -76,6 +76,8 @@ Preferred model mappings run first. Only after the preferred ID is observed unav
 
 Target `antigravity` never takes a host-chosen replacement. Its worker requests Gemini 4 Argon and, when the account does not offer Argon, falls back once to Gemini Flash before any prompt is sent; the run log names the model used. A configured `antigravity` model runs exactly or the pass skips.
 
+The codex worker treats its own editorial request the same way. When the account does not offer the default model, it falls back once to its alternate before any prompt is sent. When the adapter refuses the editorial reasoning effort, it retries once without it and records `effort_requested: unverified`. A configured codex model or effort runs exactly or the pass skips.
+
 ## Step 2 — Provider model + reasoning tier (defined in the script)
 
 All activated lenses run on **one model per provider at high reasoning, except native Grok on extra-high**. The cursor-agent Grok route uses Cursor's high/fast preset, because Cursor offers one preset per model; composer's fast tier is its ceiling, an accepted exception. The concrete model IDs and per-route reasoning flags live in a **single mapping in the script** (`scripts/cross-model-doc-review.sh`, the `M_CODEX`/`M_CLAUDE`/`M_GROK`/`M_GROK_CURSOR`/`M_COMPOSER`/`M_ANTIGRAVITY` constants and the `adapter_argv` builder). A checkout may pin the resolved target's model and effort through `cross_model_model` / `cross_model_effort` (Step 1); the script validates and never substitutes. This reference deliberately does **not** restate the IDs; one source of truth prevents the reference and script from drifting. The IDs are the current choice under the tier rule (a single maintenance point), not the contract.

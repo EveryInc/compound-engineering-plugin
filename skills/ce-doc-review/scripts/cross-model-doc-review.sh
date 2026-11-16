@@ -98,6 +98,10 @@ case "$TRANSIENT_RETRY_DELAY_SECS" in ''|*[!0-9]*) skip "transient retry delay m
 # CROSS_MODEL_MODEL_OVERRIDE, same target/family only) and the reasoning effort
 # (CROSS_MODEL_EFFORT_OVERRIDE, validated per route); both fail closed.
 M_CODEX="gpt-6.1-terra"        # codex     (reasoning_effort=high)
+# Codex offers only the models and effort levels the signed-in account lists.
+M_CODEX_FALLBACK="gpt-6.1-sol"
+CODEX_MODEL=""
+CODEX_EFFORT_DROPPED=""
 M_CLAUDE="claude-opus-5-5"     # claude    (effort=high)
 M_GROK="grok-4.7"              # grok CLI  (reasoning_effort=xhigh)
 # Cursor's ACP server offers one preset per model and rejects effort variants,
@@ -111,6 +115,7 @@ M_ANTIGRAVITY_FALLBACK="gemini-3.8-flash"
 ANTIGRAVITY_MODEL=""   # set by the fallback; empty requests M_ANTIGRAVITY
 
 route_effort() {   # <route> -> requested effort: the override where the route takes one, else editorial
+  [ "$1" = codex ] && [ -n "$CODEX_EFFORT_DROPPED" ] && { printf 'unverified'; return 0; }
   if [ -n "${CROSS_MODEL_EFFORT_OVERRIDE:-}" ]; then
     case "$1" in
       codex|claude|grok-cli|antigravity|opencode) printf '%s' "$CROSS_MODEL_EFFORT_OVERRIDE"; return 0 ;;
@@ -135,7 +140,7 @@ route_model() {   # <route> -> the M_* constant that route requests
     return 0
   fi
   case "$1" in
-    codex)       printf '%s' "$M_CODEX" ;;
+    codex)       printf '%s' "${CODEX_MODEL:-$M_CODEX}" ;;
     claude)      printf '%s' "$M_CLAUDE" ;;
     grok-cli)    printf '%s' "$M_GROK" ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
@@ -504,7 +509,8 @@ adapter_argv() {
   [ "$model" = auto ] || printf '%s\0' --model "$model"
   acpx_agent_argv "$route"
   case "$route" in
-    codex)    printf '%s\0' --config-option mode=read-only --config-option "reasoning_effort=$(route_effort codex)" ;;
+    codex)    printf '%s\0' --config-option mode=read-only
+      [ -n "$CODEX_EFFORT_DROPPED" ] || printf '%s\0' --config-option "reasoning_effort=$(route_effort codex)" ;;
     # Claude otherwise starts in the user's default permission mode, which can
     # skip permission requests entirely and leave --deny-all nothing to deny.
     claude)   printf '%s\0' --config-option mode=default --config-option "effort=$(route_effort claude)" ;;
@@ -1107,10 +1113,17 @@ provider_overloaded() {
   [ "$PROVIDER_OUTCOME" = "overloaded" ]
 }
 
+acpx_refused_config_option() {   # <stream-log>
+  jq -nrR '[inputs | fromjson?] as $m
+    | first($m[] | select(.method == "session/set_config_option") as $req
+        | select(any($m[]; .method == null and .id == $req.id and .error != null))
+        | "\($req.params.configId)=\($req.params.value)") // empty' "$1" 2>/dev/null
+}
+
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
 # Success is the prompt's own end_turn result, not acpx's exit status.
 attempt_route() {   # <provider> <route>
-  local provider="$1" route="$2" outcome reason started remaining node_line cancel_reason
+  local provider="$1" route="$2" outcome reason started remaining node_line cancel_reason refused
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT" "$TEXT_OUT"
   RUN_SUCCEEDED=false
   PROVIDER_OUTCOME="failed"
@@ -1152,6 +1165,8 @@ attempt_route() {   # <provider> <route>
         else
           reason="$(acpx_npm_failure_reason "$PEERLOG")"
           [ -n "$reason" ] || reason="$(acpx_failure_evidence "$PEERLOG")"
+          refused="$(acpx_refused_config_option "$PEERLOG")"
+          [ -z "$refused" ] || reason="${reason:-session option refused} (the adapter refused $refused)"
           PRE_EGRESS="transport unavailable (pre-egress, route): ${reason:-acpx exited $PEER_EXIT before sending the prompt}"
         fi
       fi
@@ -1230,6 +1245,24 @@ run_provider() {   # <provider>
         ;;
     esac
   fi
+  while [ "$primary" = codex ] && [ -n "$PRE_EGRESS" ]; do
+    remaining=$(( provider_deadline - $(date +%s) ))
+    [ "$remaining" -gt 0 ] || break
+    case "$PRE_EGRESS" in
+      *"did not advertise"*)
+        [ -z "$CODEX_MODEL" ] && [ "${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" != codex ] || break
+        log "Codex does not offer $M_CODEX on this account; falling back to $M_CODEX_FALLBACK"
+        CODEX_MODEL="$M_CODEX_FALLBACK" ;;
+      *)
+        [ -z "$CODEX_EFFORT_DROPPED" ] && [ -z "${CROSS_MODEL_EFFORT_OVERRIDE:-}" ] &&
+          [ "$(acpx_refused_config_option "$PEERLOG")" = "reasoning_effort=$(route_effort codex)" ] || break
+        log "Codex refused reasoning_effort=$(route_effort codex) for $(route_model codex) on this account; retrying once at the account's default effort"
+        CODEX_EFFORT_DROPPED=1 ;;
+    esac
+    PRE_EGRESS=""
+    HARD_SECS="$remaining"
+    attempt_route "$provider" "$primary"
+  done
   if [ -n "$PRE_EGRESS" ]; then
     log "$PRE_EGRESS"
     rm -f "$OUT"

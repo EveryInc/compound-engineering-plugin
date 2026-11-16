@@ -7,6 +7,8 @@
 //   hang        never answer session/prompt
 //   cancel      wait for session/cancel, then answer with stopReason "cancelled"
 //   models      advertise stub-model-a/stub-model-b, then behave like end_turn
+//   refuse-effort  answer a reasoning_effort config option with -32602, as codex-acp
+//               does for an effort the account's model does not list
 import { createInterface } from "node:readline"
 
 const mode = process.argv[2] || process.env.ACP_STUB_MODE || "end_turn"
@@ -89,6 +91,10 @@ createInterface({ input: process.stdin }).on("line", (line) => {
       break
     case "session/set_model":
     case "session/set_config_option":
+      if (mode === "refuse-effort" && message.params?.configId === "reasoning_effort") {
+        send({ id: message.id, error: { code: -32602, message: "Invalid params" } })
+        break
+      }
       send({ id: message.id, result: {} })
       break
     case "session/prompt":
