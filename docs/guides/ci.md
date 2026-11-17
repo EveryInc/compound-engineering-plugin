@@ -15,8 +15,11 @@ PRs pass `--changed-since=<base SHA>` to the same test runner. `scripts/test-sco
 | PR babysitting snapshots | Any file under `skills/ce-babysit-pr/` |
 | Setup health | `skills/ce-setup/`, `skills/ce-polish/`, `docs/guides/`, root `README.md`, or `.compound-engineering/config.example.yaml` |
 | Prototype server | Any file under `skills/ce-prototype/` |
+| Polish live sessions | Any file under `skills/ce-polish/` |
 
 Changing a grouped test selects its entire group. Shared helpers and fixtures, runner/CI/dependency/configuration changes, unknown paths, and unavailable or empty comparisons run full coverage. Inputs inside an owning directory include prose and resources: the subprocess tests read these files as well as executing scripts. Outside those owners, converter source, ordinary documentation, ungrouped tests, and skill Markdown need only baseline coverage. Unrecognized skill executables run the full suite.
+
+The polish live-session group covers the endpoint, smoke, loop, and recovery suites. Its fake-agent/page helpers and recorded fixtures remain shared inputs that force full coverage. Other polish tests remain in baseline; a new test does not become skippable merely because its name starts with `ce-polish`.
 
 For local pre-push validation, use the intended PR base SHA on a clean, committed candidate:
 
@@ -31,6 +34,8 @@ During implementation, use focused tests and skill guards for feedback. Before p
 Carry successful verification evidence through review and shipping while its inputs, selection base, and relevant environment remain unchanged. Record the command, result, and tested state; rerun checks whose evidence was invalidated by later changes. A commit-message-only amendment preserves evidence for checks that do not inspect commit metadata. Capture the runner's actual exit status before formatting its output: a successful `tail` is not a successful test run. Missing or failing required checks block publication.
 
 The runner prints selection mode, file counts, groups, and fallback reason, and copies them to the Actions summary. Linux starts independently of the specialized-job selector. Actions uploads Bun's per-file timing data as `linux-test-timings`, including on test failure when available; a missing timing artifact does not turn a failing test green.
+
+Typecheck runs before the test suite, after metadata and schema validation. A failing validation prevents the expensive test step and keeps the same required `test` job red. Successful jobs still require every validation and every selected test; reordering does not shorten a successful run by itself.
 
 ## Specialized job selection
 

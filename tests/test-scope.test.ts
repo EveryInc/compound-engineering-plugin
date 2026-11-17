@@ -18,7 +18,8 @@ test.each([
   ["skills/ce-prototype/SKILL.md", ["prototype"]],
   ["docs/guides/ce-plan.md", ["setup"]], ["README.md", ["setup"]],
   [".compound-engineering/config.example.yaml", ["setup"]],
-  ["skills/ce-polish/references/health.md", ["setup"]],
+  ["skills/ce-polish/references/health.md", ["setup", "polish-live"]],
+  ["skills/ce-polish/scripts/live-endpoint.js", ["setup", "polish-live"]],
   ["tests/skills/peer-job-runner.test.ts", ["cross-model"]], [baseline, []],
 ] as [string, (keyof typeof TEST_GROUPS)[]][])("%s selects owned groups plus baseline", (file, groups) => {
   const result = selectTests([file], runnable)
@@ -28,8 +29,14 @@ test.each([
   expect(result.files).toHaveLength(1 + groups.flatMap((name) => TEST_GROUPS[name as keyof typeof TEST_GROUPS].tests).length)
 })
 
-test.each(["tests/helpers/process.ts", "tests/fixtures/example.test.ts", "scripts/run-tests.ts", "package.json", "bunfig.toml", ".github/workflows/ci.yml", "skills/other/scripts/run.sh", "docs/../script.ts", "/docs/a.md", "unknown"])("%s retains full coverage", (file) => {
+test.each(["tests/helpers/process.ts", "tests/helpers/fakeLiveAgent.ts", "tests/helpers/fakeLivePage.ts", "tests/fixtures/ce-polish-live/wake-batch.json", "tests/fixtures/example.test.ts", "scripts/run-tests.ts", "package.json", "bunfig.toml", ".github/workflows/ci.yml", "skills/other/scripts/run.sh", "docs/../script.ts", "/docs/a.md", "unknown"])("%s retains full coverage", (file) => {
   expect(selectTests([file], runnable).mode).toBe("full")
+})
+
+test.each(TEST_GROUPS["polish-live"].tests)("%s selects every live-session contract", (file) => {
+  const result = selectTests([file], runnable)
+  expect(result.mode).toBe("selected")
+  expect(result.files).toEqual([baseline, ...TEST_GROUPS["polish-live"].tests].sort())
 })
 
 test("unavailable and empty evidence is full", () => {
