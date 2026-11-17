@@ -1,6 +1,6 @@
 # `agent-browser` Fallback Driver
 
-Read this file only after the main skill selects `agent-browser` because no qualifying host-native integrated browser is available.
+Read this file only after the main skill selects `agent-browser`, either because no qualifying host-native integrated browser is available or because a standing instruction names it.
 
 ## Bootstrap
 

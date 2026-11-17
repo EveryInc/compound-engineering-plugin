@@ -149,7 +149,7 @@ On-demand. Nothing in the core loop calls this. After a green (or explicitly blo
 | `<branch name>` | Dogfood that branch, in a worktree if you are not already on it |
 | `--port <number>` | Skip port detection |
 
-Required: a browser the run can drive (the host's built-in browser, or `agent-browser` on PATH, not `npx agent-browser`), and a local dev server the skill can start or reuse. It reuses a server already listening on the chosen port only when that server runs from the checkout under test; otherwise it starts its own, on a free port if needed, from `bin/dev`, `rails server`, or `npm run dev` without asking. Port order matches the other browser skills: `--port`, a port already in active project instructions, `package.json`, `.env*`, then `3000`.
+Required: a browser the run can drive (a driver your project instructions or memories name for UI testing, else the host's built-in browser, or `agent-browser` on PATH, not `npx agent-browser`), and a local dev server the skill can start or reuse. It reuses a server already listening on the chosen port only when that server runs from the checkout under test; otherwise it starts its own, on a free port if needed, from `bin/dev`, `rails server`, or `npm run dev` without asking. Port order matches the other browser skills: `--port`, a port already in active project instructions, `package.json`, `.env*`, then `3000`.
 
 Report path relocates with `docs_root` (see [configuration](./configuration.md)).
 

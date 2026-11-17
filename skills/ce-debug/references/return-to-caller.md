@@ -6,7 +6,7 @@ This is not `mode:pipeline`. Pipeline mode serves the babysitter on a PR branch 
 
 ## What stays the same
 
-Phases 0 through 3 run as the body defines them, with the investigation rigor unchanged: the causal-chain gate, reproduction, the escalation table, the test-first fix sequence in `references/fix.md`, and the issue-of-record rule. The **Branch** rule in Phase 3 applies in full: on the default branch, detached, or unsure, create a feature branch named from the bug before the first edit and say which branch you moved to. `/lfg fix this bug` invoked on `main` must not commit to `main`. The pre-fix scope record and the fix-owned file list are kept, because the return is built from them: the caller ships only what the user offered, and this return is the only place it can learn what was already in the tree or on the branch before the fix.
+Phases 0 through 3 run as the body defines them, with the investigation rigor unchanged: the causal-chain gate, reproduction, the escalation table, the test-first fix sequence in `references/fix.md`, and the issue-of-record rule. The **Branch** rule in Phase 3 applies in full: on the default branch, detached, or unsure, create a feature branch named from the bug before the first edit and say which branch you moved to. `/lfg fix this bug` invoked on `main` must not commit to `main`. The body's standing-instruction exception does not apply in this mode: the caller ships through a pull request, which needs a branch. The pre-fix scope record and the fix-owned file list are kept, because the return is built from them: the caller ships only what the user offered, and this return is the only place it can learn what was already in the tree or on the branch before the fix.
 
 ## What changes
 

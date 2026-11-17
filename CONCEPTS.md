@@ -176,6 +176,9 @@ A structured implementation binding — mode, target, model, source — that an 
 ### Owning layer
 The single Skill, reference, script, or host surface that is responsible for a mechanism — its commands, exit semantics, or byte-level validation — and the only place that mechanism may be spelled out. A Skill that delegates the work states the condition and the safe failure direction and leaves the mechanism to its owner; a mechanism prescribed outside its owning layer drifts from the owner's copy and, for data the model itself transcribes, cannot be enforced by prose at all because the model is the transport.
 
+### Standing instruction
+A directive from the user or project that persists across sessions, held in an instruction file the agent loads or in the agent's memories, rather than given in the current request. Where a Skill names one as able to decide a choice (which branch to commit on, whether to push, which tool to drive), it carries the same authority as the user saying it in the session; a Skill default gives way to it, and a Skill that bans a method must say whether a standing instruction lifts the ban.
+
 ### Subordinated shape
 A concrete failing instance kept in a skill's prose underneath the condition that decides it, phrased so it illustrates that condition rather than ruling on its own. It is what separates a permitted example from a case list: a case list carries its own decision and can therefore contradict the condition beside it, while a subordinated shape carries none and cannot.
 

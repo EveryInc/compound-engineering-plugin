@@ -104,7 +104,7 @@ Attach to each scenario the pack criteria from Phase 1 whose `applies_when` reac
 
 ### Phase 3: Choose the Browser, Detect Port, and Start the Dev Server
 
-Choose the browser now that the matrix shows what the run needs.
+Choose the browser now that the matrix shows what the run needs. When a standing instruction names a browser driver for UI testing (SKILL.md's Boundaries), use it, skip steps 1-3, and record it in Final Status as the instruction's choice; if it fails, stop and report that rather than switching browsers.
 
 1. **Find every browser this environment offers before choosing.** Your own tool list is only part of it. The app hosting this session, such as an IDE or desktop app, may expose its own browser through a CLI, a skill, or tools, and environment variables or the session's instructions often name that app. A built-in browser is one owned by the agent harness or by that hosting app.
 2. **Prefer a built-in browser when it can do everything the matrix needs:** open local URLs, read interactive elements, click and fill, take screenshots, read console errors, and any scenario-specific needs such as phone widths, a separate login per test user, or failed requests.
