@@ -69,6 +69,8 @@ export const RESOLVER_PUBLICATION_BASE_REF = "bb5899b36c133a8441fa79af7cf60420c8
 export const STRUCTURAL_FIX_BASE_REF = "2b4cacd32d3e8c19a91e1c50c318172ec1d2f160"
 /** main before the ce-debug session-audit changes (other affected places, behavior-based review skip, findings-shaped options). */
 export const DEBUG_AUDIT_BASE_REF = "00d0a5bbf1300b2138b65ce724b325dd4dff77ba"
+/** main before ce-debug made every other site of the root-cause mistake part of the minimal fix. */
+export const SIBLING_SITES_BASE_REF = "8d2a49cd8ab3a12e11ee2822f56cd57a106f01e1"
 /** main before ce-debug named measurement bounds, ticket titles, always-on signal proposals, induced-failure checks, and what a test seam misses. */
 const DEBUG_SIGNAL_BASE_REF = "beacb629c8a6f34d6154996e819b2ac60857c514"
 const SIGNAL_PROPOSED = [['"prevention_signal": "', '"prevention_signal":"']]
@@ -3617,6 +3619,31 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
       // src/admin.js treats a throw from lookupUser as "unknown user"; once lookupUser
       // returns null instead, grantAdmin admits unknown ids unless admin.js changes too.
       committed_must: ["users.js", "profile.js", "admin.js"],
+    },
+  },
+  {
+    id: "ce-debug/fix-covers-unreported-sibling-sites",
+    baseline_ref: SIBLING_SITES_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/debug-sibling-sites`,
+    timeout_secs: 900,
+    why: "Agents fixed only the site a report named and offered the other instances of the same mistake as follow-up, so known copies of the bug stayed in the code. Spec: tests/skill-eval-cell/packs/ce-debug-sibling-sites.md.",
+    pre_contract: "Other sites that repeat the root-cause mistake are an optional structural fix after the minimal fix; otherwise they are named as follow-up in the summary's Prevention line.",
+    task: "Use ce-debug. Page 1 of the admin orders list starts at order 21, so the first 20 orders never show. `node tests/orders.check.js` reproduces it. Fix it. Then, instead of Phase 4, commit every file the fix changed with git (one commit, no push) and stop. Do not invoke another skill or dispatch.",
+    grade: {
+      committed_must: ["orders.js", "customers-csv.js", "invoice-sync.js"],
+      workspace_lacks: [
+        { path: "src/api/orders.js", needle: "= page * pageSize" },
+        { path: "src/exports/customers-csv.js", needle: "offset: size * batch," },
+        { path: "src/sync/invoice-sync.js", needle: "skip = pageNo * perPage" },
+      ],
+      // audit.js pages from 0 on purpose: the same expression is correct there.
+      workspace_contains: [{ path: "src/api/audit.js", needle: "const offset = page * pageSize" }],
+      committed_must_not: ["audit.js"],
     },
   },
   {
