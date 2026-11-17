@@ -34,6 +34,15 @@ export const TEST_GROUPS = {
     ],
   },
   prototype: { inputs: ["skills/ce-prototype/"], tests: ["tests/skills/ce-prototype-server.test.ts"] },
+  "polish-live": {
+    inputs: ["skills/ce-polish/"],
+    tests: [
+      "tests/skills/ce-polish-live-endpoint.test.ts",
+      "tests/skills/ce-polish-live-endpoint.smoke.test.ts",
+      "tests/skills/ce-polish-live-loop.test.ts",
+      "tests/skills/ce-polish-live-recovery.test.ts",
+    ],
+  },
 }
 
 type Group = keyof typeof TEST_GROUPS

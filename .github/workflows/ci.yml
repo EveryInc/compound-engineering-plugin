@@ -155,6 +155,10 @@ jobs:
           claude --version
           bun run plugin:validate
 
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: bun run typecheck
+
       - name: Run tests
         env:
           CI_PR_BASE: ${{ github.event.pull_request.base.sha }}
@@ -173,10 +177,6 @@ jobs:
           name: linux-test-timings
           path: ${{ runner.temp }}/test-timings.json
           if-no-files-found: warn
-
-      - name: Typecheck
-        if: ${{ !cancelled() }}
-        run: bun run typecheck
 
   # Tests published acpx releases against the stub agent. Kept out of `bun run test` because it
   # needs network access to fetch acpx.
