@@ -214,9 +214,12 @@ def cites_a_commit(prefix: str) -> bool:
 LINE_REF_RE = re.compile(r":(\d+)(?:-(\d+))?$")
 
 
+def trim_token(token: str) -> str:
+    return token.strip().rstrip(".,;")
+
+
 def cited_line_end(token: str) -> int | None:
-    """Last line a `path:N` or `path:A-B` citation points at, if any."""
-    m = LINE_REF_RE.search(token.strip().rstrip(".,;"))
+    m = LINE_REF_RE.search(trim_token(token))
     if not m:
         return None
     return int(m.group(2) or m.group(1))
@@ -232,8 +235,7 @@ def count_lines(path: str) -> int | None:
 
 
 def normalize_path(token: str) -> str:
-    token = token.strip().rstrip(".,;")
-    token = re.sub(r":\d+(-\d+)?$", "", token)  # strip `:line` / `:a-b` refs
+    token = LINE_REF_RE.sub("", trim_token(token))
     if token.startswith("./"):
         token = token[2:]
     return token
@@ -337,6 +339,7 @@ def main(argv: list[str]) -> int:
     checked_paths = 0
     seen_paths: set[str] = set()
     seen_line_refs: set[tuple[str, int]] = set()
+    line_totals: dict[str, int | None] = {}
     base = repo_root if in_git else os.getcwd()
     for raw in BACKTICK_RE.findall(body):
         token = normalize_path(raw)
@@ -359,13 +362,11 @@ def main(argv: list[str]) -> int:
                 continue  # escapes the repo — not checkable as a repo path
         full = os.path.join(base, check)
         line_end = cited_line_end(raw)
-        if (
-            line_end is not None
-            and (check, line_end) not in seen_line_refs
-            and os.path.isfile(full)
-        ):
+        if line_end is not None and (check, line_end) not in seen_line_refs:
             seen_line_refs.add((check, line_end))
-            total = count_lines(full)
+            if full not in line_totals:
+                line_totals[full] = count_lines(full)
+            total = line_totals[full]
             if total is not None and line_end > total:
                 flags.append(
                     f"FLAG line `{raw.strip()}`{loc_suffix(raw)} — {check} has "
