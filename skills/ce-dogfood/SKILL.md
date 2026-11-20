@@ -17,7 +17,7 @@ This is **diff-scoped**, not whole-app exploration. You test what *this branch* 
 
 ## Boundaries
 
-- Drive one browser for the whole run. Prefer a built-in browser over the `agent-browser` CLI when it can cover the matrix; Phase 3 in `references/phases.md` says how to find and choose one. Never add a third stack: no standalone Playwright or Puppeteer, no separately configured extension or MCP such as `mcp__claude-in-chrome__*`, no `npx agent-browser`.
+- Drive one browser for the whole run. When the user's request, memories, or the project's active instructions carry a standing instruction naming a browser driver for UI testing, use that driver; the rest of this rule, the third-stack ban included, applies only when none does. Otherwise prefer a built-in browser over the `agent-browser` CLI when it can cover the matrix; Phase 3 in `references/phases.md` says how to find and choose one. Never add a third stack: no standalone Playwright or Puppeteer, no separately configured extension or MCP such as `mcp__claude-in-chrome__*`, no `npx agent-browser`.
 - Never dogfood the trunk on a branch-name or blank target — there is no diff. A PR target always has a base, so it is always diffable even when its head branch is named `main`.
 - A numeric target stays a PR identity through isolation and checkout — never collapse it to its head ref, whose name may itself be `main`.
 - Never switch the primary checkout out from under the user. Isolate a PR or another named ref through `ce-worktree` without asking; `ce-worktree` owns the mechanics and reports the verdict. A blank or current-branch target runs in place.
