@@ -6,7 +6,7 @@ Read this when Phase 2.45 runs. The doc just written becomes permanent, trusted 
 
 Two claim categories verify against different trees:
 
-- **Code-behavior claims** (enum values, status semantics, limits, defaults) verify against the **local working tree**. They describe what this session's work produced and verified here.
+- **Code-behavior claims** (enum values, status semantics, limits, defaults) verify against **the code the learning will merge with**: the branch it ships on, including this session's work. On an ordinary branch that is the local working tree. When the working tree also holds changes that will not merge with the learning, such as other unmerged branches applied in a GitButler workspace, read from that branch's ref instead (`git show <ref>:<path>`), and name the tree used in the run report.
 - **Merge-state claims** ("fixed in #1608", "landed", "shipped") verify against **remote truth**. The checkout may predate a merge, so `gh pr view` (or the tracker equivalent) is primary and local git reachability is only the fallback. The script's `INFO: worktree is N commits behind …` line tells you how much to distrust the local tree for this category.
 
 Before running the script, optionally run `git fetch --quiet` (best-effort; skip silently on failure or offline, because the network is never a correctness dependency). When remote state cannot be checked at all, keep the claim, add an as-of qualifier ("as of this writing"), and record degraded verification in the run report.
@@ -46,13 +46,15 @@ knowledge store. You are read-only: never edit files. Inspect with Read,
 Grep, Glob, git (non-mutating), and gh when available.
 
 Inputs: the doc content below, the CONCEPTS.md entries below (if any), and
-this staleness context: <INFO line from the mechanical script, or "none">.
+this staleness context: <INFO line from the mechanical script, or "none">,
+and the tree to verify code against: <"working tree", or a git ref to
+read with git show <ref>:<path>>.
 
 Check every factual claim in three categories:
 
 1. CODE-BEHAVIOR CLAIMS — assertions about how code behaves: enum values,
    status semantics, limits, defaults, ordering, state transitions. For
-   each, locate the defining source in the current tree and quote the
+   each, locate the defining source in the tree named above and quote the
    defining line(s) with file:line. Verdict: verified (with quote),
    contradicted (with the quote showing otherwise), or unverifiable
    (defining source not found).
