@@ -136,6 +136,14 @@ Skip `lfg` when:
 - You want to inspect the diagnosis before any fix → `/ce-debug`
 - The repo has unusual shipping rules that need hand-driven git or release work
 
+## Make It Automatic
+
+`lfg` runs only when you ask for it, because it pushes and opens a PR without stopping. If you want an agent to use it whenever you hand off a change to ship, add a standing instruction to your agent's instruction file (the repo's `AGENTS.md`/`CLAUDE.md`, or your global one):
+
+> When I ask for a change to be made and shipped as a new PR, including saying yes to one you proposed, invoke the `lfg` skill. Skip it for changes to an open PR's branch, and for work I've said I want to see before it ships.
+
+The trigger is what you intend, not particular words. Most handoffs are a "yes" to a change the agent proposed after investigating, so the instruction names that case. "A new PR" includes follow-ups to a merged PR and excludes pushes to a PR that is still open; ship those with `ce-commit-push-pr`.
+
 ---
 
 ## Use as Part of the Workflow
