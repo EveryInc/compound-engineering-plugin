@@ -168,6 +168,32 @@ describe("validate-doc-claims script", () => {
         )
       })
 
+      test("passes a cited line or range inside the file", () => {
+        const docPath = writeRepoDoc(
+          "See `src/real-file.ts:1` and `src/real-file.ts:1-1`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG")
+      })
+
+      test("flags a cited line past the end of the file", () => {
+        const docPath = writeRepoDoc("The export is at `src/real-file.ts:500`.\n")
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG line `src/real-file.ts:500`")
+        expect(result.stdout).toContain("has 1 line")
+      })
+
+      test("flags a cited range whose end is past the end of the file", () => {
+        const docPath = writeRepoDoc(
+          "The export is `src/real-file.ts` at `src/real-file.ts:1-9`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG line `src/real-file.ts:1-9`")
+      })
+
       test("checks an absolute citation that points inside the repo", () => {
         const docPath = writeRepoDoc(
           "The fix lives in `" + path.join(repo, "src/real-file.ts") + "`.\n",

@@ -132,7 +132,7 @@ The Related Docs Finder scores overlap with existing `docs/solutions/` content a
 
 Every run also checks whether the project's instruction file (`AGENTS.md` or `CLAUDE.md`) would lead a future agent to discover `docs/solutions/`. If not, interactive Full proposes the smallest addition that surfaces the knowledge store, asks for consent, and applies it. Non-interactive reports `Instruction-file edit: gap noted, not applied` without editing. Lightweight tips only.
 
-Before the doc compounds, the skill checks its claims against the tree. A deterministic script checks cited repo paths, commit SHAs, relative links, and dangling scaffold (flags are adjudicated, not auto-failed). Then a read-only validator subagent (Full mode, including non-interactive Full) verifies code-behavior claims by quoting the defining source line, and merge-state claims against remote truth. Lightweight keeps the deterministic check and skips the validator subagent.
+Before the doc compounds, the skill checks its claims against the tree. A deterministic script checks cited repo paths and their line numbers, commit SHAs, relative links, and dangling scaffold (flags are adjudicated, not auto-failed). Then a read-only validator subagent (Full mode, including non-interactive Full) verifies code-behavior claims by quoting the defining source line, and merge-state claims against remote truth. Lightweight keeps the deterministic check and skips the validator subagent.
 
 ### Session history, refresh, and the capture checkpoint
 
@@ -221,7 +221,7 @@ docs/solutions/[category]/[filename].md
 
 That is the default root; the store follows `docs_root` if it is set in `config.yaml`, so on a project that relocates CE artifacts the path is `<docs_root>/solutions/...`. Categories are auto-detected. Bug-track examples: `build-errors/`, `test-failures/`, `runtime-errors/`, `performance-issues/`, `database-issues/`, `security-issues/`, `ui-bugs/`, `integration-issues/`, `logic-errors/`. Knowledge-track examples: `architecture-patterns/`, `design-patterns/`, `tooling-decisions/`, `conventions/`, `workflow-issues/`, `developer-experience/`, `documentation-gaps/`, `best-practices/`.
 
-The doc carries YAML frontmatter (`module`, `tags`, `problem_type`, and so on) for searchability. `scripts/validate-frontmatter.py` catches silent corruption, and `scripts/validate-doc-claims.py` checks the body's cited paths, SHAs, links, and drafting scaffold against the tree.
+The doc carries YAML frontmatter (`module`, `tags`, `problem_type`, and so on) for searchability. `scripts/validate-frontmatter.py` catches silent corruption, and `scripts/validate-doc-claims.py` checks the body's cited paths and line numbers, SHAs, links, and drafting scaffold against the tree.
 
 In interactive Full mode, the skill may also make a small edit to `AGENTS.md`/`CLAUDE.md` if the discoverability check finds the knowledge store is not surfaced and you consent. Non-interactive and lightweight never apply that edit.
 

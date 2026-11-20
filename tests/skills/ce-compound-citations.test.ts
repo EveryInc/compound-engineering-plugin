@@ -22,6 +22,12 @@ describe("ce-compound code citations", () => {
     expect(grounding).toContain("the tree to verify code against")
   })
 
+  test("a refresh Replace successor is handed the cite-by-name rule", () => {
+    expect(read("refresh", "per-action-flows.md")).toMatch(
+      /Pass it this citation rule in its prompt: cite code by the file and the function, class, or config key[^\n]*line number only when no name identifies the spot/,
+    )
+  })
+
   test("refresh judges citations against the default branch", () => {
     // overview.md is always read; a main-thread refresh may never open investigate.md.
     expect(read("refresh", "overview.md")).toMatch(
