@@ -22,7 +22,9 @@ citations against the repository:
        (deleted/uncommitted vs stale checkout). Tokens missing everywhere
        are flagged only when path-shaped; slash-delimited identifiers
        (branch names, git refs, provider/model IDs) and slash-prefixed
-       URL routes are skipped.
+       URL routes are skipped. A `:N` or `:A-B` suffix on a path that
+       exists in the working tree is also checked: a line, or range end,
+       past the end of that file is flagged as a stale line number.
     2. Cited commit SHAs (7-40 hex chars with at least one digit and one
        a-f letter) resolve to commits, classified by reachability from
        HEAD and the upstream default branch. Session ids, content hashes
@@ -209,6 +211,26 @@ def cites_a_commit(prefix: str) -> bool:
     )
 
 
+LINE_REF_RE = re.compile(r":(\d+)(?:-(\d+))?$")
+
+
+def cited_line_end(token: str) -> int | None:
+    """Last line a `path:N` or `path:A-B` citation points at, if any."""
+    m = LINE_REF_RE.search(token.strip().rstrip(".,;"))
+    if not m:
+        return None
+    return int(m.group(2) or m.group(1))
+
+
+def count_lines(path: str) -> int | None:
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return None
+    return data.count(b"\n") + (1 if data and not data.endswith(b"\n") else 0)
+
+
 def normalize_path(token: str) -> str:
     token = token.strip().rstrip(".,;")
     token = re.sub(r":\d+(-\d+)?$", "", token)  # strip `:line` / `:a-b` refs
@@ -314,6 +336,7 @@ def main(argv: list[str]) -> int:
     # --- 1. Cited repo paths ----------------------------------------------
     checked_paths = 0
     seen_paths: set[str] = set()
+    seen_line_refs: set[tuple[str, int]] = set()
     base = repo_root if in_git else os.getcwd()
     for raw in BACKTICK_RE.findall(body):
         token = normalize_path(raw)
@@ -334,10 +357,27 @@ def main(argv: list[str]) -> int:
             check = os.path.relpath(resolved, os.path.realpath(base))
             if check.startswith(".."):
                 continue  # escapes the repo — not checkable as a repo path
+        full = os.path.join(base, check)
+        line_end = cited_line_end(raw)
+        if (
+            line_end is not None
+            and (check, line_end) not in seen_line_refs
+            and os.path.isfile(full)
+        ):
+            seen_line_refs.add((check, line_end))
+            total = count_lines(full)
+            if total is not None and line_end > total:
+                flags.append(
+                    f"FLAG line `{raw.strip()}`{loc_suffix(raw)} — {check} has "
+                    f"{total} line{'' if total == 1 else 's'}, so line {line_end} "
+                    "is past its end: a stale or memory-drafted line number. "
+                    "Cite the function, class, or config key instead, or "
+                    "annotate it as a pre-fix state."
+                )
         if check in seen_paths:
             continue
         seen_paths.add(check)
-        if os.path.exists(os.path.join(base, check)):
+        if os.path.exists(full):
             checked_paths += 1
             continue
         tracked_head = head_has_path(check)

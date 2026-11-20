@@ -17,6 +17,7 @@ The script reports in two tiers and you decide each item. A **FLAG** is a claim 
 
 | Flag | Likely meaning | Resolution |
 |------|----------------|------------|
+| line past the end of the cited file | Stale or memory-drafted line number | Cite the function, class, or config key that defines the behavior instead; keep the number only when the prose marks it as a pre-fix state |
 | path not found under the search base | Typo, drafted from memory, or a real file in a repo or store the check did not search | Keep the citation if the file exists in another repo or store you can check; otherwise fix the citation or remove the claim |
 | path missing here, exists at upstream | Stale checkout | Verify the claim against upstream; annotate if the doc implies the file is present locally |
 | path deliberately gone (doc says removed/renamed) | Historical citation | Confirm the surrounding prose marks it as historical ("removed by this fix", "pre-fix state"); add that marker if absent |
@@ -28,7 +29,7 @@ The script reports in two tiers and you decide each item. A **FLAG** is a claim 
 | scaffold ("Learning 3", `{{…}}`) | Drafting-context leak | Always fix; rewrite as a real path or link |
 | relative link unresolved | Wrong target | Fix the path |
 
-If the script cannot be resolved on this platform, apply its checks manually at the same scope: scan the body for cited paths that do not exist, hex words presented as commits anywhere in the body (in commands and code blocks as much as in prose), `Learning(s) N` / `{{…}}` scaffold, and broken relative links. Note in the run output that the check was manual. Do not silently skip.
+If the script cannot be resolved on this platform, apply its checks manually at the same scope: scan the body for cited paths that do not exist, cited line numbers past the end of their file, hex words presented as commits anywhere in the body (in commands and code blocks as much as in prose), `Learning(s) N` / `{{…}}` scaffold, and broken relative links. Note in the run output that the check was manual. Do not silently skip.
 
 After any body edit from this step or Step 2, re-run the script until it reports clean or every remaining flag is confirmed intentional.
 
