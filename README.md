@@ -125,18 +125,16 @@ The point is leverage, not ceremony. A good brainstorm makes the plan sharper. A
 
 ## The loop
 
-The core loop is six steps: **brainstorm** the requirements, **plan** the implementation, **work** through the plan, **simplify** what you wrote, **review** the result, then **compound** the learning -- and repeat with better context.
+The core loop is four steps: **brainstorm** the requirements, **plan** the implementation, **work** through the plan (which simplifies and reviews what it wrote before opening the PR), then **compound** the learning -- and repeat with better context.
 
 | Skill | Purpose |
 |-------|---------|
 | [`/ce-brainstorm`](docs/guides/ce-brainstorm.md) | Interactive Q&A to think through a feature or problem and write a requirements-only unified plan before planning |
 | [`/ce-plan`](docs/guides/ce-plan.md) | Enrich feature ideas or requirements-only plans into implementation-ready plans |
-| [`/ce-work`](docs/guides/ce-work.md) | Execute implementation-ready plans natively or through a qualified cross-model author while retaining host verification, commits, and shipping |
-| [`/ce-simplify-code`](docs/guides/ce-simplify-code.md) | Refine the freshly written code and prune useless tests and comments before review |
-| [`/ce-code-review`](docs/guides/ce-code-review.md) | Report-only multi-agent review against the plan before merging; local apply is explicit |
+| [`/ce-work`](docs/guides/ce-work.md) | Execute implementation-ready plans natively or through a qualified cross-model author, then simplify, review, commit, and ship |
 | [`/ce-compound`](docs/guides/ce-compound.md) | Capture the learning into `docs/solutions/` so the next loop starts smarter |
 
-Each cycle compounds. `/ce-compound` writes learnings that the next `/ce-brainstorm` and `/ce-plan` read as grounding. Brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented. That return arrow is the whole point.
+Each cycle compounds. `/ce-compound` writes learnings that the next `/ce-plan` reads as grounding. Brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented. That return arrow is the whole point.
 
 <img src="assets/demo/compound-loop.gif" alt="A ce-compound run writes a learning about an env-var trap; 18 days later, on unrelated work, a ce-plan run finds that learning and carries its constraints into the new plan" width="100%">
 
@@ -158,10 +156,10 @@ After installing, run `/ce-setup` in any project. It reports optional tool capab
 /ce-brainstorm make background job retries safer
 /ce-plan
 /ce-work
-/ce-simplify-code
-/ce-code-review
 /ce-compound
 ```
+
+`/ce-work` simplifies and reviews its own diff before opening the PR, so there is no separate simplify or review step. Run `/ce-simplify-code` or `/ce-code-review` on their own for code that did not come through `/ce-work`.
 
 **Autonomous** -- hand off a feature and let the agent run the whole pipeline:
 
@@ -180,9 +178,9 @@ Starting from a bug instead of a feature? Use [`/ce-debug`](docs/guides/ce-debug
 
 | Group | Skills | What it covers |
 |-------|--------|----------------|
-| [Core loop](docs/guides/README.md#the-core-loop) | `ce-brainstorm` `ce-plan` `ce-work` `ce-simplify-code` `ce-code-review` `ce-compound` | The six steps of every iteration |
+| [Core loop](docs/guides/README.md#the-core-loop) | `ce-brainstorm` `ce-plan` `ce-work` `ce-compound` | The four steps of every iteration |
 | [Around the loop](docs/guides/README.md#around-the-loop) | `ce-strategy` `ce-product-pulse` `ce-sweep` `ce-retro` `ce-compound-refresh` | Anchors and feeds that keep the loop grounded |
-| [On demand](docs/guides/README.md#on-demand) | `ce-ideate` `ce-bakeoff` `ce-pov` `ce-debug` `ce-explain` `ce-doc-review` `ce-optimize` `ce-prototype` | Reached for when a specific need arises |
+| [On demand](docs/guides/README.md#on-demand) | `ce-ideate` `ce-bakeoff` `ce-pov` `ce-debug` `ce-explain` `ce-simplify-code` `ce-code-review` `ce-doc-review` `ce-optimize` `ce-prototype` | Reached for when a specific need arises |
 | [Git workflow](docs/guides/README.md#git-workflow) | `ce-commit` `ce-commit-push-pr` `ce-babysit-pr` `ce-resolve-pr-feedback` `ce-worktree` | Committing, shipping, and shepherding PRs |
 | [Autonomous](docs/guides/README.md#autonomous-pipeline) | `lfg` | The whole pipeline, hands-off |
 | [Testing & design](docs/guides/README.md#frontend-design) | `ce-test-browser` `ce-test-xcode` `ce-polish` `ce-dogfood` | Verifying and polishing what you built |
