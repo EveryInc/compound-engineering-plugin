@@ -187,6 +187,29 @@ track_rules:
 
 # --- Fields optional for BOTH tracks ----------------------------------------
 optional_fields:
+  title:
+    type: string
+    description: "Clear problem or guidance title; the resolution templates write it on every new doc"
+
+  category:
+    type: string
+    description: "The solutions subdirectory the doc lives in; the resolution templates write it on every new doc"
+
+  status:
+    type: enum
+    values:
+      - stale
+    description: "Set only by a learnings refresh that could not confirm the doc still holds. Learnings researchers still surface the doc, labeled stale with its stale_reason. A later refresh that settles the doc removes status, stale_reason and stale_date."
+
+  stale_reason:
+    type: string
+    description: "What the refresh found that left the doc unsettled; present only with status: stale"
+
+  stale_date:
+    type: string
+    pattern: '^\d{4}-\d{2}-\d{2}$'
+    description: "Date the doc was marked stale (YYYY-MM-DD); present only with status: stale"
+
   related_components:
     type: array[string]
     description: "Other components involved"
@@ -226,7 +249,8 @@ validation_rules:
   - "Knowledge-track docs have no additional required fields beyond the shared ones"
   - "Bug-track fields on existing knowledge-track docs are harmless (see backward compatibility note)"
   - "Track-specific optional fields may be included but are not required"
-  - "Enum fields (problem_type, severity, resolution_type) must match allowed values exactly"
+  - "Enum fields (problem_type, severity, resolution_type, status) must match allowed values exactly"
+  - "status, stale_reason and stale_date appear together or not at all"
   - "Open-vocabulary fields (component, root_cause) follow the corpus-first rule in yaml-schema.md: component is matched by area (the value existing docs under <root>/solutions/ use for that area, most-used spelling when existing docs disagree), root_cause is matched by the cause itself (the value existing docs use for that same cause, most-used spelling when existing docs disagree), suggested_values only when no existing doc covers the area (component) or names the cause (root_cause). Do not coin a near-synonym of a value the corpus already uses"
   - "Array fields must respect min_items/max_items when specified"
   - "date must match YYYY-MM-DD format"
