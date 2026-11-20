@@ -1,0 +1,18 @@
+--- a/src/session.js
++++ b/src/session.js
+@@ -1,3 +1,9 @@
++const DEFAULT_REGION = "us-east"
++
++function regionFor(user) {
++  return user.region || DEFAULT_REGION
++}
++
+ function isExpired(session, now) {
+   return now - session.startedAt > sessionTtl() * 1000
+ }
+@@ -6,4 +12,4 @@
+   return 3600
+ }
+ 
+-module.exports = { isExpired, sessionTtl }
++module.exports = { regionFor, isExpired, sessionTtl }

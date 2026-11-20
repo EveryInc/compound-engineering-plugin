@@ -36,6 +36,8 @@ const docReviewFindingsTask = (args: string) =>
   `Use ce-doc-review with the arguments: mode:non-interactive ${args}. End your final message with these lines and nothing after them: "FINDINGS:" followed by one line per finding the review raised or fixed, each starting with "- ", or the line "- none", then "TEAM: <comma-separated reviewer names you dispatched>".`
 const docReviewPersonaTask = (persona: string, plan: string) =>
   `Use ce-doc-review's ${persona} reviewer on ${plan}. Read the skill's references/subagent-template.md, references/findings-schema.json, and references/personas/${persona}.md, then review the document as that reviewer would, reading the repository code as the template allows. Do not dispatch, edit anything, or invoke another skill. Return the reviewer's findings JSON, then end your final message with these lines and nothing after them: "FINDINGS:" followed by one line per finding in that JSON, each starting with "- " and giving its title, then " — ", then the input and the harm it names in a few words, or the line "- none".`
+/** main before #2083: ce-compound cited code by `file:line` and checked it against the working tree. */
+export const COMPOUND_CITATION_BASE_REF = "8f7614639e7f3792a6f9337d8742a80a232bd596"
 export const CODE_REVIEW_PRE_EXISTING_BASE_REF = "4fb543be706b19b4df14fbf69a58e458bed037e6"
 /** main after #2013: a stub on a traced money path still read to Codex as something that might block the harm. */
 export const DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF = "4fb543be706b19b4df14fbf69a58e458bed037e6"
@@ -4530,6 +4532,44 @@ Return the completion result to the coordinator.`,
     task: `Use the ce-compound skill mode:refresh. Audit the learning in docs/solutions/seat-helper.md against the code. Tell me what you would change.`,
     grade: {
       must_include: ["greet"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-compound/refresh-moved-line-cites-by-name",
+    skill: "ce-compound",
+    cohort: "resized",
+    baseline_ref: COMPOUND_CITATION_BASE_REF,
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/compound-citation-moved`,
+    why: "#2083: a refresh that rewrites moved line numbers to new line numbers produces the same churn on every later refresh.",
+    pre_contract: "A line citation that no longer points at what the learning describes is drift, and the refresh fixes it.",
+    task: "Use the ce-compound skill mode:refresh and fix drift only. Audit the learning in docs/solutions/runtime/session-ttl-seconds.md against the repository. Stop before writes. State the result on a `Classification: <outcome>` line, then put the exact edits you would make to the doc between lines reading RESULT-START and RESULT-END.",
+    grade: {
+      classification: "Update",
+      result_must_include: ["sessionTtl"],
+      result_must_not_include: ["session.js:12", "session.js:8"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-compound/refresh-unmerged-shift-is-not-drift",
+    skill: "ce-compound",
+    cohort: "resized",
+    baseline_ref: COMPOUND_CITATION_BASE_REF,
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/compound-citation-workspace`,
+    fixture_omit: ["patches"],
+    git_change: { patch: "patches/region-work.patch", branch: "feature/region", message: "Add per-user region lookup" },
+    why: "#2083: unmerged work on the checked-out branch shifts the cited lines, but the citations still match main, where the learning lives.",
+    pre_contract: "A learning's code claims are checked against the repository.",
+    task: "Use the ce-compound skill mode:refresh and fix drift only. Audit the learning in docs/solutions/runtime/session-ttl-seconds.md against the repository. Stop before writes. State the result on a `Classification: <outcome>` line, then list the exact edits you would make to the doc, if any.",
+    grade: {
+      classification: "Keep",
       actions: "none",
     },
   },

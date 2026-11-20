@@ -27,9 +27,11 @@ Candidates are the `.md` files under `<root>/solutions/`, excluding `README.md` 
 
 Check each learning against the current codebase, then check the set for overlap, supersession, and contradiction. A contradiction misleads actively, so it outranks individual staleness.
 
+Judge a learning's code citations against the repository's default branch, where the learning lives, not against a working tree that may hold unmerged work. A citation that matches the default branch has not drifted. When a cited line number no longer points at what the learning describes, cite the function, class, or config key that defines it instead of a new line number.
+
 A knowledge-track learning sometimes points at a guidance file it names or links, such as a skill's `SKILL.md`, a runbook, or an instruction file. Compare only guidance the learning names. Never search the guidance layer for one.
 
-Every investigation subagent's prompt carries that reference's three **Subagent prompt** clauses verbatim. Two are search tools and auto-memory. The third is this:
+Every investigation subagent's prompt carries that reference's **Subagent prompt** clauses verbatim: search tools, auto-memory, the citation rule above, and this one:
 
 > If the learning is knowledge-track and names or links a guidance file (a skill's `SKILL.md`, a runbook, a root instruction file), read that file and, when it states a different order or a contradictory rule for the same procedure, return both conflicting quotes plus which side current code follows — or that code witnesses neither. Read only guidance the learning names; do not search for one, and do not edit it.
 

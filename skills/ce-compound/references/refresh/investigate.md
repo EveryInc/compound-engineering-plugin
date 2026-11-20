@@ -10,13 +10,15 @@ After individual docs, evaluate the set: overlaps, supersession (an older narrow
 
 ## Subagent prompt
 
-Every investigation subagent's prompt carries these three clauses verbatim, plus the clause in `references/refresh/worth-audit.md` unless the user asked for drift fixes only:
+Every investigation subagent's prompt carries these clauses verbatim, plus the clause in `references/refresh/worth-audit.md` unless the user asked for drift fixes only:
 
 > Use your host's dedicated file search and read tools (Glob, Grep, and Read where they exist) for all investigation, rather than shell commands (ls, find, cat, grep, test, bash) for file operations. This avoids permission prompts and is more reliable. If your host exposes no such tools, use whatever read capability it does provide.
 >
 > Also scan the "user's auto-memory" block injected into your system prompt (Claude Code only). Check for notes related to the learning's problem domain. Report any memory-sourced drift signals separately from codebase-sourced evidence, tagged with "(auto memory [claude])" in the evidence section. If the block is not present in your context, skip this check.
 >
 > If the learning is knowledge-track and names or links a guidance file (a skill's `SKILL.md`, a runbook, a root instruction file), read that file and, when it states a different order or a contradictory rule for the same procedure, return both conflicting quotes plus which side current code follows — or that code witnesses neither. Read only guidance the learning names; do not search for one, and do not edit it.
+>
+> Check the learning's code citations against the repository's default branch, where the learning lives, not against a working tree that may hold unmerged work. A citation that matches the default branch has not drifted. When a cited line number no longer points at what the learning describes, recommend citing the function, class, or config key that defines it instead of a new line number.
 
 Two subagent roles: **investigation** subagents are read-only and return evidence + a recommended action; **replacement** subagents write successor docs (one per Replace or Split candidate, run one at a time, sequentially). The orchestrator merges results, resolves contradictions, and performs all deletions and metadata edits centrally.
 
