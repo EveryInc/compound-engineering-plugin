@@ -135,6 +135,7 @@ Extract these fields from the YAML frontmatter:
 - **symptoms** — observable behaviors or friction (present on bug-track entries and sometimes on knowledge-track entries)
 - **root_cause** — underlying cause (present on bug-track entries; optional on knowledge-track entries)
 - **severity** — critical, high, medium, low
+- **status** — `stale` when a learnings refresh could not confirm the learning still holds; `stale_reason` and `stale_date` record what it found and when
 
 Some non-bug entries may have looser frontmatter shapes (they do not require `symptoms` or `root_cause`). Do not discard these entries for missing bug-shaped fields — use whatever fields are present for matching.
 
@@ -171,6 +172,8 @@ Only for files that pass the filter (strong or moderate matches), read the compl
 - Code examples or illustrative evidence
 
 When a learning's claim conflicts with what you can observe in the current code or docs, flag the conflict explicitly rather than echoing the claim. Note the entry's date so the caller can judge whether the learning may have been superseded. Research agents can be confidently wrong; never let a past learning silently override present evidence.
+
+A learning whose frontmatter has `status: stale` was marked by a learnings refresh that could not confirm it still holds. Rank it like any other candidate, but do not present it as current guidance: fill the finding's `Stale` line, and list a recommendation drawn from it under Recommendations only when the current code or docs independently confirm the specific claim that recommendation relies on.
 
 ### Step 7: Return Distilled Summaries
 
@@ -216,6 +219,7 @@ Structure findings as follows:
 - **Relevance**: [why this matters for the caller's work]
 - **Key Insight**: [the decision, pattern, or pitfall to carry forward]
 - **Severity**: [severity level, when present in frontmatter; omit the line otherwise]
+- **Stale**: [`stale_reason` and `stale_date`, when the frontmatter has `status: stale`; omit the line otherwise]
 
 #### 2. [Title]
 ...

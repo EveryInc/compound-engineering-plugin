@@ -21,6 +21,7 @@ Criteria for `tests/**`, including `tests/skill-eval-cell/`, on top of the root 
 - A read-only probe that stops at one gate may grade the value it declares (`declared`), because that value is the decision under test. It never stands in for an action: a row whose claim is that something happened runs live and grades the artifact.
 - A forbidden call fails loudly under the shim and is graded from the shim's log.
 - `baseline_ref` is an immutable SHA reachable from `main`. A row that grades behavior the baseline lacks is `post_only`.
+- A scenario for a skill or prompt asset that another skill invokes passes exactly what that caller passes, including what the caller resolves before invoking it (a mode token, a scope, the artifact root or search roots), and nothing more. A missing caller fact changes where the agent looks, so an arm can fail or diverge for a reason other than the change under test (`docs/solutions/skill-design/callee-skill-evals-need-caller-shaped-tasks.md`).
 - A fixture's documents (notes, logs, issue text) agree with what its code does when run, including failure rates and units. Hosts run the fixture to check the story, so a mismatch outweighs the variable the row tests and confounds both rows of a target-and-control pair.
 
 ## Hermetic tests

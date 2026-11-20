@@ -4,7 +4,7 @@ Read this reference when executing Phase 4. Find the section matching the action
 
 ## Keep Flow
 
-No file edit by default. Summarize why the learning remains trustworthy.
+No file edit by default; the one exception is clearing an earlier stale mark (`references/refresh/investigate.md`). Summarize why the learning remains trustworthy.
 
 ## Update Flow
 

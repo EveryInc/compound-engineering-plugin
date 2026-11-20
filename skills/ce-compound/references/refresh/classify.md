@@ -4,7 +4,7 @@ Assign each doc one outcome:
 
 | Outcome | Meaning | Action |
 |---------|---------|--------|
-| **Keep** | Still accurate and useful | No edit — report it as reviewed. Do not write a review breadcrumb or `last_refreshed` on its own. |
+| **Keep** | Still accurate and useful | No edit, except clearing an earlier stale mark (`references/refresh/investigate.md`) — report it as reviewed. Do not write a review breadcrumb or `last_refreshed` on its own. |
 | **Update** | Solution still correct; references drifted (paths, names, links, snippets, metadata, misfiling), or some claims are stated by a named artifact (`references/refresh/worth-audit.md`) | Fix in place |
 | **Consolidate** | Docs overlap heavily, both correct | Merge unique content into the canonical doc, delete the subsumed one |
 | **Replace** | Guidance is now misleading; a trustworthy successor can be written | Successor via subagent, then delete the old |

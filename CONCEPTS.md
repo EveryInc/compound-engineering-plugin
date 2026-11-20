@@ -63,6 +63,8 @@ A browser-to-agent event path on an isolated web experience prototype: the explo
 ### Learning
 A documented solution to a past problem — a bug fix, a convention, or a workflow pattern — stored as the unit of compounded knowledge so future work can find and reuse it. Also called a solution doc. Carries structured metadata (category, tags, problem type) for retrieval; its creation date lives in the entry, not the filename.
 
+A refresh that cannot decide what to do with a Learning, and cannot settle it with the user, marks it stale rather than acting on a guess. A stale-marked Learning keeps reaching the work that searches for it, labeled stale with the reason, and is not offered as current guidance until a later refresh settles it and removes the mark.
+
 ### Pattern doc
 Guidance generalized from several Learnings into a broader rule. Higher-leverage than any single incident-level Learning, and higher-risk when stale, because future work treats it as broadly applicable.
 
