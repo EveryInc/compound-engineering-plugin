@@ -28,7 +28,7 @@ Artifact paths shown throughout these pages (`docs/plans/`, `docs/solutions/`, `
 └── /ce-compound      "Capture what we learned."
 ```
 
-`/ce-compound` is the closer that makes the loop *compound*: it writes learnings into `docs/solutions/`, which the next iteration's `/ce-brainstorm` and `/ce-plan` read as grounding. `/ce-ideate` is an optional prelude for when you don't yet know what to work on. Everything else in this catalog is either an anchor around the loop or an on-demand tool used when a specific need arises, not a step you walk through every time.
+`/ce-compound` is the closer that makes the loop *compound*: it writes learnings into `docs/solutions/`, which the next iteration's `/ce-plan` reads as grounding. `/ce-ideate` is an optional prelude for when you don't yet know what to work on. Everything else in this catalog is either an anchor around the loop or an on-demand tool used when a specific need arises, not a step you walk through every time.
 
 ---
 
