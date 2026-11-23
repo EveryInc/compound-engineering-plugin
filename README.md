@@ -4,6 +4,9 @@
 
 # Compound Engineering
 
+[![Every Frontier: Shipped](https://frontier.every.to/badge/shipped.svg)](https://frontier.every.to/experiments/compound-engineering?utm_source=frontier&utm_medium=readme&utm_content=compound-engineering-plugin_badge)
+[![Subscribe to Every](https://frontier.every.to/badge/subscribe.svg)](https://every.to/subscribe?utm_source=frontier&utm_medium=readme&utm_content=compound-engineering-plugin_subscribe)
+
 **AI skills that make each unit of engineering work easier than the last.**
 
 [![Build Status](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml)
@@ -454,3 +457,5 @@ Open an issue or send a PR, and we'll fold in what moves the plugin in the right
 ## License
 
 [MIT](LICENSE)
+
+[![Every Frontier. Made by Every's Frontier team. Subscribe to Every](https://frontier.every.to/badge/strip.svg)](https://every.to/subscribe?utm_source=frontier&utm_medium=readme&utm_content=compound-engineering-plugin_footer)
