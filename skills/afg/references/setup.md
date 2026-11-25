@@ -6,7 +6,7 @@ Read the repository first: open PRs and issues, who opens them, main's health, t
 
 ## Questions
 
-1. **Where the settings live.** `.compound-engineering/config.yaml`, shared through the default branch, or `.compound-engineering/config.local.yaml`, private to this checkout. Recommend local for a repository the user does not own. When the shared file already sets a profile, local settings can only tighten it. Before writing the local file, confirm git ignores it.
+1. **Where the settings live.** `.compound-engineering/config.yaml`, shared through the default branch, or `.compound-engineering/config.local.yaml`, private to this checkout. Recommend shared, committed and landed the way the repository lands work, and local only for a repository the user does not own. Until shared settings are on the default branch they do nothing, so finish by landing that file alone with the user's approval; a run never lands its own policy. A public repository shows them to everyone; say so. When the shared file already sets a profile, local settings can only tighten it. Before writing the local file, confirm git ignores it.
 2. **Risk profile.** Show what each means:
 
    | Motion | cautious | balanced | hands-off |
