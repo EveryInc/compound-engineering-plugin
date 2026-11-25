@@ -24,14 +24,14 @@ A PR whose `job` is set is this repository's own autonomous work; finish it befo
 | `babysit` | `ce-babysit-pr mode:pipeline <url>` from a worktree on that branch; never land |
 | `diff-only` | `ce-code-review mode:agent <url>` from this checkout, then park with its verdict as the recommendation |
 
-Babysit only a PR that needs it: failing checks, unanswered review feedback, or a conflict. After a worker pushes to an own PR, run `adopt --job <id> --pr <n>` so the new head is recorded as autonomous work.
+Babysit only a PR that needs it: failing checks, unanswered review feedback, or a conflict. After a worker pushes to an own PR, adopt its new head. `own-moved` means the head is not one this account recorded: read what changed since the recorded head, adopt it only when a worker or `update` made it, and otherwise park it. Adopt any `unfinished_jobs` entry whose PR exists, and `job-end` one that never produced a PR.
 
 ## Start a job
 
-1. `job --motion <m> --what "<one line>"`, with `--opens-pr` when the result will be a PR, and `--origin issue:<n>` or `--origin pr:<n>` when a person's request led to it. Use `--origin internal` only when you found the work yourself. A denial ends that job.
+1. `job --motion <m> --what "<one line>"`, with `--opens-pr` when the result will be a PR, and `--origin issue:<n>` or `--origin pr:<n>` when a person's request led to it. Use `--origin external` for any other outside report, and `--origin internal` only when you found the work yourself. A denial ends that job.
 2. Delegate it to a worker in its own worktree, never in the main checkout. Use the host's own delegation when it has one that gives a separate checkout. Give the worker the job, its sources, the callee from `references/motions.md`, the end state, and the Authority section of SKILL.md.
 3. When a worker stops because a provider reported a usage limit, hand the job to another provider the host offers. When none is available, park it and end the run.
-4. Do not trust a worker's account of where things stand. Read the PR back, then `adopt` it.
+4. Do not trust a worker's account of where things stand. Read the PR back, check that its head is the one the worker reported, then `adopt --job <id> --pr <n> --head <sha>`. A commit for direct landing is `adopt --job <id> --sha <sha>`. A job that produces neither ends with `job-end`.
 
 Call `heartbeat` when a wait is long. The lease expires after three hours without a write; a run that loses it stops at once.
 
@@ -41,15 +41,18 @@ Landing is judged on the exact head, after the last push to it. A review made be
 
 1. `gate --pr <n>`. If any reason other than a missing receipt remains, stop here for this PR. `behind` alone, with or without missing receipts: `update --pr <n>`, and leave the rest for a later run.
 2. `test --pr <n>`. The script runs the policy's command in a clean worktree without GitHub credentials.
-3. Review the same head: in a clean worktree at that head, run `ce-code-review mode:agent base:<merge base sha>` and pipe its one JSON object, unedited, into `review --pr <n>`.
-4. For each entry in the policy's `rules`, judge the diff against its text and record `rule --pr <n> --rule <id> --head <sha> --verdict pass|fail --why "<reason>"`. Unsure is `fail`.
-5. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
+3. Review the same head before testing it, when its author is not this account: in a clean worktree at that head, run `ce-code-review mode:agent base:<merge base sha>` and pipe its one JSON object, unedited, into `review --pr <n>`.
+4. A failed test or an open finding on an own PR goes to a fixing worker; then adopt the new head and repeat these steps in a later run. On anyone else's PR, park it.
+5. For each entry in the policy's `rules`, judge the diff against its text and record `rule --pr <n> --rule <id> --head <sha> --verdict pass|fail --why "<reason>"`. Unsure is `fail`.
+6. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
 
-A commit for direct landing takes the same steps with `--sha` in place of `--pr`, ending in `direct --sha <sha> --job <id>`.
+A commit for direct landing takes `test`, `review` and `rule` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. A red main is repaired through a PR, because an unpublished commit has no checks. When main moves while it is red, `update` the repair PR, start a new `main-red` job for the new tip, and adopt the updated head under it.
 
 Before parking a question, check `decisions`. One whose situation matches settles it: act on it within the item's level and cite its id. A near match is a recommendation, not an answer.
 
-When a denial needs a person, `park --item pr:<n> --why "<reasons>" --recommend "<merge, fix, or close, and why>"`.
+When a denial needs a person, `park --item pr:<n> --updated <updatedAt as you read it> --why "<reasons>" --recommend "<merge, fix, or close, and why>"`.
+
+Do not park what a later run settles by itself: pending checks, unknown mergeability, an unreadable fact.
 
 ## Close
 

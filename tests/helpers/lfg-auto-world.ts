@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-const SCRIPT = path.join(__dirname, "../../skills/lfg-auto/scripts/autonomous.py")
+export const SCRIPT = path.join(__dirname, "../../skills/lfg-auto/scripts/autonomous.py")
 export const ME = "maintainer"
 const roots: string[] = []
 export const cleanup = () => roots.forEach((r) => rmSync(r, { recursive: true, force: true }))
@@ -26,7 +26,11 @@ if a[:2] == ["pr", "view"]: out(w["prs"][a[2]])
 if a[:2] == ["pr", "merge"]:
     w["prs"][a[2]].update(state="MERGED", mergeCommit={"oid": "f" * 40})
     json.dump(w, open(os.path.join(d, "world.json"), "w")); sys.exit(0)
-if a[0] in ("pr", "issue") and a[1] in ("close", "comment"): sys.exit(0)
+if a[0] in ("pr", "issue") and a[1] in ("close", "comment"):
+    if a[1] == "close" and not w.get("close_ignored"):
+        w["issues"][a[2]]["state"] = "closed"
+        json.dump(w, open(os.path.join(d, "world.json"), "w"))
+    sys.exit(0)
 if a[0] == "api":
     u = a[1]
     if u == "-X": sys.exit(0)
@@ -39,11 +43,20 @@ if a[0] == "api":
     if "/rules/branches/" in u:
         if w.get("rules_error"): print(w["rules_error"], file=sys.stderr); sys.exit(1)
         out(w.get("rules", []))
-    if "/actions/runs" in u: out({"total_count": w.get("awaiting", 0)})
-    if re.search(r"pulls/\\d+/commits", u): out(w["commits"])
-    if re.search(r"issues/\\d+/comments", u): out(w.get("comments", []))
+    m = re.search(r"/actions/runs.head_sha=([0-9a-f]+)", u)
+    if m:
+        flows = w.get("flows", {}).get(m[1], [])
+        out({"total_count": len(flows), "workflow_runs": flows})
+    m = re.search(r"pulls/(\\d+)/(commits|comments|reviews)", u)
+    if m: out(w["prs"][m[1]].get("api_" + m[2], []))
+    m = re.search(r"issues/(\\d+)/comments", u)
+    if m: out(w.get("comments", {}).get(m[1], []))
     m = re.search(r"issues/(\\d+)$", u)
-    if m: out(w["issues"][m[1]])
+    if m:
+        if m[1] not in w["issues"]:
+            p = w["prs"][m[1]]
+            out({"number": p["number"], "user": {"login": p["author"]["login"]}, "state": "open", "pull_request": {}, "updated_at": p["updatedAt"]})
+        out(w["issues"][m[1]])
     if "/branches/" in u: out({"protected": w.get("protected", False)})
     out({"allow_squash_merge": True})
 sys.exit(9)
@@ -56,7 +69,7 @@ export class World {
   repo = path.join(this.root, "repo")
   fake = path.join(this.root, "fake")
   env: NodeJS.ProcessEnv
-  w: any = { prs: {}, checks: {}, commits: [], issues: {} }
+  w: any = { prs: {}, checks: {}, issues: {}, flows: {}, comments: {} }
   token = ""
 
   constructor(team: string | null = HANDS_OFF, local?: string) {
@@ -78,7 +91,9 @@ export class World {
     }
     this.git(this.root, "init", "-q", "--bare", "-b", "main", "origin.git")
     this.git(this.root, "init", "-q", "-b", "main", "repo")
-    this.git(this.repo, "remote", "add", "origin", path.join(this.root, "origin.git"))
+    this.git(this.repo, "config", "user.email", "t@example.invalid")
+    this.git(this.repo, "remote", "add", "origin", "https://github.com/o/r.git")
+    this.git(this.repo, "config", `url.${path.join(this.root, "origin.git")}.insteadOf`, "https://github.com/o/r.git")
     this.write("app.rb", "one\n")
     this.write("package.json", '{\n  "dependencies": { "left": "1.2.0" }\n}\n')
     if (team !== null) this.write(".compound-engineering/config.yaml", team)
@@ -136,9 +151,13 @@ export class World {
     this.w.prs[n] = {
       number: n, state: "OPEN", isDraft: false, author, headRefOid: head, headRefName: `pr${n}`, isCrossRepository: false,
       baseRefName: "main", mergeable: "MERGEABLE", mergeStateStatus: "CLEAN", reviewDecision: "", title: "t", url: "u",
-      updatedAt: "2026-01-01T00:00:00Z", ...extra,
+      updatedAt: "2026-01-01T00:00:00Z",
+      api_commits: [{
+        author: author.is_bot ? { login: "dependabot[bot]", type: "Bot" } : { login: author.login },
+        commit: { verification: { verified: true } },
+      }],
+      ...extra,
     }
-    this.w.commits = [{ author: { login: "dependabot[bot]", type: "Bot" }, commit: { verification: { verified: true } } }]
     this.save()
     return head
   }

@@ -10,13 +10,13 @@ A repair that edits CI itself always parks for a person.
 
 ## bugs
 
-Sources: open issues that report wrong behavior, and the rolling `feedback-sweep-plan` that `ce-sweep` keeps with the repository's plans, when it has one. `ce-sweep` cannot be called from here; read what its own schedule produced. Callee: `lfg <issue URL>`, with the instruction not to merge. Pass `--origin issue:<n>`.
+Sources: open issues that report wrong behavior, and the rolling `feedback-sweep-plan` that `ce-sweep` keeps with the repository's plans, when it has one. When feedback sources are configured, run `ce-sweep mode:non-interactive` first. Callee: `lfg <issue URL>`, with the instruction not to merge. Pass `--origin issue:<n>`, or `--origin external` for anything that came from outside GitHub.
 
 `lfg` returns prose. Find the PR from its branch rather than from its text, and treat a non-empty `## Needs your decision` as questions to answer here before landing.
 
 ## security
 
-Sources: the host's dependency and code-scanning alerts where readable, and a bounded look at recently changed code that handles untrusted input. Reproduce before fixing. Callee: `lfg`. Follow the disclosure rule in `references/run.md`: in a repository other people can read, do not push a fix or describe the finding; park it in the digest.
+Sources: the host's dependency and code-scanning alerts where readable, and a bounded look at recently changed code that handles untrusted input. Reproduce before fixing. Callee: `lfg`. Follow the disclosure rule in `references/run.md`: in a repository other people can read, do not push a fix or describe the finding; park it as `security:<slug>`.
 
 ## backlog
 
@@ -28,8 +28,12 @@ Sources: dependency bot PRs first, then outdated direct dependencies and the fra
 
 ## climb
 
-Improve a number: speed, cost, size, coverage. Look for what is slow in traces, logs, benchmarks and CI timings before choosing a target. Callee: `ce-optimize`, which stops for the owner's approval of a new target. So resume a run the owner already approved, or park a proposal naming the target, how it is measured, its guard metrics, and the first experiment. A result ships only with a repeated before-and-after measurement and unchanged guards.
+Improve a number: speed, cost, size, coverage. Look for what is slow in traces, logs, benchmarks and CI timings before choosing a target. Callee: `ce-optimize mode:return-to-caller <goal, workload and where it is slow>`. Its return decides what happens next:
+
+- `complete` with a confirmed gain: ship its branch as a PR with `ce-commit-push-pr mode:pipeline babysit:off`, adopt it, and land it like any other.
+- `complete` without one: record the target as `idea:<slug>` with what was learned, and choose another target next time.
+- `blocked`: remove the block when that is in-scope work, such as adding the missing benchmark or behavior check as its own PR. Otherwise park it.
 
 ## create
 
-Off unless the repository enables it. Proposals for content, animation, polish, or features come from `ce-ideate <subject> output:md`, with the subject taken from policy rules, strategy, or the owner's request. Start it only when no other motion has work. Stop at the written proposal, do not answer its next-steps menu, and park it as `idea:<slug>`. Start no new batch while an earlier one is unanswered.
+Off unless the repository enables it, and started only when no other motion has work. Callee: `ce-ideate mode:return-to-caller <subject>`, with the subject from policy rules, strategy, or the owner's request. Take the strongest survivor that fits the level. Settle its open product questions through the question ladder in SKILL.md, then hand it to `lfg` to build and end in an open PR with a preview or screenshots. At level `report`, park it as `idea:<slug>` instead. Tests cannot judge taste, so start no new idea while an earlier one is open or unanswered.

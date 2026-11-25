@@ -45,7 +45,7 @@ host schedule -> /lfg-auto -> look -> pick by motion order -> delegate to lfg, c
 
 **A script decides landings.** The agent does the work; a bundled script reads policy from the default branch and facts from GitHub, then allows or denies. A PR cannot change the policy that judges it, and text in an issue or PR grants nothing.
 
-**Four settings combine.** A profile sets a start and a ceiling for each motion. Overrides lower a motion or an author. Rules in your own words make a landing stricter. Five clean landings raise a motion to its ceiling, and a revert resets it.
+**Four settings combine.** A profile sets a start and a ceiling for each motion. Overrides lower a motion or an author. Rules in your own words make a landing stricter. Five clean landings raise a motion to its ceiling, and a revert or a closed PR resets it.
 
 **Main first.** While main is not green, only a repair that fixes every failing check may land. Then one item lands at a time.
 
@@ -64,15 +64,15 @@ host schedule -> /lfg-auto -> look -> pick by motion order -> delegate to lfg, c
 | `backlog` | Land, close or park every open PR and issue | Full |
 | `stack` | Dependency and framework updates | Full; major versions wait for you |
 | `security` | Find and fix security problems | Private repositories; public ones get digest entries only |
-| `climb` | Improve a number with `/ce-optimize` | Resumes runs you approved; otherwise proposes |
-| `create` | Content, animation and polish with `/ce-ideate` | Written proposals |
+| `climb` | Improve a number with `/ce-optimize` | Full, for measured targets with behavior checks and caps |
+| `create` | Content, animation and polish with `/ce-ideate` and `/lfg` | Opens PRs; off by default |
 
 ---
 
 ## Safety
 
 - With no `autonomous_profile`, it reports and does nothing else.
-- Code from people you have not listed is never checked out or run.
+- Code from people you have not listed is never checked out or run. Code from people you list runs here with access to your files and keychain.
 - Closing needs a merged fix, an older duplicate, or a merged replacement, checked by the script.
 - Any process running as you can merge without this skill. Branch rules on the server are the only thing that prevents that.
 - Runs are locked per checkout. Two machines running it on one repository are not coordinated.

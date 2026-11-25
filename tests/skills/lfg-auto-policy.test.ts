@@ -13,8 +13,10 @@ describe("policy", () => {
     expect(w.run(["observe"]).json.main).toBe("green")
     expect(w.run(["begin"]).json).toMatchObject({ token: null, mode: "report-only", reason: "no-profile" })
     expect(w.land(7, head).json.reasons).toEqual(["no-profile"])
+    w.w.issues["1"] = { number: 1, user: { login: ME }, state: "open" }
+    w.save()
     const close = w.run(["close", "--token", "x", "--kind", "issue", "--number", "1", "--as", "fixed", "--evidence", "pr:7", "--comment", "x".repeat(30)])
-    expect(close.json.reasons ?? close.json.error).toBeTruthy()
+    expect(close.json.reasons).toEqual(["no-profile"])
     expect(w.writes()).toEqual([])
   })
 
@@ -87,7 +89,7 @@ describe("lease and caps", () => {
     const w = new World(HANDS_OFF + "autonomous_open_pr_cap: 1\nautonomous_jobs_per_hour: 9\n").begin()
     const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x", "--opens-pr"]).json.job
     w.pr(7, { "app.rb": "two\n" }, { login: ME })
-    w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7"])
+    w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", w.w.prs[7].headRefOid])
     const next = (m: string) => w.run(["job", "--token", w.token, "--motion", m, "--what", "x", "--opens-pr"])
     expect(next("stack").json.reasons).toEqual(["open-pr-cap"])
     expect(next("main-red").json.reasons).toEqual(["main-not-red"])

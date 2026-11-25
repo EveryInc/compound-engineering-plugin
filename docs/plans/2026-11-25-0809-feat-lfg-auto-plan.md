@@ -68,6 +68,8 @@ Agents can do much of a repository's maintenance, but a person still starts each
 - R19. A run reads the repository's autonomous settings first. Without them it interviews a present user and saves the answers, or reports and stops when nobody is present.
 - R18. When a provider reports a usage limit, the next job moves to another provider the host offers, or the run ends.
 - R20. When a person answers a stuck or parked item, the run applies it, records the situation, options, choice and confirmed reason, compounds a lasting decision into the repository, and uses it next time instead of asking. Only a person in the session answers; a decision never raises authority, a one-time answer is not generalized, and a retired or replaced one stops applying. (Relayed by another agent as the user's request; adopted because R4 needs an answer path.)
+- R21. `ce-optimize`, `ce-ideate` and `ce-sweep` run unattended from the loop; conditions stand in for approval in `ce-optimize` and an unmet one blocks. (session-settled: user-directed — chosen over proposals only: every motion should run by itself.)
+- R22. Code runs on this machine only from its own recorded work and listed authors. (session-settled: user-approved — chosen over own work only or a sandbox first: the dependency backlog must clear itself.)
 - R17. Each run leaves a readable digest of what landed, what it decided, and what is parked with a recommendation.
 
 ### Acceptance Examples
@@ -82,8 +84,6 @@ Agents can do much of a repository's maintenance, but a person still starts each
 
 **Deferred to Follow-Up Work**
 
-- Unattended `ce-optimize` and `ce-ideate` modes. Until then, `climb` only resumes an approved `ce-optimize` run and `create` only writes proposals.
-- PR intake inside `ce-sweep`. Autonomous mode reads PRs and issues itself and reads the sweep plan as a source.
 - A remaining-quota reading. No readable source was found, so R3 and R18 stand in.
 - A lease across machines.
 
@@ -103,7 +103,7 @@ Agents can do much of a repository's maintenance, but a person still starts each
 | main-red, bugs, backlog, stack | pr / pr | babysit / merge | merge / merge |
 | security | pr / pr | pr / pr | pr / merge |
 | climb | report / report | pr / merge | merge / merge |
-| create | report / report | report / report | report / pr |
+| create | report / report | pr / pr | pr / merge |
 
 - KTD5. State lives in the shared main-checkout store that `skills/ce-retro/scripts/retro-state.py` uses, as JSON and append-only JSONL. The lease fails closed without a lock and carries a run-unique token. Governs R1, R3.
 - KTD6. Receipts are per exact head and base tip. `test` runs the policy's command itself in a clean worktree with GitHub credentials removed. `review` accepts a `ce-code-review mode:agent base:<ref>` result only with `status: complete`, `verdict: Ready to merge`, no P0 or P1, `scope.head_sha` equal to the head and a file count matching the script's own diff. `rule` records one verdict per `autonomous_rules` entry. A missing or stale receipt denies. Governs R16.

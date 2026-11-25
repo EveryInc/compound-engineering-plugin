@@ -197,7 +197,6 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
   // it, and model-routing it would let a cheaper request escalate into an
   // expensive measurement program, so it stays user-invoked.
   "ce-retune",
-  "ce-sweep",
   "ce-test-xcode",
   // wtf: answers a user who says they did not follow something. No skill or
   // pipeline calls it, and model-routing it would re-explain replies unasked.
@@ -210,6 +209,8 @@ const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
   "ce-bakeoff",
   "ce-explain",
   "ce-pov",
+  // lfg-auto runs a configured sweep before choosing reported bugs.
+  "ce-sweep",
   "ce-brainstorm",
   "ce-code-review",
   "ce-commit",

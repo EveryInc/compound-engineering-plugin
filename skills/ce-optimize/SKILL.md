@@ -1,10 +1,12 @@
 ---
 name: ce-optimize
 description: "Optimize a named target with a measured loop: attribute a workload's cost, or score variants and keep winners. Use when a working system's metric should move and the winning change is not already known. Use ce-debug when the job is diagnosis; use ce-work when the change is already known."
-argument-hint: "[path to optimization spec YAML, or describe the optimization goal]"
+argument-hint: "[path to optimization spec YAML, or describe the optimization goal] | [mode:return-to-caller <goal>]"
 ---
 
 # Optimize a measurable target
+
+**`mode:return-to-caller`** (set by a calling skill): strip it and read `references/return-to-caller.md` before Phase 0; it replaces every ask and menu.
 
 **Outcome:** confirmed improvements to the named target live on an `optimize/<spec-name>` branch, with a disk log. The user takes over at wrap-up.
 
@@ -16,9 +18,9 @@ Invoking this skill authorizes reading the repo, building the harness, and (afte
 
 Independent calls and dispatches go in one response; serialize only real dependencies.
 
-Report findings, user decisions, blockers, and results. During longer work, give occasional updates on what was learned and what remains. Routine preparation and phase or batch transitions need no announcement. Keep accounting in the log and final recap unless it affects a current decision.
+Report findings, user decisions, blockers, and results. During longer work, say what was learned and what remains. Keep accounting in the log and recap.
 
-Explain the target, evidence, and decision in ordinary task language. Workflow labels (such as 'harness') belong in artifacts unless the user asks about those mechanics. State unknown duration or cost as unknown; caps are limits, not forecasts.
+Explain the target, evidence, and decision in ordinary task language. Workflow labels (such as 'harness') belong in artifacts unless the user asks about those mechanics. State unknown duration or cost as unknown.
 
 A step is done only after it ran. Describing a measurement, dispatch, or checkpoint is not doing it. Do not end a turn while in-scope work remains merely described. Outstanding work may outlive the turn only with a verified checkpoint and either bounded automatic resumption or an explicit manual-resume handback, as `references/persistence.md` defines.
 
