@@ -16,8 +16,11 @@ Anything unreadable denies. --dry-run evaluates and writes nothing.
 Store: <main checkout>/.context/compound-engineering/afg/, shared by every
 linked worktree; a bare repository uses <git common dir>/compound-engineering/afg/.
   state.json    the run lease
-  ledger.jsonl  append-only events: run, job, adopt, receipt, rule,
+  ledger.jsonl  append-only events: run, job, job-end, worker, worker-end, adopt, receipt, rule,
                 park, answer, retire, land-intent, land, rejected, close, update
+  allowance.json  optional, written by whatever shares this machine's capacity
+                across repositories: {"version": 1, "jobs": <at once>, "expires_at": <UTC>}.
+                Present, it bounds every new job; this script only reads it.
 """
 import argparse
 import hashlib
@@ -590,6 +593,67 @@ def require_lease(repo, token):
     write_state(repo, state)
 
 
+def allowance_path(repo):
+    return os.path.join(store_dir(repo, create=False), "allowance.json")
+
+
+def allowance(repo):
+    """What an outside allocator permits here, or None when nothing allocates.
+
+    A present file that cannot be trusted permits nothing: it says that something
+    allocates, and not what.
+    """
+    nothing = {"jobs": 0, "state": "unreadable"}
+    try:
+        # Never waits on a pipe: the caller may hold the store lock.
+        fd = os.open(allowance_path(repo), os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return nothing
+    try:
+        regular = stat.S_ISREG(os.fstat(fd).st_mode)
+        text = os.read(fd, 4096) if regular else b""
+    except OSError:
+        return nothing
+    finally:
+        os.close(fd)
+    try:
+        data = json.loads(text)
+        jobs, expires = data["jobs"], parse_iso(data["expires_at"])
+        sound = type(data["version"]) is int and data["version"] == 1 and type(jobs) is int and jobs >= 0 and expires.tzinfo is not None
+        spent = sound and expires <= now()
+    except (ValueError, KeyError, TypeError, AttributeError, RecursionError, OverflowError):
+        return nothing
+    if not sound:
+        return nothing
+    return {"jobs": 0 if spent else jobs, "state": "expired" if spent else "current", "expires_at": iso(expires)}
+
+
+def active_work(rows):
+    """Jobs not adopted or ended, and workers not ended. A worker can outlive the run that
+    started it, so earlier runs' count too, until they are too old to still be going."""
+    done = {r["job"] for r in rows if r["event"] in ("adopt", "job-end")} | {r["worker"] for r in rows if r["event"] == "worker-end"}
+    recent = now() - 2 * LEASE_TTL
+    return [r for r in rows if (r["event"] == "job" and r["job"] not in done or r["event"] == "worker" and r["worker"] not in done)
+            and parse_iso(r["at"]) > recent]
+
+
+def allowance_reasons(repo, rows):
+    given = allowance(repo)
+    if given is None:
+        begun = next((r for r in reversed(rows) if r["event"] == "run"), {})
+        return ["allowance-missing"] if begun.get("allowed") else []
+    if given["state"] != "current":
+        return [f"allowance-{given['state']}"]
+    return ["allowance-spent"] if len(active_work(rows)) >= given["jobs"] else []
+
+
+def deny_allowance(repo, rows, reasons):
+    going = [{k: r[k] for k in ("job", "worker", "what", "at") if k in r} for r in active_work(rows)]
+    return deny(*reasons, allowance={**(allowance(repo) or {}), "file": allowance_path(repo)}, going=going)
+
+
 def jobs_left(policy, rows):
     cutoff = now() - timedelta(hours=1)
     used = sum(1 for r in rows if r["event"] == "job" and parse_iso(r["at"]) > cutoff)
@@ -1053,6 +1117,7 @@ def cmd_policy(a, repo):
         p["rules"] = [{"id": rule_id(r), "text": r} for r in judged(p)]
         p["jobs_left"] = jobs_left(p, rows)
         p["landing"] = p["autonomous_landing"]
+        p["allowance"] = {"enforced": True, **(allowance(repo) or {"state": "none"})}
     return emit(p)
 
 
@@ -1108,7 +1173,7 @@ def cmd_begin(a, repo):
             reclaimed = True
         token = secrets.token_hex(8)
         settle(repo, ledger(repo))
-        append(repo, "run", token=token, reclaimed=reclaimed)
+        append(repo, "run", token=token, reclaimed=reclaimed, allowed=allowance(repo) is not None)
         write_state(repo, {"token": token, "at": iso(now())})
     for block in git("worktree", "list", "--porcelain").stdout.split("\n\n"):
         tree = block.split("\n")[0][len("worktree "):]
@@ -1231,6 +1296,9 @@ def cmd_job(a, repo):
             return deny("job-unfinished")
         if jobs_left(policy, rows) < 1:
             return deny("hourly-cap")
+        reasons = allowance_reasons(repo, rows)
+        if reasons:
+            return deny_allowance(repo, rows, reasons)
         if a.motion == "main-red" and state != "red":
             return deny("main-not-red")
         if a.opens_pr:
@@ -1256,6 +1324,26 @@ def cmd_job_end(a, repo):
         require_lease(repo, a.token)
         append(repo, "job-end", job=a.job, why=a.why)
     return emit({"ended": a.job})
+
+
+def cmd_worker(a, repo):
+    """A worker on work already in flight, such as a fix or babysitting, takes a place like a job."""
+    with locked(repo):
+        require_lease(repo, a.token)
+        rows = ledger(repo)
+        reasons = allowance_reasons(repo, rows)
+        if reasons:
+            return deny_allowance(repo, rows, reasons)
+        worker = secrets.token_hex(6)
+        append(repo, "worker", worker=worker, what=a.what)
+    return emit({"worker": worker})
+
+
+def cmd_worker_end(a, repo):
+    with locked(repo):
+        require_lease(repo, a.token)
+        append(repo, "worker-end", worker=a.worker)
+    return emit({"ended": a.worker})
 
 
 def local_commits_own(repo, sha):
@@ -1855,6 +1943,8 @@ def main():
     p = add("job-end", cmd_job_end)
     p.add_argument("--job", required=True)
     p.add_argument("--why", required=True)
+    add("worker", cmd_worker).add_argument("--what", required=True)
+    add("worker-end", cmd_worker_end).add_argument("--worker", required=True)
     p = add("test", cmd_test, dry=True)
     subject(p)
     p.add_argument("--timeout", type=int, default=3600)

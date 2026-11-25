@@ -24,11 +24,13 @@ A PR whose `job` is set is this repository's own autonomous work; finish it befo
 | `babysit` | `ce-babysit-pr mode:pipeline <url>` from a worktree on that branch; never land |
 | `diff-only` | `ce-code-review mode:agent <url>` from this checkout, then park with its verdict as the recommendation |
 
+Before starting a worker on work in flight, such as babysitting or a fix, take its place with `worker --what "<one line>"`; a denial means leave it for a later run. `worker-end --worker <id>` when it is done.
+
 Babysit only a PR that needs it: failing checks, unanswered review feedback, or a conflict. After a worker pushes to an own PR, adopt its new head. `own-moved` means the head is not one this account recorded: read what changed since the recorded head, adopt it only when a worker or `update` made it, and otherwise park it. Adopt any `unfinished_jobs` entry whose PR exists, and `job-end` one that never produced a PR.
 
 ## Start a job
 
-1. `job --motion <m> --what "<one line>"`, with `--opens-pr` when the result will be a PR (never on `direct`), and `--origin issue:<n>` or `--origin pr:<n>` when a person's request led to it. Use `--origin external` for any other outside report, and `--origin internal` only when you found the work yourself. A denial ends that job.
+1. `job --motion <m> --what "<one line>"`, with `--opens-pr` when the result will be a PR (never on `direct`), and `--origin issue:<n>` or `--origin pr:<n>` when a person's request led to it. Use `--origin external` for any other outside report, and `--origin internal` only when you found the work yourself. A denial ends that job. An `allowance-*` denial is a limit on this machine's shared capacity. `allowance-spent` clears when something in `going` ends; `job-end` or `worker-end` an entry there only when its worker is gone. Any other ends new work for this run: start no job and no worker, land what is ready, and end. Never write that file.
 2. Delegate it to a worker in its own worktree, never in the main checkout. Use the host's own delegation when it has one that gives a separate checkout. Give the worker the job, its sources, the callee from `references/motions.md`, the end state, and the Authority section of SKILL.md.
 3. When a worker stops because a provider reported a usage limit, hand the job to another provider the host offers. When none is available, park it and end the run.
 4. Do not trust a worker's account of where things stand. Read the PR back, check that its head is the one the worker reported, then `adopt --job <id> --pr <n> --head <sha>`. A commit for direct landing is `adopt --job <id> --sha <sha>`. A job that produces neither ends with `job-end`.

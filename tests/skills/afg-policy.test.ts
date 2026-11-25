@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { writeFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import { readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { cleanup, HANDS_OFF, ME, World } from "../helpers/afg-world"
 
@@ -101,6 +102,100 @@ describe("lease and caps", () => {
     expect(next("main-red").json.reasons).toEqual(["main-not-red"])
     w.fail(w.git(w.repo, "rev-parse", "origin/main"))
     expect(next("main-red").code).toBe(0)
+  })
+
+  describe("an outside allowance", () => {
+    const soon = () => new Date(Date.now() + 3_600_000).toISOString()
+    const world = (allowance?: unknown) => {
+      const w = new World(HANDS_OFF + "autonomous_jobs_per_hour: 9\n").begin()
+      if (allowance !== undefined) give(w, allowance)
+      return w
+    }
+    const give = (w: World, a: unknown) =>
+      writeFileSync(path.join(w.repo, ".context/compound-engineering/afg/allowance.json"), typeof a === "string" ? a : JSON.stringify(a))
+    const job = (w: World) => w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"])
+
+    test("is not needed, and policy says this version enforces one", () => {
+      const w = world()
+      expect(job(w).code).toBe(0)
+      expect(w.run(["policy"]).json.allowance).toEqual({ enforced: true, state: "none" })
+    })
+
+    test("bounds the jobs going at once, and ending one makes room", () => {
+      const w = world({ version: 1, jobs: 1, expires_at: soon() })
+      const first = job(w).json.job
+      expect(job(w).json.reasons).toEqual(["allowance-spent"])
+      w.run(["job-end", "--token", w.token, "--job", first, "--why", "done"])
+      expect(job(w).code).toBe(0)
+    })
+
+    const ledger = (w: World) => path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    const again = (w: World) => {
+      w.run(["end", "--token", w.token])
+      return w.begin()
+    }
+
+    test("work outlives the run that started it, until it is too old to be going", () => {
+      const w = world({ version: 1, jobs: 1, expires_at: soon() })
+      const first = job(w).json.job
+      const denied = job(again(w)).json
+      expect(denied.reasons).toEqual(["allowance-spent"])
+      expect(denied.going).toMatchObject([{ job: first, what: "x" }])
+      expect(denied.allowance.file).toEndWith("afg/allowance.json")
+      writeFileSync(ledger(w), readFileSync(ledger(w), "utf8").replaceAll(/"at": "[^"]+"(?=, "event": "job")/g, '"at": "2020-01-01T00:00:00Z"'))
+      expect(job(w).code).toBe(0)
+    })
+
+    test("a worker on work in flight takes a place too", () => {
+      const w = world({ version: 1, jobs: 1, expires_at: soon() })
+      const worker = w.run(["worker", "--token", w.token, "--what", "fix pr 7"]).json.worker
+      expect(job(w).json.reasons).toEqual(["allowance-spent"])
+      expect(w.run(["worker", "--token", w.token, "--what", "another"]).json.reasons).toEqual(["allowance-spent"])
+      w.run(["worker-end", "--token", w.token, "--worker", worker])
+      expect(job(w).code).toBe(0)
+    })
+
+    test("that disappears mid-run stops the run it bounded, and not the next", () => {
+      const w = world()
+      give(w, { version: 1, jobs: 5, expires_at: soon() })
+      again(w)
+      rmSync(path.join(w.repo, ".context/compound-engineering/afg/allowance.json"))
+      expect(job(w).json.reasons).toEqual(["allowance-missing"])
+      expect(job(again(w)).code).toBe(0)
+    })
+
+    test("a pipe or a folder in its place starts nothing and hangs nothing", () => {
+      for (const make of ["mkfifo", "mkdir"]) {
+        const w = world()
+        spawnSync(make, [path.join(w.repo, ".context/compound-engineering/afg/allowance.json")])
+        expect(job(w).json.reasons).toEqual(["allowance-unreadable"])
+      }
+    })
+
+    test.each([
+      ["expired", { version: 1, jobs: 3, expires_at: "2020-01-01T00:00:00Z" }, "allowance-expired"],
+      ["zero", { version: 1, jobs: 0, expires_at: "2999-01-01T00:00:00Z" }, "allowance-spent"],
+      ["not JSON", "{", "allowance-unreadable"],
+      ["another version", { version: 2, jobs: 3, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
+      ["no expiry", { version: 1, jobs: 3 }, "allowance-unreadable"],
+      ["a naive time", { version: 1, jobs: 3, expires_at: "2999-01-01T00:00:00" }, "allowance-unreadable"],
+      ["a negative count", { version: 1, jobs: -1, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
+      ["true as a count", { version: 1, jobs: true, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
+      ["a list", [], "allowance-unreadable"],
+      ["true as a version", { version: true, jobs: 3, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
+      ["deeply nested", "[".repeat(4000), "allowance-unreadable"],
+    ])("that is %s starts nothing", (_name, given, reason) => {
+      expect(job(world(given)).json.reasons).toEqual([reason])
+    })
+
+    test("that expires mid-run stops new jobs and lets the run finish", () => {
+      const w = world({ version: 1, jobs: 2, expires_at: soon() })
+      const going = job(w).json.job
+      give(w, { version: 1, jobs: 2, expires_at: "2020-01-01T00:00:00Z" })
+      expect(job(w).json.reasons).toEqual(["allowance-expired"])
+      expect(w.run(["job-end", "--token", w.token, "--job", going, "--why", "done"]).code).toBe(0)
+      expect(w.run(["end", "--token", w.token]).code).toBe(0)
+    })
   })
 
   test("requested work needs an origin", () => {
