@@ -205,6 +205,11 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
 ])
 
 const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
+  // lfg-auto delegates to ce-babysit-pr, ce-bakeoff, ce-explain and ce-pov unattended.
+  "ce-babysit-pr",
+  "ce-bakeoff",
+  "ce-explain",
+  "ce-pov",
   "ce-brainstorm",
   "ce-code-review",
   "ce-commit",

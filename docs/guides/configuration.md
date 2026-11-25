@@ -106,6 +106,7 @@ All settings are optional. Commented examples are documentation, not active valu
 | [`ce-product-pulse`](./ce-product-pulse.md) | `pulse_metric_sources`, `pulse_pending_metrics`, `pulse_excluded_metrics` | Per-metric source overrides and strategy metrics that should render as pending or be excluded. |
 | [`ce-promote`](./ce-promote.md) | `ce_promote_spiral_optout` | `true` suppresses the one-time Spiral setup offer; remove the key to enable it again. |
 | [`ce-sweep`](./ce-sweep.md) | `feedback_sources`, `sweep_state_path`, `sweep_ack_cap`, `sweep_lease_ttl_minutes`, `sweep_shared_branch` | Feedback connectors, durable state location, acknowledgment circuit breaker, lease expiry, and optional push-gated shared-branch coordination. The setup interview writes these values. |
+| [`lfg-auto`](./lfg-auto.md) | `autonomous_profile`, `autonomous_motions`, `autonomous_test_command`, `autonomous_trusted_authors`, `autonomous_babysit_authors`, `autonomous_overrides`, `autonomous_rules`, `autonomous_jobs_per_hour`, `autonomous_open_pr_cap`, `autonomous_direct` | Risk tolerance for autonomous mode. These do not follow the ordinary rule: a profile on the default branch can only be tightened locally, and an invalid value turns autonomous mode off |
 
 ## Implementation routing
 

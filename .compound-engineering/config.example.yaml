@@ -1,5 +1,5 @@
 # Compound Engineering -- repo config
-# ce-config-template-version: 3
+# ce-config-template-version: 4
 # Copy to .compound-engineering/config.yaml in your project root (team defaults).
 # Optional override: .compound-engineering/config.local.yaml, same keys.
 # Ordinary keys: local wins when set, then this file, then the skill default.
@@ -216,6 +216,30 @@
 # sweep_ack_cap: 25                                 # max acks per source per run before the circuit breaker
 # sweep_lease_ttl_minutes: 60                       # single-writer lease staleness threshold
 # sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology
+
+# --- Autonomous mode (lfg-auto) ---
+
+# How far `lfg-auto` may go without a person. Unset profile means it reports
+# and does nothing else. `lfg-auto setup` writes these for you. A profile in
+# this file, on the default branch, is the repository policy and
+# config.local.yaml can only tighten it. Without one here, config.local.yaml
+# is the whole policy for that checkout. An invalid autonomous value turns
+# autonomous mode off; it does not fall through to a default.
+
+# autonomous_profile: balanced                # cautious | balanced | hands-off
+# autonomous_motions: [main-red, bugs, backlog, stack]   # also security, climb, create
+# autonomous_test_command: bun run test       # must pass on this machine before anything lands
+# autonomous_trusted_authors:                 # accounts whose PRs may merge; write bots as name[bot]
+#   - dependabot[bot]
+# autonomous_babysit_authors: [teammate]      # accounts whose PR code may be run and fixed here, never merged
+# autonomous_overrides:                       # the strictest match wins; max is report | pr | babysit | merge
+#   - { motion: stack, max: babysit }
+#   - { author: teammate, max: pr }
+# autonomous_rules:                           # your own words; each can only make a landing stricter
+#   - Ask me about anything that changes what users pay
+# autonomous_jobs_per_hour: 2                 # default 2
+# autonomous_open_pr_cap: 5                   # default 5
+# autonomous_direct: false                    # true: land on the default branch where no branch rules exist
 
 # --- Compound Packs ---
 

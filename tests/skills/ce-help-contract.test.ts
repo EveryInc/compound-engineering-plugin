@@ -24,6 +24,7 @@ const STARTS: [string, string][] = [
   ["ce-setup", "ce-commit-push-pr"],
   ["ce-compound", "ce-setup"],
   ["lfg", "ce-compound"],
+  ["lfg-auto", "ce-babysit-pr"],
   ["ce-compound-refresh", "ce-compound"],
   ["ce-retro", "ce-compound"],
   ["ce-retro", "ce-setup"],

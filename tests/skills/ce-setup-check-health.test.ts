@@ -182,6 +182,7 @@ describe("ce-setup check-health", () => {
       "ce-sweep",
       "ce-work",
       "lfg",
+      "lfg-auto",
     ]) {
       const consumerDocs = await readFile(path.join(repoRoot, "docs", "guides", `${consumer}.md`), "utf8")
       expect(consumerDocs).toContain("./configuration.md")

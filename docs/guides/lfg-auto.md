@@ -1,0 +1,85 @@
+# `lfg-auto`
+
+> Autonomous mode for a repository. One run picks the next job you enabled, gets it done through the other skills, and lands, babysits, closes or parks the result within the tolerances you saved.
+
+`/lfg` takes one request you name. `lfg-auto` decides what to work on. You run it on a schedule, about hourly, and read its digest.
+
+```text
+host schedule -> /lfg-auto -> look -> pick by motion order -> delegate to lfg, ce-debug, ce-babysit-pr, ...
+                                                           -> review and test the exact head
+                                                           -> script decides -> land | babysit | close | park
+```
+
+---
+
+## TL;DR
+
+| Question | Answer |
+|----------|--------|
+| What does it do? | Repairs main, works bugs and the PR and issue backlog, updates dependencies, and proposes improvements, within your settings |
+| When to use it | A repository whose routine work should start and finish without you |
+| What it produces | Landed or open PRs, evidence-backed closes, and a digest of what needs you |
+| What's next | Answer the parked items; the next run picks them up |
+
+---
+
+## Example invocations
+
+```text
+# First run: interviews you and saves settings. Later: one run
+/lfg-auto
+
+# Change the settings or the schedule
+/lfg-auto setup
+
+# Show the settings and what happened recently
+/lfg-auto status
+
+# Say what a run would do, and write nothing
+/lfg-auto dry-run
+```
+
+---
+
+## What makes it novel
+
+**A script decides landings.** The agent does the work; a bundled script reads policy from the default branch and facts from GitHub, then allows or denies. A PR cannot change the policy that judges it, and text in an issue or PR grants nothing.
+
+**Four settings combine.** A profile sets a start and a ceiling for each motion. Overrides lower a motion or an author. Rules in your own words make a landing stricter. Five clean landings raise a motion to its ceiling, and a revert resets it.
+
+**Main first.** While main is not green, only a repair that fixes every failing check may land. Then one item lands at a time.
+
+**The exact commit.** A landing needs a passing local test and a clean review of the PR's current head on the current base. Either moving voids both.
+
+**Some changes always wait for you.** Permissions, data deletion and migrations, secrets, billing, releases, and the CI, tests, scripts and instructions that judge a change.
+
+---
+
+## Motions
+
+| Motion | Work | Today |
+|---|---|---|
+| `main-red` | Repair a failing default branch | Full |
+| `bugs` | Fix reported bugs, including what `/ce-sweep` collected | Full |
+| `backlog` | Land, close or park every open PR and issue | Full |
+| `stack` | Dependency and framework updates | Full; major versions wait for you |
+| `security` | Find and fix security problems | Private repositories; public ones get digest entries only |
+| `climb` | Improve a number with `/ce-optimize` | Resumes runs you approved; otherwise proposes |
+| `create` | Content, animation and polish with `/ce-ideate` | Written proposals |
+
+---
+
+## Safety
+
+- With no `autonomous_profile`, it reports and does nothing else.
+- Code from people you have not listed is never checked out or run.
+- Closing needs a merged fix, an older duplicate, or a merged replacement, checked by the script.
+- Any process running as you can merge without this skill. Branch rules on the server are the only thing that prevents that.
+- Runs are locked per checkout. Two machines running it on one repository are not coordinated.
+- It needs the GitHub CLI and file locking, so it does not act on native Windows.
+
+Settings and their layering are in [Compound Engineering configuration](./configuration.md).
+
+## Scheduling
+
+Use your host's scheduler with the prompt `/lfg-auto`. In T3 Code, use an interval schedule with a new thread per run; a webhook schedule can start a run when an issue or PR opens. It does not read remaining subscription quota: it caps jobs per hour and moves to another provider when one reports a limit.

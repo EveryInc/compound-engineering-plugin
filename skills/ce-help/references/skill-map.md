@@ -11,6 +11,7 @@ Recommend one skill. Bring in a second when the situation falls between two skil
 | Plan multi-step work, or deepen a plan | `ce-plan` |
 | Build from a plan or a clear request | `ce-work` |
 | Hand off the remaining steps from any point, ending in an open PR for a code change | `lfg` |
+| Have a repository fix, update and land its own work on a schedule, within set tolerances | `lfg-auto` |
 | Capture a lesson from solved work that the final code does not show | `ce-compound` |
 | Review captured learnings: update, merge, shorten, or delete them, and keep standards current | `ce-compound` (refresh) |
 | An existing prompt or schedule uses the old refresh name, which still works but is deprecated | `ce-compound-refresh` |

@@ -1,0 +1,1315 @@
+#!/usr/bin/env python3
+"""Policy, state and landing gate for lfg-auto.
+
+This script is the only writer of autonomous-mode state and the only path through which
+autonomous mode merges, pushes to the default branch, updates a PR branch, or closes
+an item. It reads policy and GitHub facts itself; a caller supplies only what to
+act on and receipts the script checks.
+
+Every subcommand prints one JSON object. Exit statuses:
+  0  done, or allowed
+  1  denied (the object carries "reasons")
+  2  command-line misuse
+  3  the repository, GitHub, or the store could not be read or written
+Anything unreadable denies. --dry-run evaluates and writes nothing.
+
+Store: <main checkout>/.context/compound-engineering/lfg-auto/, shared by every
+linked worktree; a bare repository uses <git common dir>/compound-engineering/lfg-auto/.
+  state.json    the run lease
+  ledger.jsonl  append-only events: run, job, adopt, receipt, park, answer,
+                retire, land, close, update
+"""
+import argparse
+import hashlib
+import json
+import os
+import re
+import secrets
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+LEASE_TTL = timedelta(hours=3)
+EARN_AFTER = 5
+LEVELS = ["report", "pr", "babysit", "merge"]
+PROFILES = ["cautious", "balanced", "hands-off"]
+MOTIONS = ["main-red", "bugs", "security", "backlog", "stack", "climb", "create"]
+DEFAULT_MOTIONS = ["main-red", "bugs", "backlog", "stack"]
+# motion -> (start, ceiling) per profile
+_REPAIR = [("pr", "pr"), ("babysit", "merge"), ("merge", "merge")]
+TABLE = {
+    "main-red": _REPAIR,
+    "bugs": _REPAIR,
+    "backlog": _REPAIR,
+    "stack": _REPAIR,
+    "security": [("pr", "pr"), ("pr", "pr"), ("pr", "merge")],
+    "climb": [("report", "report"), ("pr", "merge"), ("merge", "merge")],
+    "create": [("report", "report"), ("report", "report"), ("report", "pr")],
+}
+# A job that answers someone's request records who asked.
+ORIGIN_REQUIRED = {"bugs", "security", "backlog"}
+KEYS = {
+    "autonomous_profile": "str",
+    "autonomous_motions": "list",
+    "autonomous_overrides": "maps",
+    "autonomous_trusted_authors": "list",
+    "autonomous_babysit_authors": "list",
+    "autonomous_rules": "list",
+    "autonomous_jobs_per_hour": "int",
+    "autonomous_open_pr_cap": "int",
+    "autonomous_test_command": "str",
+    "autonomous_direct": "bool",
+}
+OK_CONCLUSIONS = {"success", "neutral", "skipped"}
+SHA = re.compile(r"^[0-9a-f]{40}$")
+
+# Changes a human always lands. Matched against old and new paths, lowercased.
+HARD_PATHS = [
+    ("judge", r"(^|/)\.(github|gitlab|circleci|buildkite|husky|compound-engineering|claude|codex|cursor|agents|vscode|devcontainer)/"),
+    ("judge", r"(^|/)(agents|claude|gemini|coding_standards|review)\.md$"),
+    ("judge", r"(^|/)(\.mcp\.json|\.gitattributes|\.gitmodules|codeowners|makefile|rakefile|justfile|dockerfile[^/]*|docker-compose[^/]*|conftest\.py|pytest\.ini|tox\.ini|setup\.(py|cfg)|lefthook\.ya?ml|\.pre-commit-config\.ya?ml|\.npmrc|\.yarnrc[^/]*|bunfig\.toml|\.bundle/config|\.rspec)$"),
+    ("judge", r"(^|/)(jest|vitest|vite|playwright|cypress|babel|webpack|rollup|eslint|karma|metro)[^/]*\.config\.[^/]+$"),
+    ("judge", r"(^|/)(spec|test|tests)/(.*_helper\.rb|setup\.[^/]+|rails_helper\.rb)$"),
+    ("judge", r"(^|/)(bin|script|scripts)/"),
+    ("migration", r"(^|/)(migrations?|migrate)/|(^|/)(schema|structure)\.(rb|sql|prisma)$|\.sql$"),
+    ("permissions", r"(^|[/_.-])(auth|oauth|sso|saml|authn|authz|authentication|authorization|permissions?|policies|policy|roles?|acl|rbac|sessions?|login|passwords?|iam)([/_.-]|$)"),
+    ("billing", r"(^|[/_.-])(billing|payments?|stripe|subscriptions?|invoices?|checkout|pricing|charges?|refunds?)([/_.-]|$)"),
+    ("secrets", r"(^|/)\.env([.]|$)|\.(pem|key|p12|pfx|keystore)$|(^|[/_.-])(secrets?|credentials?)([/_.-]|$)"),
+    ("release", r"(^|/)(version|\.goreleaser[^/]*|release[^/]*|changelog\.md|.*\.gemspec|fastlane/.*)$|(^|/)(terraform|k8s|helm|deploy)/|\.tf$"),
+]
+HARD_LINES = [
+    ("data-deletion", r"\b(drop\s+(table|column|database)|truncate\s+table|delete\s+from)\b|\b(delete_all|destroy_all|deleteMany|drop_table|remove_column)\b"),
+    ("secrets", r"BEGIN [A-Z ]*PRIVATE KEY|(api[_-]?key|secret|password|access[_-]?token)['\"]?\s*[:=]\s*['\"][^'\"]{8,}"),
+]
+# Dependency manifests pass only when nothing but version numbers changed.
+MANIFEST = re.compile(r"(^|/)(package\.json|gemfile|cargo\.toml|pyproject\.toml|go\.mod|requirements[^/]*\.txt|composer\.json)$")
+LOCKFILE = re.compile(r"(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|gemfile\.lock|cargo\.lock|poetry\.lock|uv\.lock|go\.sum|composer\.lock)$")
+VERSION = re.compile(r"v?\d+(?:\.\d+)+(?:[-+.][0-9A-Za-z.-]+)?")
+
+
+class Failure(Exception):
+    pass
+
+
+def emit(obj, code=0):
+    sys.stdout.write(json.dumps(obj, indent=2, sort_keys=True) + "\n")
+    return code
+
+
+def deny(*reasons, **extra):
+    return emit({"allowed": False, "reasons": list(dict.fromkeys(reasons)), **extra}, 1)
+
+
+def now():
+    return datetime.now(timezone.utc)
+
+
+def iso(t):
+    return t.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def parse_iso(s):
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+# --- processes ---------------------------------------------------------------
+
+def _env():
+    env = dict(os.environ)
+    for k in ("GH_FORCE_TTY", "CLICOLOR_FORCE", "FORCE_COLOR"):
+        env.pop(k, None)
+    env.update(NO_COLOR="1", GIT_TERMINAL_PROMPT="0", GH_PROMPT_DISABLED="1")
+    return env
+
+
+def run(args, cwd=None, timeout=180):
+    try:
+        return subprocess.run(args, cwd=cwd, env=_env(), capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise Failure(f"{args[0]} could not run: {e}")
+
+
+def git(*args, cwd=None, check=True):
+    r = run(["git", *args], cwd=cwd)
+    if check and r.returncode != 0:
+        raise Failure(f"git {' '.join(args[:3])}: {r.stderr.strip()}")
+    return r
+
+
+def gh(*args):
+    r = run(["gh", *args])
+    if r.returncode != 0:
+        raise Failure(f"gh {' '.join(args[:4])}: {(r.stderr or r.stdout).strip()}")
+    return r.stdout
+
+
+def gh_json(*args):
+    out = gh(*args)
+    try:
+        return json.loads(out)
+    except ValueError as e:
+        raise Failure(f"gh {' '.join(args[:3])} returned invalid JSON: {e}")
+
+
+def gh_list(repo, kind, number, what):
+    """A complete first page of a listing, or a Failure when more may exist."""
+    rows = gh_json("api", f"repos/{repo}/{kind}/{number}/{what}?per_page=100")
+    if not isinstance(rows, list) or len(rows) >= 100:
+        raise Failure(f"too many {what} on {kind} {number} to read completely")
+    return rows
+
+
+# --- repository --------------------------------------------------------------
+
+class Repo:
+    def __init__(self):
+        common = git("rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip()
+        self.common = os.path.realpath(common)
+        first = git("worktree", "list", "--porcelain").stdout.strip().split("\n\n")[0].splitlines()
+        self.main = None if "bare" in first else os.path.realpath(first[0][len("worktree "):])
+        self._gh = self._tip = self._login = None
+
+    @property
+    def info(self):
+        if self._gh is None:
+            d = gh_json("repo", "view", "--json", "nameWithOwner,defaultBranchRef")
+            self._gh = (d["nameWithOwner"], d["defaultBranchRef"]["name"])
+        return self._gh
+
+    @property
+    def name(self):
+        return self.info[0]
+
+    @property
+    def default(self):
+        return self.info[1]
+
+    @property
+    def login(self):
+        if self._login is None:
+            self._login = gh_json("api", "user")["login"]
+        return self._login
+
+    def tip(self, fresh=False):
+        if fresh or self._tip is None:
+            git("fetch", "--quiet", "--no-tags", "origin",
+                f"+refs/heads/{self.default}:refs/remotes/origin/{self.default}")
+            self._tip = git("rev-parse", f"refs/remotes/origin/{self.default}").stdout.strip()
+        return self._tip
+
+    def fetch_pr(self, number, expected):
+        ref = f"refs/lfg-auto/pr-{number}"
+        git("fetch", "--quiet", "--no-tags", "origin", f"+refs/pull/{number}/head:{ref}")
+        got = git("rev-parse", ref).stdout.strip()
+        if got != expected:
+            raise Failure(f"fetched head {got[:12]} is not {expected[:12]}")
+
+
+# --- policy ------------------------------------------------------------------
+
+def strip_comment(line):
+    out, quote = [], ""
+    for i, ch in enumerate(line):
+        prev = line[i - 1] if i else " "
+        if quote:
+            quote = "" if ch == quote else quote
+        elif ch in "'\"" and prev in " \t[{,:":
+            quote = ch
+        elif ch == "#" and prev in " \t":
+            break
+        out.append(ch)
+    return "".join(out).rstrip()
+
+
+def split_flow(text):
+    parts, buf, quote = [], "", ""
+    for i, ch in enumerate(text):
+        if quote:
+            quote = "" if ch == quote else quote
+        elif ch in "'\"" and (not buf.strip() or buf.rstrip().endswith(":")):
+            quote = ch
+        elif ch == ",":
+            parts.append(buf)
+            buf = ""
+            continue
+        buf += ch
+    if buf.strip():
+        parts.append(buf)
+    return [p.strip() for p in parts]
+
+
+def scalar(raw):
+    raw = raw.strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "'\"":
+        return raw[1:-1]
+    return raw
+
+
+def flow_map(text, where):
+    if not (text.startswith("{") and text.endswith("}")):
+        raise ValueError(f"{where}: expected {{ key: value, ... }}")
+    out = {}
+    for part in split_flow(text[1:-1]):
+        key, sep, val = part.partition(":")
+        if not sep:
+            raise ValueError(f"{where}: expected key: value in {part!r}")
+        out[key.strip()] = scalar(val)
+    return out
+
+
+def parse_policy(text, label):
+    """The autonomous_* keys of one config file. Raises ValueError on anything malformed."""
+    values, key = {}, None
+    for n, raw in enumerate(text.lstrip("﻿").splitlines(), 1):
+        line, where = strip_comment(raw), f"{label}:{n}"
+        if not line.strip():
+            continue
+        body = line.strip()
+        if body[0] == "-" and key is not None:
+            item = body[1:].strip()
+            if KEYS[key] == "maps":
+                values[key].append(flow_map(item, where) if item.startswith("{") else dict([pair(item, where)]))
+            elif KEYS[key] == "list" and item:
+                values[key].append(scalar(item))
+            else:
+                raise ValueError(f"{where}: {key} does not take a list item here")
+            continue
+        if line[0] in " \t":
+            if key is None:
+                continue
+            if KEYS[key] == "maps" and values[key]:
+                k, v = pair(body, where)
+                values[key][-1][k] = v
+                continue
+            raise ValueError(f"{where}: unexpected line under {key}")
+        name, sep, rest = line.partition(":")
+        name, rest, key = name.strip(), rest.strip(), None
+        if not name.startswith("autonomous_"):
+            continue
+        if not sep or name not in KEYS:
+            raise ValueError(f"{where}: unknown key {name}")
+        if name in values:
+            raise ValueError(f"{where}: {name} is set twice")
+        kind = KEYS[name]
+        if kind in ("list", "maps"):
+            if rest == "":
+                values[name], key = [], name
+            elif rest.startswith("[") and rest.endswith("]") and (kind == "list" or rest == "[]"):
+                values[name] = [scalar(p) for p in split_flow(rest[1:-1])]
+            else:
+                raise ValueError(f"{where}: {name} must be a list")
+        elif rest == "":
+            continue
+        elif kind == "int":
+            if not re.fullmatch(r"\d{1,3}", rest):
+                raise ValueError(f"{where}: {name} must be a whole number")
+            values[name] = int(rest)
+        elif kind == "bool":
+            if rest not in ("true", "false"):
+                raise ValueError(f"{where}: {name} must be true or false")
+            values[name] = rest == "true"
+        else:
+            values[name] = scalar(rest)
+    if values.get("autonomous_profile", PROFILES[0]) not in PROFILES:
+        raise ValueError(f"{label}: autonomous_profile must be one of {', '.join(PROFILES)}")
+    for m in values.get("autonomous_motions", []):
+        if m not in MOTIONS:
+            raise ValueError(f"{label}: unknown motion {m}")
+    for o in values.get("autonomous_overrides", []):
+        if set(o) - {"motion", "author", "max"} or o.get("max") not in LEVELS or len(o) < 2:
+            raise ValueError(f"{label}: an override needs max (one of {', '.join(LEVELS)}) and motion or author")
+        if "motion" in o and o["motion"] not in MOTIONS:
+            raise ValueError(f"{label}: unknown motion {o['motion']}")
+    return values
+
+
+def pair(text, where):
+    k, sep, v = text.partition(":")
+    if not sep:
+        raise ValueError(f"{where}: expected key: value")
+    return k.strip(), scalar(v)
+
+
+def load_policy(repo):
+    tip = repo.tip()
+    path = ".compound-engineering/config.yaml"
+    listed = git("ls-tree", "--name-only", tip, "--", path).stdout.strip()
+    team_text = git("show", f"{tip}:{path}").stdout if listed else ""
+    local_text = ""
+    if repo.main:
+        local = os.path.join(repo.main, ".compound-engineering", "config.local.yaml")
+        if os.path.isfile(local):
+            with open(local, encoding="utf-8") as f:
+                local_text = f.read()
+    try:
+        team = parse_policy(team_text, "config.yaml")
+        mine = parse_policy(local_text, "config.local.yaml")
+    except ValueError as e:
+        return {"active": False, "reason": "policy-malformed", "detail": str(e)}
+    if "autonomous_profile" in team:
+        p = dict(team)
+        source = "default branch, tightened by config.local.yaml" if mine else "default branch"
+        if "autonomous_profile" in mine:
+            p["autonomous_profile"] = min(p["autonomous_profile"], mine["autonomous_profile"], key=PROFILES.index)
+        for k in ("autonomous_motions", "autonomous_trusted_authors", "autonomous_babysit_authors"):
+            if k in mine:
+                base = p.get(k, DEFAULT_MOTIONS if k == "autonomous_motions" else [])
+                p[k] = [v for v in base if v in mine[k]]
+        for k, d in (("autonomous_jobs_per_hour", 2), ("autonomous_open_pr_cap", 5)):
+            if k in mine:
+                p[k] = min(p.get(k, d), mine[k])
+        if "autonomous_direct" in mine:
+            p["autonomous_direct"] = p.get("autonomous_direct", False) and mine["autonomous_direct"]
+        if "autonomous_test_command" in mine and mine["autonomous_test_command"] != p.get("autonomous_test_command"):
+            return {"active": False, "reason": "policy-malformed",
+                    "detail": "config.local.yaml cannot replace the repository's autonomous_test_command"}
+        for k in ("autonomous_overrides", "autonomous_rules"):
+            p[k] = p.get(k, []) + mine.get(k, [])
+    elif team:
+        return {"active": False, "reason": "policy-malformed",
+                "detail": "config.yaml sets autonomous_* keys without autonomous_profile"}
+    elif "autonomous_profile" in mine:
+        p, source = dict(mine), "config.local.yaml"
+    else:
+        return {"active": False, "reason": "no-profile"}
+    p.setdefault("autonomous_motions", list(DEFAULT_MOTIONS))
+    p.setdefault("autonomous_jobs_per_hour", 2)
+    p.setdefault("autonomous_open_pr_cap", 5)
+    for k in ("autonomous_overrides", "autonomous_trusted_authors", "autonomous_babysit_authors", "autonomous_rules"):
+        p.setdefault(k, [])
+    return {"active": True, "source": source, **p}
+
+
+def rule_id(rule):
+    return hashlib.sha256(rule.encode("utf-8")).hexdigest()[:12]
+
+
+def level_for(policy, motion, author, landed):
+    if not policy["active"] or motion not in policy["autonomous_motions"]:
+        return "report"
+    start, ceiling = TABLE[motion][PROFILES.index(policy["autonomous_profile"])]
+    level = ceiling if landed >= EARN_AFTER else start
+    for o in policy["autonomous_overrides"]:
+        if o.get("motion", motion) == motion and o.get("author", author) == author:
+            level = min(level, o["max"], key=LEVELS.index)
+    return level
+
+
+# --- store -------------------------------------------------------------------
+
+def store_dir(repo, create=True):
+    base = repo.main or repo.common
+    parts = ([".context"] if repo.main else []) + ["compound-engineering", "lfg-auto"]
+    path = base
+    for part in parts:
+        path = os.path.join(path, part)
+        if os.path.islink(path):
+            raise Failure(f"store path is a symlink: {path}")
+        if not os.path.isdir(path):
+            if not create:
+                return os.path.join(base, *parts)
+            os.makedirs(path, mode=0o700, exist_ok=True)
+    st = os.lstat(path)
+    if hasattr(os, "getuid") and st.st_uid != os.getuid():
+        raise Failure(f"store is not owned by the current user: {path}")
+    if st.st_mode & 0o077:
+        os.chmod(path, 0o700)
+    return path
+
+
+@contextmanager
+def locked(repo):
+    if fcntl is None:
+        raise Failure("no file locking on this platform; autonomous mode cannot write state safely")
+    fd = os.open(os.path.join(store_dir(repo), "lock"),
+                 os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def read_state(repo):
+    path = os.path.join(store_dir(repo, create=False), "state.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {"corrupt": True}
+    except FileNotFoundError:
+        return {}
+    except ValueError:
+        return {"corrupt": True}
+
+
+def write_state(repo, state):
+    d = store_dir(repo)
+    fd, tmp = tempfile.mkstemp(dir=d)
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(state, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, os.path.join(d, "state.json"))
+
+
+def append(repo, event, **fields):
+    path = os.path.join(store_dir(repo), "ledger.jsonl")
+    line = (json.dumps({"event": event, "at": iso(now()), **fields}, sort_keys=True) + "\n").encode()
+    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise Failure("ledger is not a regular file")
+        size = os.fstat(fd).st_size
+        if size:
+            os.lseek(fd, size - 1, os.SEEK_SET)
+            if os.read(fd, 1) != b"\n":
+                line = b"\n" + line
+        os.write(fd, line)
+    finally:
+        os.close(fd)
+
+
+def ledger(repo):
+    path = os.path.join(store_dir(repo, create=False), "ledger.jsonl")
+    rows = []
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(row, dict) and "event" in row and "at" in row:
+                    rows.append(row)
+    except FileNotFoundError:
+        pass
+    return rows
+
+
+def require_lease(repo, token):
+    """Inside locked(): the caller still holds the run, and its lease is renewed."""
+    state = read_state(repo)
+    if not token or state.get("token") != token:
+        raise Failure("lease-lost: another run holds or took over the lease")
+    if parse_iso(state["at"]) + LEASE_TTL < now():
+        raise Failure("lease-lost: the lease expired")
+    state["at"] = iso(now())
+    write_state(repo, state)
+
+
+def jobs_left(policy, rows):
+    cutoff = now() - timedelta(hours=1)
+    used = sum(1 for r in rows if r["event"] == "job" and parse_iso(r["at"]) > cutoff)
+    return max(0, policy["autonomous_jobs_per_hour"] - used)
+
+
+def landed_count(repo, rows, motion):
+    """Clean landings in this motion since its last revert on the default branch."""
+    log = git("log", "--format=%B", "-n", "500", repo.tip()).stdout
+    reverted = set(re.findall(r"This reverts commit ([0-9a-f]{40})", log))
+    count = 0
+    for r in rows:
+        if r["event"] == "land" and r.get("motion") == motion:
+            count = 0 if r.get("merge_sha") in reverted else count + 1
+    return count
+
+
+# --- GitHub facts ------------------------------------------------------------
+
+def checks_at(repo, sha):
+    """(state, {name: passing}) for a commit. state is green, red or unknown."""
+    runs = gh_json("api", f"repos/{repo.name}/commits/{sha}/check-runs?per_page=100")
+    stats = gh_json("api", f"repos/{repo.name}/commits/{sha}/status?per_page=100")
+    rows = runs.get("check_runs", [])
+    contexts = stats.get("statuses", [])
+    if runs.get("total_count", len(rows)) > len(rows) or len(contexts) >= 100:
+        return "unknown", {}
+    names, pending, failed = {}, False, False
+    for c in rows:
+        if c.get("status") != "completed":
+            pending, ok = True, False
+        else:
+            ok = c.get("conclusion") in OK_CONCLUSIONS
+            failed = failed or not ok
+        names[c["name"]] = names.get(c["name"], True) and ok
+    for s in contexts:
+        ok = s.get("state") == "success"
+        pending = pending or s.get("state") == "pending"
+        failed = failed or s.get("state") in ("failure", "error")
+        names[s["context"]] = names.get(s["context"], True) and ok
+    if failed:
+        return "red", names
+    if pending or not names:
+        return "unknown", names
+    return "green", names
+
+
+def rules_on_default(repo):
+    """Active rule types on the default branch, or None when they cannot be read."""
+    r = run(["gh", "api", f"repos/{repo.name}/rules/branches/{repo.default}"])
+    if r.returncode != 0:
+        text = r.stdout + r.stderr
+        # GitHub answers this for a plan where no rules can exist.
+        return [] if "403" in text and "Upgrade to GitHub" in text else None
+    try:
+        return [x.get("type") for x in json.loads(r.stdout)]
+    except (ValueError, AttributeError):
+        return None
+
+
+def canonical(author):
+    """One spelling per account, so a user named like a bot never matches the bot."""
+    login = author.get("login") or ""
+    bot = author.get("is_bot") or author.get("type") == "Bot" or login.startswith("app/") or login.endswith("[bot]")
+    if not bot:
+        return login
+    return re.sub(r"^app/|\[bot\]$", "", login) + "[bot]"
+
+
+PR_FIELDS = ("number,state,isDraft,author,headRefOid,headRefName,isCrossRepository,"
+             "baseRefName,mergeable,mergeStateStatus,reviewDecision,title,url,updatedAt")
+
+
+def pr_view(repo, number):
+    return gh_json("pr", "view", str(number), "-R", repo.name, "--json", PR_FIELDS)
+
+
+def diff_facts(repo, base, head):
+    """Files changed from the merge base, and every hard limit the change matches."""
+    mb = git("merge-base", base, head).stdout.strip()
+    hits, files, manifests = [], set(), []
+    raw = git("diff", "--raw", "--no-abbrev", "-M", "-z", mb, head).stdout.split("\0")
+    i = 0
+    while i < len(raw) and raw[i]:
+        old_mode, new_mode, _, _, status = raw[i].lstrip(":").split(" ")
+        paths = raw[i + 1:i + (3 if status[0] in "RC" else 2)]
+        i += 1 + len(paths)
+        files.add(paths[-1])
+        for mode in (old_mode, new_mode):
+            if mode in ("120000", "160000"):
+                hits.append(f"unclassified:{paths[-1]}")
+        if old_mode != new_mode and "000000" not in (old_mode, new_mode):
+            hits.append(f"unclassified:{paths[-1]}")
+        for p in paths:
+            low = p.lower()
+            if MANIFEST.search(low):
+                manifests.append(p)
+            elif not LOCKFILE.search(low):
+                hits += [f"{name}:{p}" for name, pat in HARD_PATHS if re.search(pat, low)]
+    for row in git("diff", "--numstat", "-M", "-z", mb, head).stdout.split("\0"):
+        if row.startswith("-\t-\t"):
+            hits.append("unclassified:binary change")
+    major = False
+    for p in sorted(set(manifests)):
+        verdict = manifest_change(git("diff", "-U0", "--no-renames", mb, head, "--", p).stdout)
+        if verdict == "other":
+            hits.append(f"judge:{p}")
+        major = major or verdict == "major"
+    for line in git("diff", "-U0", "--no-color", "--no-ext-diff", mb, head).stdout.splitlines():
+        if line[:1] in "+-" and line[:3] not in ("+++", "---"):
+            hits += [f"{name}:changed line" for name, pat in HARD_LINES if re.search(pat, line[1:], re.I)]
+    dependencies = bool(files) and all(MANIFEST.search(f.lower()) or LOCKFILE.search(f.lower()) for f in files)
+    return {"merge_base": mb, "files": len(files), "hard": sorted(set(hits)), "major": major,
+            "only_dependencies": dependencies}
+
+
+def manifest_change(diff):
+    minus, plus = [], []
+    for line in diff.splitlines():
+        if line[:3] in ("+++", "---"):
+            continue
+        if line[:1] == "-":
+            minus.append(line[1:])
+        elif line[:1] == "+":
+            plus.append(line[1:])
+    if not minus or len(minus) != len(plus):
+        return "other"
+    kind = "versions"
+    for a, b in zip(minus, plus):
+        if VERSION.sub("V", a) != VERSION.sub("V", b) or not VERSION.search(b):
+            return "other"
+        for x, y in zip(VERSION.findall(a), VERSION.findall(b)):
+            xs, ys = [v.lstrip("v").split(".") for v in (x, y)]
+            if xs[0] != ys[0] or (xs[0] == "0" and xs[1] != ys[1]):
+                kind = "major"
+    return kind
+
+
+def adopted(rows, number):
+    return [r for r in rows if r["event"] == "adopt" and r.get("pr") == number]
+
+
+def author_facts(repo, policy, rows, pr):
+    """Who this PR may be trusted as: own, trusted, babysit or unlisted."""
+    author = canonical(pr["author"])
+    mine = [r for r in adopted(rows, pr["number"]) if r.get("head") == pr["headRefOid"]]
+    if mine and author == repo.login and not pr["isCrossRepository"]:
+        return "own", author, mine[-1]
+    trusted = policy.get("autonomous_trusted_authors", [])
+    if author in trusted:
+        for c in gh_list(repo.name, "pulls", pr["number"], "commits"):
+            who = canonical(c.get("author") or {})
+            verified = (c.get("commit", {}).get("verification") or {}).get("verified") is True
+            # An update-branch merge is attributed to the account this script runs as.
+            if who not in trusted and who != repo.login or (who.endswith("[bot]") and not verified):
+                return "unlisted", author, None
+        return "trusted", author, None
+    if author in policy.get("autonomous_babysit_authors", []):
+        return "babysit", author, None
+    return "unlisted", author, None
+
+
+def origin_trusted(repo, policy, origin):
+    if origin == "internal":
+        return True
+    kind, _, number = origin.partition(":")
+    if kind not in ("issue", "pr") or not number.isdigit():
+        raise Failure(f"origin must be internal, issue:N or pr:N, not {origin!r}")
+    allowed = set(policy["autonomous_trusted_authors"]) | {repo.login}
+    item = gh_json("api", f"repos/{repo.name}/issues/{number}")
+    people = [item.get("user") or {}]
+    people += [c.get("user") or {} for c in gh_list(repo.name, "issues", number, "comments")]
+    return all(canonical(p) in allowed for p in people)
+
+
+def receipt(rows, subject, head, base, kind, **match):
+    for r in reversed(rows):
+        if (r["event"] == "receipt" and r.get("subject") == subject and r.get("kind") == kind
+                and all(r.get(k) == v for k, v in match.items())):
+            return r if r.get("head") == head and r.get("base") == base else None
+    return None
+
+
+def receipt_reasons(policy, rows, subject, head, base):
+    out = []
+    for kind in ("test", "review"):
+        r = receipt(rows, subject, head, base, kind)
+        if r is None:
+            out.append(f"{kind}-missing")
+        elif not r.get("ok"):
+            out.append(f"{kind}-failed")
+    for rule in policy["autonomous_rules"]:
+        r = receipt(rows, subject, head, base, "rule", rule=rule_id(rule))
+        if r is None:
+            out.append("rule-unjudged")
+        elif not r.get("ok"):
+            out.append("rule-denied")
+    return out
+
+
+def main_reasons(repo, rows, motion, job, names):
+    state, failing = checks_at(repo, repo.tip())
+    if state == "green":
+        return []
+    if state == "red" and motion == "main-red" and job and job.get("red_tip") == repo.tip():
+        broken = [n for n, ok in failing.items() if not ok]
+        if all(names.get(n) is True for n in broken):
+            return []
+    return ["main-not-green"]
+
+
+def job_of(rows, job_id):
+    return next((r for r in rows if r["event"] == "job" and r.get("job") == job_id), None)
+
+
+def gate(repo, policy, rows, number):
+    """Everything that decides whether this PR may merge now."""
+    if not policy["active"]:
+        return [policy["reason"]], {}
+    pr = pr_view(repo, number)
+    head, base, reasons = pr["headRefOid"], repo.tip(), []
+    if pr["state"] != "OPEN":
+        return ["not-open"], {"pr": pr}
+    trust, author, adoption = author_facts(repo, policy, rows, pr)
+    job = job_of(rows, adoption["job"]) if adoption else None
+    repo.fetch_pr(number, head)
+    facts = diff_facts(repo, base, head)
+    # The caller never picks the motion: it is the recorded job's, or what the diff is.
+    motion = job["motion"] if job else "stack" if facts["only_dependencies"] else "backlog"
+    level = level_for(policy, motion, author, landed_count(repo, rows, motion))
+    if trust not in ("own", "trusted"):
+        reasons.append("author-not-trusted")
+    if trust == "own" and not job:
+        reasons.append("job-missing")
+    if job and not job.get("origin_trusted"):
+        reasons.append("origin-not-trusted")
+    if level != "merge":
+        reasons.append(f"level-{level}")
+    if pr["isDraft"]:
+        reasons.append("draft")
+    if pr["baseRefName"] != repo.default:
+        reasons.append("not-default-base")
+    if gh_json("pr", "list", "-R", repo.name, "--base", pr["headRefName"], "--state", "open", "--json", "number"):
+        reasons.append("stack-member")
+    if pr["reviewDecision"] in ("CHANGES_REQUESTED", "REVIEW_REQUIRED"):
+        reasons.append("review-required")
+    if pr["mergeable"] != "MERGEABLE":
+        reasons.append("not-mergeable")
+    if pr["mergeStateStatus"] not in ("CLEAN", "HAS_HOOKS", "BEHIND"):
+        reasons.append(f"merge-state-{pr['mergeStateStatus'].lower()}")
+    if "merge_queue" in (rules_on_default(repo) or []):
+        reasons.append("merge-queue")
+    state, names = checks_at(repo, head)
+    if state != "green":
+        reasons.append(f"checks-{state}")
+    waiting = gh_json("api", f"repos/{repo.name}/actions/runs?head_sha={head}&status=action_required&per_page=1")
+    if waiting.get("total_count") != 0:
+        reasons.append("checks-awaiting-approval")
+    reasons += main_reasons(repo, rows, motion, job, names)
+    if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0:
+        reasons.append("behind")
+    if facts["hard"]:
+        reasons.append("hard-limit")
+    if facts["major"]:
+        reasons.append("major-update")
+    reasons += receipt_reasons(policy, rows, f"pr:{number}", head, base)
+    return reasons, {"pr": number, "url": pr["url"], "head": head, "base": base, "level": level, "motion": motion,
+                     "author": author, "trust": trust, "hard_limits": facts["hard"], "branch": pr["headRefName"]}
+
+
+# --- commands ----------------------------------------------------------------
+
+def cmd_policy(a, repo):
+    p = load_policy(repo)
+    if p["active"]:
+        rows = ledger(repo)
+        p["levels"] = {m: level_for(p, m, None, landed_count(repo, rows, m)) for m in p["autonomous_motions"]}
+        p["rules"] = [{"id": rule_id(r), "text": r} for r in p["autonomous_rules"]]
+        p["jobs_left"] = jobs_left(p, rows)
+    return emit(p)
+
+
+def cmd_begin(a, repo):
+    policy = load_policy(repo)
+    if not policy["active"] or a.dry_run:
+        return emit({"token": None, "mode": "report-only", "reason": policy.get("reason", "dry-run"),
+                     "detail": policy.get("detail")})
+    with locked(repo):
+        state = read_state(repo)
+        if state.get("corrupt"):
+            return deny("state-corrupt")
+        reclaimed = False
+        if state.get("token"):
+            if parse_iso(state["at"]) + LEASE_TTL >= now():
+                return deny("locked", since=state["at"])
+            reclaimed = True
+        token = secrets.token_hex(8)
+        write_state(repo, {"token": token, "at": iso(now())})
+        append(repo, "run", token=token, reclaimed=reclaimed)
+    return emit({"token": token, "mode": "act", "reclaimed": reclaimed, "jobs_left": jobs_left(policy, ledger(repo))})
+
+
+def cmd_end(a, repo):
+    with locked(repo):
+        require_lease(repo, a.token)
+        write_state(repo, {})
+    return emit({"ended": True})
+
+
+def cmd_heartbeat(a, repo):
+    with locked(repo):
+        require_lease(repo, a.token)
+    return emit({"held": True})
+
+
+def parked(rows):
+    out = {}
+    for r in rows:
+        if r["event"] == "park":
+            out[r["item"]] = r
+        elif r["event"] == "answer":
+            out.pop(r["item"], None)
+    return out
+
+
+def cmd_observe(a, repo):
+    policy, rows = load_policy(repo), ledger(repo)
+    state, names = checks_at(repo, repo.tip())
+    prs = gh_json("pr", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json",
+                  "number,title,author,isDraft,headRefOid,headRefName,baseRefName,isCrossRepository,updatedAt,mergeStateStatus,labels")
+    issues = gh_json("issue", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json",
+                     "number,title,author,updatedAt,labels")
+    park = parked(rows)
+
+    def is_parked(item, updated):
+        p = park.get(item)
+        return bool(p and p.get("updated") == updated and p.get("main") == state)
+
+    for p in prs:
+        who = canonical(p["author"])
+        p["author"], p["parked"] = who, is_parked(f"pr:{p['number']}", p["updatedAt"])
+        p["job"] = next((r["job"] for r in reversed(adopted(rows, p["number"]))), None)
+        own = p["job"] and who == repo.login
+        p["handling"] = ("own" if own else
+                         "land" if who in policy.get("autonomous_trusted_authors", []) else
+                         "babysit" if who in policy.get("autonomous_babysit_authors", []) else "diff-only")
+    for i in issues:
+        i["author"], i["parked"] = canonical(i["author"]), is_parked(f"issue:{i['number']}", i["updatedAt"])
+    return emit({"repo": repo.name, "default_branch": repo.default, "tip": repo.tip(), "main": state,
+                 "main_failing": sorted(n for n, ok in names.items() if not ok), "prs": prs, "issues": issues,
+                 "truncated": len(prs) >= 200 or len(issues) >= 200})
+
+
+def open_own_prs(repo, rows):
+    numbers = {r["pr"] for r in rows if r["event"] == "adopt"}
+    live = gh_json("pr", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json", "number,author")
+    return [p["number"] for p in live if p["number"] in numbers and canonical(p["author"]) == repo.login]
+
+
+def cmd_job(a, repo):
+    policy = load_policy(repo)
+    if not policy["active"]:
+        return deny(policy["reason"])
+    if a.motion not in policy["autonomous_motions"]:
+        return deny("motion-off")
+    if a.motion in ORIGIN_REQUIRED and not a.origin:
+        return deny("origin-missing")
+    origin = a.origin or "internal"
+    trusted = origin_trusted(repo, policy, origin)
+    state, _ = checks_at(repo, repo.tip())
+    with locked(repo):
+        require_lease(repo, a.token)
+        rows = ledger(repo)
+        if jobs_left(policy, rows) < 1:
+            return deny("hourly-cap")
+        if a.motion == "main-red" and state != "red":
+            return deny("main-not-red")
+        if a.opens_pr:
+            if level_for(policy, a.motion, repo.login, landed_count(repo, rows, a.motion)) == "report":
+                return deny("level-report")
+            live = open_own_prs(repo, rows)
+            if len(live) >= policy["autonomous_open_pr_cap"]:
+                repairs = [r for r in rows if r["event"] == "adopt" and r["pr"] in live
+                           and (job_of(rows, r["job"]) or {}).get("motion") == "main-red"]
+                if a.motion != "main-red" or repairs:
+                    return deny("open-pr-cap")
+        job = secrets.token_hex(6)
+        append(repo, "job", job=job, motion=a.motion, origin=origin, origin_trusted=trusted,
+               red_tip=repo.tip() if a.motion == "main-red" else None, what=a.what)
+    return emit({"job": job, "motion": a.motion, "origin_trusted": trusted})
+
+
+def cmd_adopt(a, repo):
+    """Record the head a worker pushed for this job's PR."""
+    pr = pr_view(repo, a.pr)
+    if canonical(pr["author"]) != repo.login or pr["isCrossRepository"]:
+        return deny("author-not-trusted")
+    with locked(repo):
+        require_lease(repo, a.token)
+        if not job_of(ledger(repo), a.job):
+            return deny("job-missing")
+        append(repo, "adopt", job=a.job, pr=a.pr, head=pr["headRefOid"])
+    return emit({"pr": a.pr, "head": pr["headRefOid"], "job": a.job})
+
+
+def subject_of(a, repo, policy, rows):
+    """(subject, head, why not) for a PR or a direct-landing commit."""
+    if a.pr is not None:
+        pr = pr_view(repo, a.pr)
+        trust, _, _ = author_facts(repo, policy, rows, pr)
+        repo.fetch_pr(a.pr, pr["headRefOid"])
+        return f"pr:{a.pr}", pr["headRefOid"], [] if trust in ("own", "trusted") else ["author-not-trusted"]
+    if not SHA.match(a.sha or ""):
+        return None, None, ["sha-invalid"]
+    git("cat-file", "-e", f"{a.sha}^{{commit}}")
+    return f"direct:{a.sha}", a.sha, []
+
+
+def scrubbed_env(tmp):
+    env = {k: v for k, v in os.environ.items()
+           if not re.search(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY|^GH_|^GITHUB_|^SSH_", k, re.I)}
+    env.update(GH_CONFIG_DIR=os.path.join(tmp, "no-gh"), GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="true",
+               GIT_SSH_COMMAND="false", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", CI="1")
+    return env
+
+
+def cmd_test(a, repo):
+    policy = load_policy(repo)
+    if not policy["active"]:
+        return deny(policy["reason"])
+    command = policy.get("autonomous_test_command")
+    if not command:
+        return deny("test-command-missing")
+    rows, base = ledger(repo), repo.tip()
+    subject, head, why = subject_of(a, repo, policy, rows)
+    if why:
+        return deny(*why)
+    facts = diff_facts(repo, base, head)
+    if facts["hard"]:
+        # Code that could rewrite its own judge is not run unattended.
+        return deny("hard-limit", hard_limits=facts["hard"])
+    if a.dry_run:
+        return emit({"would_run": command, "head": head, "base": base})
+    with locked(repo):
+        require_lease(repo, a.token)
+    tmp = tempfile.mkdtemp(prefix="lfg-auto-test-")
+    tree = os.path.join(tmp, "tree")
+    try:
+        git("worktree", "add", "--quiet", "--detach", tree, head, cwd=repo.main or repo.common)
+        proc = subprocess.Popen(command, shell=True, cwd=tree, env=scrubbed_env(tmp), stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, errors="replace", start_new_session=True)
+        try:
+            out, _ = proc.communicate(timeout=a.timeout)
+            code = proc.returncode
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            out, _ = proc.communicate()
+            code = "timeout"
+    finally:
+        git("worktree", "remove", "--force", tree, cwd=repo.main or repo.common, check=False)
+        shutil.rmtree(tmp, ignore_errors=True)
+    with locked(repo):
+        require_lease(repo, a.token)
+        append(repo, "receipt", kind="test", subject=subject, head=head, base=base, ok=code == 0, exit=code)
+    return emit({"ok": code == 0, "exit": code, "head": head, "base": base, "tail": out[-3000:]}, 0 if code == 0 else 1)
+
+
+def cmd_review(a, repo):
+    policy = load_policy(repo)
+    if not policy["active"]:
+        return deny(policy["reason"])
+    try:
+        review = json.load(sys.stdin)
+        scope = review["scope"]
+        severities = [f.get("severity") for f in review["findings"]]
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return deny("review-unreadable")
+    rows, base = ledger(repo), repo.tip()
+    subject, head, why = subject_of(a, repo, policy, rows)
+    facts = diff_facts(repo, base, head) if head else None
+    if review.get("status") != "complete":
+        why.append("review-not-complete")
+    if review.get("verdict") != "Ready to merge":
+        why.append("review-not-ready")
+    if "P0" in severities or "P1" in severities:
+        why.append("review-open-findings")
+    if scope.get("head_sha") != head:
+        why.append("head-moved")
+    if facts and (scope.get("base") not in (facts["merge_base"], f"base:{base}", base)
+                  or scope.get("files_changed") != facts["files"]):
+        why.append("review-scope-mismatch")
+    recordable = head is not None and "head-moved" not in why and "author-not-trusted" not in why
+    if recordable and not a.dry_run:
+        with locked(repo):
+            require_lease(repo, a.token)
+            append(repo, "receipt", kind="review", subject=subject, head=head, base=base, ok=not why,
+                   run_id=str(review.get("run_id")))
+    return deny(*why) if why else emit({"ok": True, "head": head, "base": base})
+
+
+def cmd_rule(a, repo):
+    policy = load_policy(repo)
+    if not policy["active"]:
+        return deny(policy["reason"])
+    if a.rule not in [rule_id(r) for r in policy["autonomous_rules"]]:
+        return deny("rule-unknown")
+    rows, base = ledger(repo), repo.tip()
+    subject, head, why = subject_of(a, repo, policy, rows)
+    if why:
+        return deny(*why)
+    if a.head != head:
+        return deny("head-moved")
+    with locked(repo):
+        require_lease(repo, a.token)
+        append(repo, "receipt", kind="rule", subject=subject, head=head, base=base, rule=a.rule,
+               ok=a.verdict == "pass", why=a.why)
+    return emit({"recorded": a.verdict, "head": head})
+
+
+def cmd_gate(a, repo):
+    reasons, facts = gate(repo, load_policy(repo), ledger(repo), a.pr)
+    return deny(*reasons, **facts) if reasons else emit({"allowed": True, **facts})
+
+
+def cmd_update(a, repo):
+    """Bring a PR that is otherwise next to land up to date, voiding its receipts."""
+    policy, rows = load_policy(repo), ledger(repo)
+    reasons, facts = gate(repo, policy, rows, a.pr)
+    remade = {"behind", "checks-unknown", "checks-red", "merge-state-unstable"}
+    blocking = [r for r in reasons if r not in remade and not r.startswith(("test-", "review-missing", "review-failed", "rule-"))]
+    if blocking or "behind" not in reasons:
+        return deny(*(blocking or ["not-behind"]), **facts)
+    if a.dry_run:
+        return emit({"would_update": a.pr, **facts})
+    with locked(repo):
+        require_lease(repo, a.token)
+        gh("api", "-X", "PUT", f"repos/{repo.name}/pulls/{a.pr}/update-branch", "-f", f"expected_head_sha={facts['head']}")
+        append(repo, "update", pr=a.pr, head=facts["head"])
+    return emit({"updated": a.pr, "was": facts["head"]})
+
+
+def merge_method(repo):
+    d = gh_json("api", f"repos/{repo.name}")
+    for flag, key in (("--squash", "allow_squash_merge"), ("--rebase", "allow_rebase_merge"), ("--merge", "allow_merge_commit")):
+        if d.get(key):
+            return flag
+    raise Failure("no readable merge method")
+
+
+def cmd_land(a, repo):
+    policy = load_policy(repo)
+    reasons, facts = gate(repo, policy, ledger(repo), a.pr)
+    if facts.get("head") and facts["head"] != a.head:
+        reasons.append("head-moved")
+    if reasons:
+        return deny(*reasons, **facts)
+    if a.dry_run:
+        return emit({"would_merge": a.pr, **facts})
+    method = merge_method(repo)
+    with locked(repo):
+        require_lease(repo, a.token)
+        if repo.tip(fresh=True) != facts["base"]:
+            return deny("base-moved", **facts)
+        gh("pr", "merge", str(a.pr), "-R", repo.name, method, "--match-head-commit", a.head)
+        after = gh_json("pr", "view", str(a.pr), "-R", repo.name, "--json", "state,mergeCommit")
+        if after["state"] != "MERGED":
+            append(repo, "land-unconfirmed", pr=a.pr, head=a.head, state=after["state"])
+            return deny("not-confirmed-merged", **facts)
+        sha = (after.get("mergeCommit") or {}).get("oid")
+        append(repo, "land", pr=a.pr, motion=facts["motion"], head=a.head, base=facts["base"], merge_sha=sha)
+    return emit({"landed": a.pr, "merge_sha": sha})
+
+
+def cmd_direct(a, repo):
+    """Fast-forward the default branch to one tested, reviewed commit of its own."""
+    policy, rows = load_policy(repo), ledger(repo)
+    if not policy["active"]:
+        return deny(policy["reason"])
+    subject, head, why = subject_of(argparse.Namespace(pr=None, sha=a.sha), repo, policy, rows)
+    if why:
+        return deny(*why)
+    job, base, reasons = job_of(rows, a.job), repo.tip(), []
+    if not policy.get("autonomous_direct"):
+        reasons.append("direct-off")
+    if not job:
+        return deny(*reasons, "job-missing")
+    if not job.get("origin_trusted"):
+        reasons.append("origin-not-trusted")
+    if level_for(policy, job["motion"], repo.login, landed_count(repo, rows, job["motion"])) != "merge":
+        reasons.append("level-below-merge")
+    branch = gh_json("api", f"repos/{repo.name}/branches/{repo.default}")
+    if branch.get("protected") is not False or rules_on_default(repo) != []:
+        reasons.append("default-branch-protected")
+    if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0 or head == base:
+        reasons.append("not-fast-forward")
+    facts = diff_facts(repo, base, head)
+    if facts["hard"]:
+        reasons.append("hard-limit")
+    if facts["major"]:
+        reasons.append("major-update")
+    if checks_at(repo, base)[0] != "green" and not (job["motion"] == "main-red" and job.get("red_tip") == base):
+        reasons.append("main-not-green")
+    reasons += receipt_reasons(policy, rows, subject, head, base)
+    if reasons:
+        return deny(*reasons, hard_limits=facts["hard"])
+    if a.dry_run:
+        return emit({"would_push": head, "base": base})
+    with locked(repo):
+        require_lease(repo, a.token)
+        if repo.tip(fresh=True) != base:
+            return deny("base-moved")
+        git("push", "--quiet", "origin", f"{head}:refs/heads/{repo.default}")
+        if repo.tip(fresh=True) != head:
+            return deny("not-confirmed-landed")
+        append(repo, "land", sha=head, motion=job["motion"], head=head, base=base, merge_sha=head)
+    return emit({"landed": head})
+
+
+def evidence_reasons(repo, item, how, ref):
+    kind, _, value = ref.partition(":")
+    if how == "fixed" and kind == "commit" and SHA.match(value):
+        known = git("cat-file", "-e", f"{value}^{{commit}}", check=False).returncode == 0
+        if known and git("merge-base", "--is-ancestor", value, repo.tip(), check=False).returncode == 0:
+            return []
+    elif how in ("fixed", "replaced") and kind == "pr" and value.isdigit() and int(value) != item["number"]:
+        pr = gh_json("pr", "view", value, "-R", repo.name, "--json", "state,baseRefName")
+        if pr["state"] == "MERGED" and pr["baseRefName"] == repo.default:
+            return []
+    elif how == "duplicate" and kind == "issue" and value.isdigit() and int(value) < item["number"]:
+        other = gh_json("api", f"repos/{repo.name}/issues/{value}")
+        if other.get("state_reason") not in ("duplicate", "not_planned") and "pull_request" not in other:
+            return []
+    return ["evidence-unproven"]
+
+
+def cmd_close(a, repo):
+    policy, rows = load_policy(repo), ledger(repo)
+    if not policy["active"]:
+        return deny(policy["reason"])
+    item = gh_json("api", f"repos/{repo.name}/issues/{a.number}")
+    reasons = []
+    level = level_for(policy, "backlog", canonical(item.get("user") or {}), landed_count(repo, rows, "backlog"))
+    if LEVELS.index(level) < LEVELS.index("babysit"):
+        reasons.append(f"level-{level}")
+    if item.get("state") != "open":
+        reasons.append("not-open")
+    is_pr = "pull_request" in item
+    if is_pr != (a.kind == "pr"):
+        reasons.append("wrong-kind")
+    if len(a.comment.strip()) < 20:
+        reasons.append("comment-missing")
+    reasons += evidence_reasons(repo, item, getattr(a, "as"), a.evidence)
+    if reasons:
+        return deny(*reasons)
+    if a.dry_run:
+        return emit({"would_close": f"{a.kind}:{a.number}", "evidence": a.evidence})
+    with locked(repo):
+        require_lease(repo, a.token)
+        gh(a.kind, "comment", str(a.number), "-R", repo.name, "--body", f"{a.comment.strip()}\n\nEvidence: {a.evidence}")
+        args = [a.kind, "close", str(a.number), "-R", repo.name]
+        gh(*args)
+        append(repo, "close", item=f"{a.kind}:{a.number}", how=getattr(a, "as"), evidence=a.evidence)
+    return emit({"closed": f"{a.kind}:{a.number}"})
+
+
+def cmd_park(a, repo):
+    kind, _, number = a.item.partition(":")
+    if kind not in ("pr", "issue", "main", "idea"):
+        return deny("item-invalid")
+    updated = None
+    if kind in ("pr", "issue"):
+        updated = gh_json("api", f"repos/{repo.name}/issues/{number}")["updated_at"]
+    state, _ = checks_at(repo, repo.tip())
+    with locked(repo):
+        require_lease(repo, a.token)
+        append(repo, "park", item=a.item, updated=updated, main=state, why=a.why, recommend=a.recommend)
+    return emit({"parked": a.item})
+
+
+def decisions(rows):
+    """Answers that still apply. A retired or replaced one stops applying."""
+    gone = {r["id"] for r in rows if r["event"] == "retire"}
+    gone |= {r["replaces"] for r in rows if r["event"] == "answer" and r.get("replaces")}
+    return [r for r in rows if r["event"] == "answer" and r["id"] not in gone]
+
+
+def cmd_answer(a, repo):
+    """Record what a person decided. Nothing that allows or denies a landing reads this."""
+    if a.reason_from != "none" and not (a.reason or "").strip():
+        return deny("reason-missing")
+    with locked(repo):
+        rows = ledger(repo)
+        if a.replaces and a.replaces not in [r["id"] for r in decisions(rows)]:
+            return deny("decision-unknown")
+        key = secrets.token_hex(4)
+        append(repo, "answer", id=key, item=a.item, situation=a.situation, options=a.option, choice=a.choice,
+               reason=a.reason if a.reason_from != "none" else None, reason_from=a.reason_from,
+               scope=a.scope, replaces=a.replaces)
+    return emit({"id": key, "item": a.item})
+
+
+def cmd_retire(a, repo):
+    with locked(repo):
+        if a.id not in [r["id"] for r in decisions(ledger(repo))]:
+            return deny("decision-unknown")
+        append(repo, "retire", id=a.id, why=a.why)
+    return emit({"retired": a.id})
+
+
+def cmd_decisions(a, repo):
+    # A one-time answer settled its own item and is not a precedent.
+    return emit({"decisions": [r for r in decisions(ledger(repo)) if r["scope"] == "future"]})
+
+
+def cmd_digest(a, repo):
+    cutoff = now() - timedelta(hours=a.hours)
+    rows = [r for r in ledger(repo) if parse_iso(r["at"]) > cutoff]
+    return emit({"since": iso(cutoff),
+                 **{k: [r for r in rows if r["event"] == k] for k in ("run", "job", "land", "land-unconfirmed", "close", "update", "answer")},
+                 "parked": sorted(parked(rows).values(), key=lambda r: r["at"])})
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    def add(name, fn, token=True, dry=False):
+        p = sub.add_parser(name)
+        p.set_defaults(fn=fn, dry_run=False, token=None)
+        if token:
+            p.add_argument("--token")
+        if dry:
+            p.add_argument("--dry-run", action="store_true")
+        return p
+
+    def subject(p):
+        g = p.add_mutually_exclusive_group(required=True)
+        g.add_argument("--pr", type=int)
+        g.add_argument("--sha")
+
+    add("policy", cmd_policy, token=False)
+    add("begin", cmd_begin, token=False, dry=True)
+    add("end", cmd_end)
+    add("heartbeat", cmd_heartbeat)
+    add("observe", cmd_observe, token=False)
+    p = add("job", cmd_job)
+    p.add_argument("--motion", required=True, choices=MOTIONS)
+    p.add_argument("--origin")
+    p.add_argument("--what", required=True)
+    p.add_argument("--opens-pr", action="store_true")
+    p = add("adopt", cmd_adopt)
+    p.add_argument("--job", required=True)
+    p.add_argument("--pr", type=int, required=True)
+    p = add("test", cmd_test, dry=True)
+    subject(p)
+    p.add_argument("--timeout", type=int, default=3600)
+    subject(add("review", cmd_review, dry=True))
+    p = add("rule", cmd_rule)
+    subject(p)
+    p.add_argument("--rule", required=True)
+    p.add_argument("--head", required=True)
+    p.add_argument("--verdict", required=True, choices=["pass", "fail"])
+    p.add_argument("--why", required=True)
+    for name, fn in (("gate", cmd_gate), ("update", cmd_update), ("land", cmd_land)):
+        p = add(name, fn, token=name != "gate", dry=name != "gate")
+        p.add_argument("--pr", type=int, required=True)
+        if name == "land":
+            p.add_argument("--head", required=True)
+    p = add("direct", cmd_direct, dry=True)
+    p.add_argument("--sha", required=True)
+    p.add_argument("--job", required=True)
+    p = add("close", cmd_close, dry=True)
+    p.add_argument("--kind", required=True, choices=["issue", "pr"])
+    p.add_argument("--number", type=int, required=True)
+    p.add_argument("--as", required=True, choices=["fixed", "duplicate", "replaced"])
+    p.add_argument("--evidence", required=True, help="commit:<sha>, pr:<n> or issue:<n>")
+    p.add_argument("--comment", required=True)
+    p = add("park", cmd_park)
+    p.add_argument("--item", required=True)
+    p.add_argument("--why", required=True)
+    p.add_argument("--recommend", required=True)
+    p = add("answer", cmd_answer, token=False)
+    p.add_argument("--item", required=True)
+    p.add_argument("--situation", required=True)
+    p.add_argument("--option", action="append", default=[])
+    p.add_argument("--choice", required=True)
+    p.add_argument("--reason")
+    p.add_argument("--reason-from", required=True, choices=["stated", "confirmed", "none"])
+    p.add_argument("--scope", required=True, choices=["once", "future"])
+    p.add_argument("--replaces")
+    p = add("retire", cmd_retire, token=False)
+    p.add_argument("--id", required=True)
+    p.add_argument("--why", required=True)
+    add("decisions", cmd_decisions, token=False)
+    add("digest", cmd_digest, token=False).add_argument("--hours", type=int, default=24)
+
+    a = ap.parse_args()
+    try:
+        return a.fn(a, Repo())
+    except (Failure, OSError, KeyError, TypeError, ValueError) as e:
+        return emit({"allowed": False, "reasons": ["unreadable"], "error": f"{type(e).__name__}: {e}"}, 3)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
