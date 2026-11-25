@@ -1,5 +1,5 @@
 # Compound Engineering -- repo config
-# ce-config-template-version: 4
+# ce-config-template-version: 5
 # Copy to .compound-engineering/config.yaml in your project root (team defaults).
 # Optional override: .compound-engineering/config.local.yaml, same keys.
 # Ordinary keys: local wins when set, then this file, then the skill default.
@@ -231,7 +231,7 @@
 
 # How work lands. `afg setup` fills these in from the project's own
 # instructions. Local settings may repeat them, never replace them.
-# autonomous_landing: pull-request            # pull-request | direct (one squashed commit on the default branch, no PR)
+# autonomous_landing: pull-request            # pull-request | direct (one commit on the default branch, no PR)
 # autonomous_ci: required                     # required | ignored (direct only, the checks below are then the gate)
 # autonomous_merge_method: squash             # squash | rebase | merge (default is the first the repository allows)
 # autonomous_checks:                          # must pass on this machine, paths limits one to the files changed

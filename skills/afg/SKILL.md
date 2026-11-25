@@ -44,7 +44,7 @@ The saved policy authorizes what `scripts/autonomous.py` allows, and nothing els
 
 A repository lands through pull requests or straight to its default branch; the policy says which, with its checks, merge method and landing steps. Follow those steps while doing the work: each is confirmed at the exact commit, like a rule, before it lands. The project's active instructions are the evidence for what it should say, and recent history shows what people do. An instruction to land without pull requests is the route to use, not a conflict with this skill: preview and set up `direct` for it. When saved policy and instructions disagree, change neither; park finished work naming the setting that differs.
 
-On `direct`, no worker opens a PR and no PR is merged. Work ends as one commit on a branch, made on the current tip and passing the project's required checks on this machine, and lands by the script. Hosted CI gates it only when `autonomous_ci` is `required`. An open PR is a source: remake its change as a commit, land that, and close the PR citing it.
+On `direct`, no worker opens a PR and no PR is merged. Work ends as one commit on a branch, made on the current tip (or its merge, when the merge method is `merge`), passing the project's required checks on this machine, and lands by the script. Hosted CI gates it only when `autonomous_ci` is `required`. An open PR is a source: remake its change as a commit, land that, and close the PR citing it.
 
 ## Answer questions here
 

@@ -374,7 +374,7 @@ def parse_policy(text, label):
     if values.get("autonomous_ci") == "ignored" and values.get("autonomous_landing") != "direct":
         raise ValueError(f"{label}: autonomous_ci: ignored needs autonomous_landing: direct")
     if values.get("autonomous_landing") == "direct" and values.get("autonomous_merge_method") == "rebase":
-        raise ValueError(f"{label}: direct landing is always one squashed commit")
+        raise ValueError(f"{label}: direct landing is one commit (squash), or the merge of one (merge)")
     for c in values.get("autonomous_checks", []):
         if set(c) - {"run", "paths"} or not c.get("run"):
             raise ValueError(f"{label}: a check needs run, and may have paths")
