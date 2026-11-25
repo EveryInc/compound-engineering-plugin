@@ -224,14 +224,14 @@ describe("direct landing", () => {
   })
 
   test("fast-forwards the exact tested commit when enabled", () => {
-    const w = new World(HANDS_OFF + "autonomous_direct: true\n")
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
     const d = direct(w)
     expect(d.go().json.landed).toBe(d.sha)
     expect(w.git(path.join(w.root, "origin.git"), "rev-parse", "main")).toBe(d.sha)
   })
 
   test("never runs or lands a commit this account did not record", () => {
-    const w = new World(HANDS_OFF + "autonomous_direct: true\n").begin()
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
     const head = w.pr(8, { "app.rb": "evil\n" }, { login: "stranger" })
     const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
     expect(w.run(["test", "--token", w.token, "--sha", head]).json.reasons).toEqual(["author-not-trusted"])
@@ -239,11 +239,47 @@ describe("direct landing", () => {
     expect(w.run(["direct", "--token", w.token, "--sha", head, "--job", job]).json.reasons).toEqual(["author-not-trusted"])
   })
 
-  test("is refused on a red main, even for a repair", () => {
-    const w = new World(HANDS_OFF + "autonomous_direct: true\n")
+  test("a tested commit lands on a main whose hosted checks are red, and an untested one does not", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+    expect(d.go().json.landed).toBe(d.sha)
+    const u = new World(HANDS_OFF.replace("run: true", "run: false") + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    expect(direct(u).go().json.reasons).toEqual(["test-failed"])
+  })
+
+  test("CI still gates a direct landing when settings require it", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\n")
     const d = direct(w)
     w.fail(w.git(w.repo, "rev-parse", "origin/main"))
     expect(d.go().json.reasons).toEqual(["main-not-green"])
+  })
+
+  test("more than one commit does not land directly", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    w.write("app.rb", "three\n")
+    const sha = w.commit("more", ["app.rb"])
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+    expect(d.sha).not.toBe(sha)
+    expect(w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]).json.reasons).toContain("not-one-commit")
+  })
+
+  test("a tip that moved since the test voids it", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    w.git(w.repo, "checkout", "-q", "main")
+    w.write("other.rb", "x\n")
+    w.commit("base", ["other.rb"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    expect(d.go().json.landed).toBeUndefined()
+  })
+
+  test("a repository that lands directly merges no PR", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    w.ready()
+    expect(w.gate().reasons).toEqual(["lands-directly"])
   })
 
   test.each([
@@ -251,7 +287,7 @@ describe("direct landing", () => {
     ["ruled", { rules: [{ type: "pull_request" }] }],
     ["unreadable", { rules_error: "HTTP 500" }],
   ])("is refused when the branch is %s", (_n, over) => {
-    const w = new World(HANDS_OFF + "autonomous_direct: true\n")
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
     const d = direct(w)
     Object.assign(w.w, over)
     w.save()

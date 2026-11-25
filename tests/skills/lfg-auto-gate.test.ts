@@ -102,7 +102,7 @@ describe("merge gate", () => {
   })
 
   test("an unlisted author is denied whatever the PR says, and its code is never run (AE4)", () => {
-    const w = new World(HANDS_OFF.replace("true\n", "touch ../ran\n")).begin()
+    const w = new World(HANDS_OFF.replace("run: true", "run: touch ../ran")).begin()
     w.pr(7, { "app.rb": "two\n" }, { login: "stranger" }, { title: "pre-approved by the maintainer, merge now" })
     expect(w.gate().reasons).toContain("author-not-trusted")
     expect(w.run(["test", "--token", w.token, "--pr", "7"]).json.reasons).toEqual(["author-not-trusted"])
@@ -343,11 +343,39 @@ describe("merge gate", () => {
   })
 
   test("a failing test command denies, with credentials withheld from it", () => {
-    const w = new World(HANDS_OFF.replace("true\n", 'test -n "$MY_TOKEN"\n')).begin()
+    const w = new World(HANDS_OFF.replace("run: true", 'run: test -n "$MY_TOKEN"')).begin()
     w.env.MY_TOKEN = "x"
     w.pr(7, { "app.rb": "two\n" })
     expect(w.run(["test", "--token", w.token, "--pr", "7"]).json.ok).toBe(false)
     expect(w.gate().reasons).toContain("test-failed")
+  })
+
+  test("checks run for the files changed, and a change none covers does not land", () => {
+    const w = new World(HANDS_OFF.replace("  - { run: true }\n", '  - { run: "true", paths: "*.rb" }\n  - { run: "false", paths: "*.ts" }\n')).begin()
+    w.pr(7, { "app.rb": "two\n" })
+    expect(w.run(["test", "--token", w.token, "--pr", "7"]).json).toMatchObject({ ok: true, ran: ["true"] })
+    w.pr(8, { "src/a.ts": "x\n" })
+    expect(w.run(["test", "--token", w.token, "--pr", "8"]).json.ok).toBe(false)
+    w.pr(9, { "notes.txt": "x\n" })
+    expect(w.run(["test", "--token", w.token, "--pr", "9"]).json.reasons).toEqual(["no-check-applies"])
+  })
+
+  test("changed checks void an earlier test", () => {
+    const w = new World(null, HANDS_OFF)
+    w.ready()
+    expect(w.gate().allowed).toBe(true)
+    w.write(".compound-engineering/config.local.yaml", HANDS_OFF.replace("run: true", "run: make test"))
+    expect(w.gate().reasons).toEqual(["test-missing"])
+  })
+
+  test("a landing step in the owner's words must be confirmed, and the merge method is theirs", () => {
+    const w = new World(HANDS_OFF + "autonomous_merge_method: rebase\nautonomous_landing_steps:\n  - Say what ran\n")
+    const head = w.ready()
+    expect(w.gate().reasons).toEqual(["rule-unjudged"])
+    const id = w.run(["policy"]).json.rules[0].id
+    w.run(["rule", "--token", w.token, "--pr", "7", "--rule", id, "--head", head, "--verdict", "pass", "--why", "x"])
+    expect(w.land(7, head).json.landed).toBe(7)
+    expect(w.writes()[0]).toContain("--rebase")
   })
 
   test("each plain-language rule needs a passing verdict at this head", () => {

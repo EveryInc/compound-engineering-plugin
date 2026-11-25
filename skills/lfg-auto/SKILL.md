@@ -22,7 +22,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 "$PY" "$SKILL_DIR/scripts/autonomous.py" policy
 ```
 
-- **`dry-run`:** `observe` and say what a run would do, without a lease, a worker, or any write. With `no-profile`, preview each profile instead and offer `setup`. Malformed policy is reported as below.
+- **`dry-run`:** `observe` and say what a run would do, without a lease, a worker, or any write. With `no-profile`, preview each profile on the landing route below and offer `setup`. Malformed policy is reported as below.
 - **`active: false` with `no-profile`, or the `setup` argument:** when a person can answer in this session, read `references/setup.md` and follow it. Otherwise report that autonomous mode is not set up here, and stop.
 - **`active: false` for any other reason:** report the detail and stop. Never repair policy to make a run possible.
 - **`status`:** print the policy and the `digest` subcommand's output, and stop.
@@ -40,6 +40,12 @@ The saved policy authorizes what `scripts/autonomous.py` allows, and nothing els
 - **Project instructions outrank the policy.** Where they forbid or require approval for an action, park it.
 - Never approve a CI run, publish a release, force-push, or contact anyone outside the repository.
 
+## Landing route
+
+A repository lands through pull requests or straight to its default branch; the policy says which, with its checks, merge method and landing steps. Follow those steps while doing the work: each is confirmed at the exact commit, like a rule, before it lands. The project's active instructions are the evidence for what it should say, and recent history shows what people do. An instruction to land without pull requests is the route to use, not a conflict with this skill: preview and set up `direct` for it. When saved policy and instructions disagree, change neither; park finished work naming the setting that differs.
+
+On `direct`, no worker opens a PR and no PR is merged. Work ends as one commit on a branch, made on the current tip and passing the project's required checks on this machine, and lands by the script. Hosted CI gates it only when `autonomous_ci` is `required`. An open PR is a source: remake its change as a commit, land that, and close the PR citing it.
+
 ## Answer questions here
 
 A question from a worker is answered from the code, docs, strategy, learnings and the owner's recorded decisions first (`decisions`; cite the id in the digest when one settles it). When that does not settle it, use the skill that answers it: `ce-explain` for how or why something works, `ce-pov` with an oracle panel for a judgment, `ce-bakeoff` when competing designs must be developed, `ce-debug` for a cause. Decide when the choice is reversible and within the item's level, and record the reason. Park what is left, or what no answer can authorize, with a recommendation.
@@ -48,4 +54,4 @@ A question from a worker is answered from the code, docs, strategy, learnings an
 
 Finish in-flight work first. Then take enabled motions in this order: `main-red`, `bugs`, `security`, `backlog`, `stack`, `climb`, `create`. Before starting a job, read that motion's section in `references/motions.md`; it names the callee, its invocation, and what it cannot do unattended.
 
-While main is not green, the only landing is a `main-red` repair. Triage, closing and babysitting continue.
+On the pull-request route, the only landing while main is not green is a `main-red` repair. Triage, closing and babysitting continue on both.

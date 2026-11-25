@@ -20,6 +20,7 @@ linked worktree; a bare repository uses <git common dir>/compound-engineering/lf
                 park, answer, retire, land-intent, land, rejected, close, update
 """
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -60,7 +61,12 @@ TABLE = {
 ORIGIN_REQUIRED = {"bugs", "security", "backlog"}
 DEFAULTS = {"autonomous_motions": DEFAULT_MOTIONS, "autonomous_jobs_per_hour": 2, "autonomous_open_pr_cap": 5,
             "autonomous_overrides": [], "autonomous_trusted_authors": [], "autonomous_babysit_authors": [],
-            "autonomous_rules": []}
+            "autonomous_rules": [], "autonomous_landing_steps": [], "autonomous_checks": [],
+            "autonomous_landing": "pull-request", "autonomous_ci": "required", "autonomous_merge_method": None}
+CHOICES = {"autonomous_landing": ["pull-request", "direct"], "autonomous_ci": ["required", "ignored"],
+           "autonomous_merge_method": ["squash", "rebase", "merge"]}
+# How work lands is the repository's own rule; a local file may repeat it, never replace it.
+FIXED = ["autonomous_landing", "autonomous_ci", "autonomous_merge_method", "autonomous_checks"]
 PARK_DAYS = 7
 KEYS = {
     "autonomous_profile": "str",
@@ -71,8 +77,11 @@ KEYS = {
     "autonomous_rules": "list",
     "autonomous_jobs_per_hour": "int",
     "autonomous_open_pr_cap": "int",
-    "autonomous_test_command": "str",
-    "autonomous_direct": "bool",
+    "autonomous_landing": "str",
+    "autonomous_ci": "str",
+    "autonomous_merge_method": "str",
+    "autonomous_checks": "maps",
+    "autonomous_landing_steps": "list",
 }
 OK_CONCLUSIONS = {"success", "neutral", "skipped"}
 CI_EVENTS = {"push", "pull_request", "pull_request_target", "merge_group", "dynamic"}
@@ -346,6 +355,16 @@ def parse_policy(text, label):
             values[name] = scalar(rest)
     if values.get("autonomous_profile", PROFILES[0]) not in PROFILES:
         raise ValueError(f"{label}: autonomous_profile must be one of {', '.join(PROFILES)}")
+    for k, allowed in CHOICES.items():
+        if values.get(k, allowed[0]) not in allowed:
+            raise ValueError(f"{label}: {k} must be one of {', '.join(allowed)}")
+    if values.get("autonomous_ci") == "ignored" and values.get("autonomous_landing") != "direct":
+        raise ValueError(f"{label}: autonomous_ci: ignored needs autonomous_landing: direct")
+    if values.get("autonomous_landing") == "direct" and values.get("autonomous_merge_method", "squash") != "squash":
+        raise ValueError(f"{label}: direct landing is always one squashed commit")
+    for c in values.get("autonomous_checks", []):
+        if set(c) - {"run", "paths"} or not c.get("run"):
+            raise ValueError(f"{label}: a check needs run, and may have paths")
     for m in values.get("autonomous_motions", []):
         if m not in MOTIONS:
             raise ValueError(f"{label}: unknown motion {m}")
@@ -401,12 +420,11 @@ def load_policy(repo):
         for k in ("autonomous_jobs_per_hour", "autonomous_open_pr_cap"):
             if k in mine:
                 p[k] = min(p[k], mine[k])
-        if "autonomous_direct" in mine:
-            p["autonomous_direct"] = p.get("autonomous_direct", False) and mine["autonomous_direct"]
-        if "autonomous_test_command" in mine and mine["autonomous_test_command"] != p.get("autonomous_test_command"):
-            return {"active": False, "reason": "policy-malformed",
-                    "detail": "config.local.yaml cannot replace the repository's autonomous_test_command"}
-        for k in ("autonomous_overrides", "autonomous_rules"):
+        for k in FIXED:
+            if k in mine and mine[k] != p[k]:
+                return {"active": False, "reason": "policy-malformed",
+                        "detail": f"config.local.yaml cannot replace the repository's {k}"}
+        for k in ("autonomous_overrides", "autonomous_rules", "autonomous_landing_steps"):
             p[k] = p[k] + mine.get(k, [])
     elif team:
         return {"active": False, "reason": "policy-malformed",
@@ -420,6 +438,24 @@ def load_policy(repo):
 
 def rule_id(rule):
     return hashlib.sha256(rule.encode("utf-8")).hexdigest()[:12]
+
+
+def judged(policy):
+    """Everything in the owner's words that must be confirmed at the exact head before it lands."""
+    return policy["autonomous_rules"] + policy["autonomous_landing_steps"]
+
+
+def checks_id(policy):
+    return hashlib.sha256(json.dumps(policy["autonomous_checks"], sort_keys=True).encode()).hexdigest()[:12]
+
+
+def applying_checks(policy, names):
+    out = []
+    for c in policy["autonomous_checks"]:
+        globs = c.get("paths", "").split()
+        if not globs or any(fnmatch.fnmatch(n, g) for n in names for g in globs):
+            out.append(c["run"])
+    return out
 
 
 def level_for(policy, motion, author, landed):
@@ -689,7 +725,7 @@ def diff_facts(repo, base, head):
         hits += [f"{name}:changed line" for name, pat in HARD_LINES if re.search(pat, text, re.I)]
     dependencies = bool(files) and all(MANIFEST.search(f.lower()) or LOCKFILE.search(f.lower()) for f in files)
     return {"merge_base": mb, "files": len(files), "hard": sorted(set(hits)), "major": major,
-            "only_dependencies": dependencies}
+            "only_dependencies": dependencies, "names": sorted(files)}
 
 
 def changed_lines(base, head, path=None):
@@ -820,12 +856,14 @@ def receipt(rows, subject, head, base, kind, **match):
 def receipt_reasons(policy, rows, subject, head, base):
     out = []
     for kind in ("test", "review"):
-        r = receipt(rows, subject, head, base, kind)
+        # A test under different checks is not a test under these.
+        match = {"checks": checks_id(policy)} if kind == "test" else {}
+        r = receipt(rows, subject, head, base, kind, **match)
         if r is None:
             out.append(f"{kind}-missing")
         elif not r.get("ok"):
             out.append(f"{kind}-failed")
-    for rule in policy["autonomous_rules"]:
+    for rule in judged(policy):
         r = receipt(rows, subject, head, base, "rule", rule=rule_id(rule))
         if r is None:
             out.append("rule-unjudged")
@@ -867,6 +905,8 @@ def gate(repo, policy, rows, number):
     facts = diff_facts(repo, base, head)
     motion = motion_of(job, facts)
     level = level_for(policy, motion, author, landed_count(repo, rows, motion))
+    if policy["autonomous_landing"] == "direct":
+        reasons.append("lands-directly")
     if trust not in ("own", "trusted"):
         reasons.append("author-not-trusted")
     if trust == "own" and not job:
@@ -919,8 +959,9 @@ def cmd_policy(a, repo):
     if p["active"]:
         rows = ledger(repo)
         p["levels"] = {m: level_for(p, m, None, landed_count(repo, rows, m)) for m in p["autonomous_motions"]}
-        p["rules"] = [{"id": rule_id(r), "text": r} for r in p["autonomous_rules"]]
+        p["rules"] = [{"id": rule_id(r), "text": r} for r in judged(p)]
         p["jobs_left"] = jobs_left(p, rows)
+        p["landing"] = p["autonomous_landing"]
     return emit(p)
 
 
@@ -933,11 +974,13 @@ def settle(repo, rows):
             motion = r.get("motion") or (job_of(rows, r["job"]) or {}).get("motion")
             heads[r["pr"]] = {"head": r["head"], "motion": motion, "by": r["event"]}
     recorded = {r["pr"] for r in rows if r["event"] == "adopt" and r.get("pr")}
-    for sha in {r["sha"] for r in rows if r["event"] == "land-intent" and r.get("sha")}:
-        intent = next(r for r in reversed(rows) if r["event"] == "land-intent" and r.get("sha") == sha)
+    for sha in {r["sha"] for r in rows if r["event"] in ("land-intent", "adopt") and r.get("sha")}:
+        intent = next((r for r in reversed(rows) if r["event"] == "land-intent" and r.get("sha") == sha), None)
+        job = job_of(rows, next((r["job"] for r in rows if r["event"] == "adopt" and r.get("sha") == sha), None))
+        motion, by = (intent["motion"], "script") if intent else ((job or {}).get("motion"), "person")
         if not any(r["event"] == "land" and r.get("merge_sha") == sha for r in rows) \
                 and git("merge-base", "--is-ancestor", sha, repo.tip(fresh=True), check=False).returncode == 0:
-            append(repo, "land", sha=sha, motion=intent["motion"], head=sha, base=intent["base"], by="script", merge_sha=sha)
+            append(repo, "land", sha=sha, motion=motion, head=sha, by=by, merge_sha=sha)
     for number, h in heads.items():
         if (number, h["head"]) in ended:
             continue
@@ -1185,13 +1228,19 @@ def scrubbed_env(tmp):
     return env
 
 
+def kill_group(proc):
+    """End whatever the command left running."""
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+    proc.wait()
+
+
 def cmd_test(a, repo):
     policy = load_policy(repo)
     if not policy["active"]:
         return deny(policy["reason"])
-    command = policy.get("autonomous_test_command")
-    if not command:
-        return deny("test-command-missing")
     rows, base = ledger(repo), repo.tip()
     subject, head, why = subject_of(a, repo, policy, rows)
     if why:
@@ -1204,12 +1253,16 @@ def cmd_test(a, repo):
         pr = pr_view(repo, a.pr)
         if handling(repo, policy, rows, {**pr, "job": None}) == "diff-only" or pr["headRefOid"] != head:
             return deny("level-below-babysit")
+    commands = applying_checks(policy, facts["names"])
+    if not commands:
+        return deny("no-check-applies")
     if a.dry_run:
-        return emit({"would_run": command, "head": head, "base": base})
+        return emit({"would_run": commands, "head": head, "base": base})
     with locked(repo):
         require_lease(repo, a.token)
     tmp = tempfile.mkdtemp(prefix="lfg-auto-test-")
     tree, log, proc, code = os.path.join(tmp, "tree"), os.path.join(tmp, "log"), None, "interrupted"
+    ran = []
 
     def stop(*_):
         raise Failure("the test run was interrupted")
@@ -1222,27 +1275,30 @@ def cmd_test(a, repo):
         if add.returncode != 0:
             raise Failure(f"worktree: {add.stderr.strip()}")
         with open(log, "wb") as out:
-            proc = subprocess.Popen(command, shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
-                                    stderr=subprocess.STDOUT, start_new_session=True)
-            try:
-                code = proc.wait(timeout=a.timeout)
-            except subprocess.TimeoutExpired:
-                code = "timeout"
+            deadline = now() + timedelta(seconds=a.timeout)
+            for command in commands:
+                ran.append(command)
+                proc = subprocess.Popen(command, shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
+                                        stderr=subprocess.STDOUT, start_new_session=True)
+                try:
+                    code = proc.wait(timeout=max(1, (deadline - now()).total_seconds()))
+                except subprocess.TimeoutExpired:
+                    code = "timeout"
+                kill_group(proc)
+                if code != 0:
+                    break
         with open(log, encoding="utf-8", errors="replace") as f:
             tail = f.read()[-3000:]
     finally:
         if proc is not None:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
-            proc.wait()
+            kill_group(proc)
         git("worktree", "remove", "--force", tree, cwd=repo.main or repo.common, check=False)
         shutil.rmtree(tmp, ignore_errors=True)
     with locked(repo):
         require_lease(repo, a.token)
-        append(repo, "receipt", kind="test", subject=subject, head=head, base=base, ok=code == 0, exit=code)
-    return emit({"ok": code == 0, "exit": code, "head": head, "base": base, "tail": tail}, 0 if code == 0 else 1)
+        append(repo, "receipt", kind="test", subject=subject, head=head, base=base, ok=code == 0, exit=code,
+               checks=checks_id(policy), ran=ran)
+    return emit({"ok": code == 0, "exit": code, "ran": ran, "not_run": commands[len(ran):], "head": head, "base": base, "tail": tail}, 0 if code == 0 else 1)
 
 
 def cmd_review(a, repo):
@@ -1282,7 +1338,7 @@ def cmd_rule(a, repo):
     policy = load_policy(repo)
     if not policy["active"]:
         return deny(policy["reason"])
-    if a.rule not in [rule_id(r) for r in policy["autonomous_rules"]]:
+    if a.rule not in [rule_id(r) for r in judged(policy)]:
         return deny("rule-unknown")
     rows, base = ledger(repo), repo.tip()
     subject, head, why = subject_of(a, repo, policy, rows)
@@ -1324,7 +1380,9 @@ def cmd_update(a, repo):
     return emit({"updated": a.pr, "was": facts["head"]})
 
 
-def merge_method(repo):
+def merge_method(repo, policy):
+    if policy["autonomous_merge_method"]:
+        return "--" + policy["autonomous_merge_method"]
     d = gh_json("api", f"repos/{repo.name}")
     for flag, key in (("--squash", "allow_squash_merge"), ("--rebase", "allow_rebase_merge"), ("--merge", "allow_merge_commit")):
         if d.get(key):
@@ -1341,7 +1399,7 @@ def cmd_land(a, repo):
         return deny(*reasons, **facts)
     if a.dry_run:
         return emit({"would_merge": a.pr, **facts})
-    method = merge_method(repo)
+    method = merge_method(repo, policy)
     with locked(repo):
         require_lease(repo, a.token)
         if repo.tip(fresh=True) != facts["base"]:
@@ -1364,7 +1422,7 @@ def cmd_direct(a, repo):
     if why:
         return deny(*why)
     job, base, reasons = job_of(rows, a.job), repo.tip(), []
-    if not policy.get("autonomous_direct"):
+    if policy["autonomous_landing"] != "direct":
         reasons.append("direct-off")
     if not job:
         return deny(*reasons, "job-missing")
@@ -1379,13 +1437,17 @@ def cmd_direct(a, repo):
         reasons.append("default-branch-protected")
     if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0 or head == base:
         reasons.append("not-fast-forward")
+    elif git("rev-list", "--count", f"{base}..{head}").stdout.strip() != "1":
+        reasons.append("not-one-commit")
     facts = diff_facts(repo, base, head)
     if facts["hard"]:
         reasons.append("hard-limit")
     if facts["major"]:
         reasons.append("major-update")
-    # An unpublished commit has no checks, so it can never prove a red-main repair.
-    reasons += main_reasons(repo, job["motion"], None, [])
+    if policy["autonomous_ci"] == "required":
+        reasons += main_reasons(repo, job["motion"], None, [])
+    # With CI ignored the checks here are the gate: the test receipt is for this commit on this tip, which is what the default
+    # branch becomes. So a red main neither blocks a tested commit nor excuses an untested one.
     reasons += receipt_reasons(policy, rows, subject, head, base)
     if reasons:
         return deny(*reasons, hard_limits=facts["hard"])
@@ -1405,7 +1467,7 @@ def cmd_direct(a, repo):
 
 def evidence_reasons(repo, item, how, ref):
     kind, _, value = ref.partition(":")
-    if how == "fixed" and kind == "commit" and SHA.match(value):
+    if how in ("fixed", "replaced") and kind == "commit" and SHA.match(value):
         known = git("cat-file", "-e", f"{value}^{{commit}}", check=False).returncode == 0
         if known and git("merge-base", "--is-ancestor", value, repo.tip(), check=False).returncode == 0:
             return []

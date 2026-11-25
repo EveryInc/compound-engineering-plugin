@@ -26,6 +26,9 @@ describe("policy", () => {
     ["bad override", "autonomous_profile: balanced\nautonomous_overrides:\n  - { motion: stack, max: direct }\n"],
     ["duplicate", "autonomous_profile: cautious\nautonomous_profile: hands-off\n"],
     ["no profile", "autonomous_trusted_authors: [a]\n"],
+    ["CI ignored on the PR route", "autonomous_profile: balanced\nautonomous_ci: ignored\n"],
+    ["direct with a merge commit", "autonomous_profile: balanced\nautonomous_landing: direct\nautonomous_merge_method: merge\n"],
+    ["check without a command", "autonomous_profile: balanced\nautonomous_checks:\n  - { paths: x }\n"],
     ["bad number", "autonomous_profile: balanced\nautonomous_jobs_per_hour: lots\n"],
   ])("malformed policy denies: %s", (_n, text) => {
     expect(new World(text).run(["policy"]).json).toMatchObject({ active: false, reason: "policy-malformed" })
@@ -40,12 +43,14 @@ describe("policy", () => {
   test("a local file can only tighten a repository policy", () => {
     const w = new World(
       "autonomous_profile: balanced\nautonomous_trusted_authors: [a, b]\nautonomous_jobs_per_hour: 3\n",
-      "autonomous_profile: hands-off\nautonomous_trusted_authors: [b, evil]\nautonomous_jobs_per_hour: 99\nautonomous_direct: true\n",
+      "autonomous_profile: hands-off\nautonomous_trusted_authors: [b, evil]\nautonomous_jobs_per_hour: 99\n",
     )
     const p = w.run(["policy"]).json
-    expect(p).toMatchObject({ autonomous_profile: "balanced", autonomous_trusted_authors: ["b"], autonomous_jobs_per_hour: 3, autonomous_direct: false })
-    const t = new World("autonomous_profile: balanced\nautonomous_test_command: make\n", "autonomous_test_command: true\n")
+    expect(p).toMatchObject({ autonomous_profile: "balanced", autonomous_trusted_authors: ["b"], autonomous_jobs_per_hour: 3 })
+    const t = new World("autonomous_profile: balanced\nautonomous_checks:\n  - { run: make }\n", "autonomous_checks:\n  - { run: true }\n")
     expect(t.run(["policy"]).json.reason).toBe("policy-malformed")
+    const l = new World("autonomous_profile: balanced\n", "autonomous_landing: direct\n")
+    expect(l.run(["policy"]).json.reason).toBe("policy-malformed")
   })
 
   test("the strictest matching override wins", () => {
@@ -54,7 +59,7 @@ describe("policy", () => {
   })
 
   test("a PR cannot change the policy that judges it", () => {
-    const w = new World("autonomous_profile: cautious\nautonomous_test_command: true\nautonomous_trusted_authors: [dependabot[bot]]\n")
+    const w = new World("autonomous_profile: cautious\nautonomous_checks:\n  - { run: true }\nautonomous_trusted_authors: [dependabot[bot]]\n")
     w.pr(7, { ".compound-engineering/config.yaml": "autonomous_profile: hands-off\n" })
     expect(w.gate().reasons).toEqual(expect.arrayContaining(["hard-limit", "level-pr"]))
   })

@@ -71,7 +71,7 @@ if a[0] == "api":
 sys.exit(9)
 `
 
-export const HANDS_OFF = "autonomous_profile: hands-off\nautonomous_test_command: true\nautonomous_trusted_authors:\n  - dependabot[bot]\n"
+export const HANDS_OFF = "autonomous_profile: hands-off\nautonomous_checks:\n  - { run: true }\nautonomous_trusted_authors:\n  - dependabot[bot]\n"
 
 export class World {
   root = realpathSync(mkdtempSync(path.join(tmpdir(), "lfg-auto-")))

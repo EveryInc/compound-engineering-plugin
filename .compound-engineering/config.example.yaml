@@ -228,7 +228,18 @@
 
 # autonomous_profile: balanced                # cautious | balanced | hands-off
 # autonomous_motions: [main-red, bugs, backlog, stack]   # also security, climb, create
-# autonomous_test_command: bun run test       # must pass on this machine before anything lands
+
+# How work lands. `lfg-auto setup` fills these in from the project's own
+# instructions. Local settings may repeat them, never replace them.
+# autonomous_landing: pull-request            # pull-request | direct (one squashed commit on the default branch, no PR)
+# autonomous_ci: required                     # required | ignored (direct only, the checks below are then the gate)
+# autonomous_merge_method: squash             # squash | rebase | merge (default is the first the repository allows)
+# autonomous_checks:                          # must pass on this machine, paths limits one to the files changed
+#   - { run: bun run test }
+#   - { run: npm run types, paths: "*.ts *.tsx" }
+# autonomous_landing_steps:                   # your own words, each confirmed at the exact commit before it lands
+#   - The commit message says which checks ran and which did not
+
 # autonomous_trusted_authors:                 # accounts whose PRs may merge; write bots as name[bot]
 #   - dependabot[bot]
 # autonomous_babysit_authors: [teammate]      # accounts whose PR code may be run and fixed here, never merged
@@ -239,7 +250,6 @@
 #   - Ask me about anything that changes what users pay
 # autonomous_jobs_per_hour: 2                 # default 2
 # autonomous_open_pr_cap: 5                   # default 5
-# autonomous_direct: false                    # true: land on the default branch where no branch rules exist
 
 # --- Compound Packs ---
 

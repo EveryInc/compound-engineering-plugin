@@ -2,11 +2,13 @@
 
 Each section names what the motion may start, the callee, and what stays with a person. Workers are told the end state and never receive permission to land.
 
+On the `direct` route, every "PR" below is one local commit: `lfg` ends by opening a PR, so use `ce-work mode:return-to-caller <plan path or work statement>` in its place, planning first with `ce-plan mode:pipeline` when the work needs a plan. Tell the worker to commit on its branch and publish nothing.
+
 ## main-red
 
-Start only when `observe` reports main red. One repair at a time. Callee: `ce-debug mode:return-to-caller <failing checks and log tails>` in a worktree on the default branch tip; it creates a branch and does not push. Its `fixed` return is then shipped with `ce-commit-push-pr mode:pipeline babysit:off`. Never run `ce-debug mode:pipeline` on the default branch, because it pushes the branch it is on. A failure with several unrelated causes is several repairs: fix the one that hides the most first. Unknown main is not red: wait.
+Start only when `observe` reports main red. One repair at a time. Callee: `ce-debug mode:return-to-caller <failing checks and log tails>` in a worktree on the default branch tip; it creates a branch and does not push. Its `fixed` return is then shipped with `ce-commit-push-pr mode:pipeline babysit:off`, or on `direct` adopted as the commit it is. Never run `ce-debug mode:pipeline` on the default branch, because it pushes the branch it is on. A failure with several unrelated causes is several repairs: fix the one that hides the most first. Unknown main is not red: wait.
 
-A repair that edits CI itself always parks for a person.
+A repair that edits CI itself always parks for a person. On `direct`, hosted checks stay red until a person fixes CI, so do not let that motion hold up the others: once its CI repair is parked, move on.
 
 ## bugs
 

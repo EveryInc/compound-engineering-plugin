@@ -47,7 +47,9 @@ host schedule -> /lfg-auto -> look -> pick by motion order -> delegate to lfg, c
 
 **Four settings combine.** A profile sets a start and a ceiling for each motion. Overrides lower a motion or an author. Rules in your own words make a landing stricter. Five clean landings raise a motion to its ceiling, and a revert or a closed PR resets it.
 
-**Main first.** While main is not green, only a repair that fixes every failing check may land. Then one item lands at a time.
+**Main first.** On the pull-request route, while main is not green, only a repair that fixes every failing check may land. Then one item lands at a time.
+
+**The repository's own landing rules.** Setup reads how the project lands work and saves it as settings: the route (pull request or straight to main), whether hosted CI gates it, the merge method, which checks run for which files, and steps in your own words. The script enforces them. A landing step in your words must be confirmed at the exact commit.
 
 **The exact commit.** A landing needs a passing local test and a clean review of the PR's current head on the current base. Either moving voids both.
 
