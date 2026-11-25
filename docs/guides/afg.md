@@ -85,3 +85,5 @@ Settings and their layering are in [Compound Engineering configuration](./config
 ## Scheduling
 
 Use your host's scheduler with the prompt `/afg`. In T3 Code, use an interval schedule with a new thread per run; a webhook schedule can start a run when an issue or PR opens. It does not read remaining subscription quota: it caps jobs per hour and moves to another provider when one reports a limit.
+
+When something else shares this machine's capacity across repositories, it can write `.context/compound-engineering/afg/allowance.json`: `{"version": 1, "jobs": 2, "expires_at": "2026-01-01T12:00:00Z"}`. While that file exists, `afg` starts no more jobs than `jobs` at once, and none after `expires_at`; a file it cannot read starts none. Work already going finishes. `policy` reports it under `allowance`. Without the file nothing changes.

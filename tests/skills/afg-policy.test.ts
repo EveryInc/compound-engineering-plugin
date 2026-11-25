@@ -103,6 +103,63 @@ describe("lease and caps", () => {
     expect(next("main-red").code).toBe(0)
   })
 
+  describe("an outside allowance", () => {
+    const soon = () => new Date(Date.now() + 3_600_000).toISOString()
+    const world = (allowance?: unknown) => {
+      const w = new World(HANDS_OFF + "autonomous_jobs_per_hour: 9\n").begin()
+      if (allowance !== undefined) give(w, allowance)
+      return w
+    }
+    const give = (w: World, a: unknown) =>
+      writeFileSync(path.join(w.repo, ".context/compound-engineering/afg/allowance.json"), typeof a === "string" ? a : JSON.stringify(a))
+    const job = (w: World) => w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"])
+
+    test("is not needed, and policy says this version enforces one", () => {
+      const w = world()
+      expect(job(w).code).toBe(0)
+      expect(w.run(["policy"]).json.allowance).toEqual({ enforced: true, state: "none" })
+    })
+
+    test("bounds the jobs going at once, and ending one makes room", () => {
+      const w = world({ version: 1, jobs: 1, expires_at: soon() })
+      const first = job(w).json.job
+      expect(job(w).json.reasons).toEqual(["allowance-spent"])
+      w.run(["job-end", "--token", w.token, "--job", first, "--why", "done"])
+      expect(job(w).code).toBe(0)
+    })
+
+    test("a job left by a crashed run takes no place", () => {
+      const w = world({ version: 1, jobs: 1, expires_at: soon() })
+      job(w)
+      writeFileSync(path.join(w.repo, ".context/compound-engineering/afg/state.json"), JSON.stringify({ token: w.token, at: "2020-01-01T00:00:00Z" }))
+      w.begin()
+      expect(job(w).code).toBe(0)
+    })
+
+    test.each([
+      ["expired", { version: 1, jobs: 3, expires_at: "2020-01-01T00:00:00Z" }, "allowance-expired"],
+      ["zero", { version: 1, jobs: 0, expires_at: "2999-01-01T00:00:00Z" }, "allowance-spent"],
+      ["not JSON", "{", "allowance-unreadable"],
+      ["another version", { version: 2, jobs: 3, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
+      ["no expiry", { version: 1, jobs: 3 }, "allowance-unreadable"],
+      ["a naive time", { version: 1, jobs: 3, expires_at: "2999-01-01T00:00:00" }, "allowance-unreadable"],
+      ["a negative count", { version: 1, jobs: -1, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
+      ["true as a count", { version: 1, jobs: true, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
+      ["a list", [], "allowance-unreadable"],
+    ])("that is %s starts nothing", (_name, given, reason) => {
+      expect(job(world(given)).json.reasons).toEqual([reason])
+    })
+
+    test("that expires mid-run stops new jobs and lets the run finish", () => {
+      const w = world({ version: 1, jobs: 2, expires_at: soon() })
+      const going = job(w).json.job
+      give(w, { version: 1, jobs: 2, expires_at: "2020-01-01T00:00:00Z" })
+      expect(job(w).json.reasons).toEqual(["allowance-expired"])
+      expect(w.run(["job-end", "--token", w.token, "--job", going, "--why", "done"]).code).toBe(0)
+      expect(w.run(["end", "--token", w.token]).code).toBe(0)
+    })
+  })
+
   test("requested work needs an origin", () => {
     const w = new World().begin()
     expect(w.run(["job", "--token", w.token, "--motion", "bugs", "--what", "x"]).json.reasons).toEqual(["origin-missing"])

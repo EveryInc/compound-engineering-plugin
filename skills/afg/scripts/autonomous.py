@@ -18,6 +18,9 @@ linked worktree; a bare repository uses <git common dir>/compound-engineering/af
   state.json    the run lease
   ledger.jsonl  append-only events: run, job, adopt, receipt, rule,
                 park, answer, retire, land-intent, land, rejected, close, update
+  allowance.json  optional, written by whatever shares this machine's capacity
+                across repositories: {"version": 1, "jobs": <at once>, "expires_at": <UTC>}.
+                Present, it bounds every new job; this script only reads it.
 """
 import argparse
 import hashlib
@@ -585,6 +588,49 @@ def require_lease(repo, token):
     write_state(repo, state)
 
 
+def allowance(repo):
+    """What an outside allocator permits here, or None when nothing allocates.
+
+    A present file that cannot be trusted permits nothing: it says that something
+    allocates, and not what.
+    """
+    path = os.path.join(store_dir(repo, create=False), "allowance.json")
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return {"jobs": 0, "state": "unreadable"}
+    with os.fdopen(fd, encoding="utf-8") as f:
+        try:
+            data = json.load(f)
+            jobs, expires = data["jobs"], parse_iso(data["expires_at"])
+            sound = data["version"] == 1 and type(jobs) is int and jobs >= 0 and expires.tzinfo is not None
+        except (ValueError, KeyError, TypeError, AttributeError):
+            sound = False
+    if not sound:
+        return {"jobs": 0, "state": "unreadable"}
+    if expires <= now():
+        return {"jobs": 0, "state": "expired", "expires_at": iso(expires)}
+    return {"jobs": jobs, "state": "current", "expires_at": iso(expires)}
+
+
+def active_jobs(rows):
+    """Jobs this run started and has not adopted or ended. A crashed run's never count."""
+    start = max((i for i, r in enumerate(rows) if r["event"] == "run"), default=-1)
+    done = {r["job"] for r in rows if r["event"] in ("adopt", "job-end")}
+    return [r for r in rows[start + 1:] if r["event"] == "job" and r["job"] not in done]
+
+
+def allowance_reasons(repo, rows):
+    given = allowance(repo)
+    if given is None:
+        return []
+    if given["state"] != "current":
+        return [f"allowance-{given['state']}"]
+    return ["allowance-spent"] if len(active_jobs(rows)) >= given["jobs"] else []
+
+
 def jobs_left(policy, rows):
     cutoff = now() - timedelta(hours=1)
     used = sum(1 for r in rows if r["event"] == "job" and parse_iso(r["at"]) > cutoff)
@@ -998,6 +1044,7 @@ def cmd_policy(a, repo):
         p["rules"] = [{"id": rule_id(r), "text": r} for r in judged(p)]
         p["jobs_left"] = jobs_left(p, rows)
         p["landing"] = p["autonomous_landing"]
+        p["allowance"] = {"enforced": True, **(allowance(repo) or {"state": "none"})}
     return emit(p)
 
 
@@ -1172,6 +1219,9 @@ def cmd_job(a, repo):
             return deny("job-unfinished")
         if jobs_left(policy, rows) < 1:
             return deny("hourly-cap")
+        reasons = allowance_reasons(repo, rows)
+        if reasons:
+            return deny(*reasons)
         if a.motion == "main-red" and state != "red":
             return deny("main-not-red")
         if a.opens_pr:
