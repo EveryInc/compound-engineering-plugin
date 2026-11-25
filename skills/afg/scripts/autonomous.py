@@ -116,6 +116,7 @@ HARD_LINES = [
     ("secrets", r"BEGIN [A-Z ]*PRIVATE KEY|(api[_-]?key|secret|password|access[_-]?token)['\"]?\s*[:=]\s*['\"][^'\"]{8,}"),
 ]
 TEST_FILE = re.compile(r"(^|/)(tests?|specs?|__tests__|e2e|cypress)/|[._-](test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$")
+NOT_A_TEST = re.compile(r"^\s*($|//|#\s|import\s[^'\"]*\sfrom\s*['\"][^'\"]+['\"];?\s*$|from\s+\S+\s+import\s+[\w, ]+$)")
 # What decides only what a check reports. Anything else that judges a change can also run, grant or publish.
 GUARD = re.compile(
     r"(^|/)(\.rubocop[^/]*\.ya?ml|\.eslintrc(\.json|\.ya?ml)?|\.eslintignore|\.prettierrc(\.json|\.ya?ml)?|\.prettierignore|"
@@ -825,8 +826,10 @@ def diff_facts(repo, base, head, policy=None):
         if added == "-":
             hits.append("unclassified:binary change")
         elif name and TEST_FILE.search(name.lower()) and int(removed) > int(added):
-            # Tests judge the change; a person decides to have fewer of them.
-            hits.append(f"judge:{name}")
+            # Tests judge the change; a person decides to have fewer of them. Imports, comments and blank lines are not tests.
+            counted = [s for s, t in changed_lines(mb, head, name) if not NOT_A_TEST.search(t)]
+            if counted.count("-") > counted.count("+"):
+                hits.append(f"fewer-tests:{name}")
     major = False
     for p in sorted(set(manifests)):
         verdict = manifest_change(changed_lines(mb, head, p))

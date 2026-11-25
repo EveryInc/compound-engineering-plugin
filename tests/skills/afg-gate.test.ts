@@ -88,6 +88,20 @@ describe("merge gate", () => {
     expect(w.run(["test", "--token", w.token, "--pr", "7"]).json.reasons).toEqual(["hard-limit"])
   })
 
+  test.each([
+    ["merged imports and dropped comments", 'import { a, b } from "x"\ntest(1)\n', []],
+    ["a dropped test", 'import { a } from "x"\nimport { b } from "x"\n// why\n', ["fewer-tests:test/a.test.ts"]],
+    ["a dropped import that runs tests", 'import { a } from "x"\nimport { b } from "x"\n// why\ntest(1)\n', ["fewer-tests:test/b.test.ts"]],
+  ])("fewer tests counts tests, not lines: %s", (_n, after, hits) => {
+    const w = new World()
+    w.write("test/a.test.ts", 'import { a } from "x"\nimport { b } from "x"\n// why\ntest(1)\n')
+    w.write("test/b.test.ts", 'import "./case"\nimport "./more"\n')
+    w.commit("tests", ["test"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    w.pr(7, { "test/a.test.ts": after, ...(_n.includes("import that runs") ? { "test/b.test.ts": 'import "./case"\n' } : {}) })
+    expect(w.gate().hard_limits).toEqual(hits)
+  })
+
   test("a hard limit past the hundredth file is still seen", () => {
     const w = new World()
     const files: Record<string, string> = { "zz/migrations/1.rb": "x\n" }
