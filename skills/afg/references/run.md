@@ -47,7 +47,7 @@ Landing is judged on the exact head, after the last push to it. A review made be
 6. For each file `test` lists in `guards`, see Guards below.
 7. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
 
-A commit for direct landing takes `test`, `review`, `rule` and `guard` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit under the same job, and repeat. One job lands one commit. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
+A commit for direct landing takes `test`, `review`, `rule` and `guard` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit under the same job, and repeat. One job lands one commit. With `autonomous_merge_method: merge`, that commit sits on the tip and the adopted `<sha>` is the `--no-ff` merge of it. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
 
 On the pull-request route, when main moves while it is red, `update` the repair PR, start a new `main-red` job for the new tip without `--opens-pr`, and adopt the updated head under it.
 

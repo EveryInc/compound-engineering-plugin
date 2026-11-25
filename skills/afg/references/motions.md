@@ -30,7 +30,7 @@ Sources: dependency bot PRs first, then outdated direct dependencies and the fra
 
 ## climb
 
-Improve a number: speed, cost, size, coverage. Look for what is slow in traces, logs, benchmarks and CI timings before choosing a target. Callee: `ce-optimize mode:return-to-caller <goal, workload and where it is slow>`. Its return decides what happens next:
+Improve a number: speed, cost, size, coverage; or make code simpler without changing what it does. Look for what is slow in traces, logs, benchmarks and CI timings before choosing a target. Callee: `ce-optimize mode:return-to-caller <goal, workload and where it is slow>`. For simpler code the callee is `ce-simplify-code <one area>`, chosen for how often it changes and how hard it is to follow; the checks must already cover what it does, and public names stay. On `direct`, either ends as a commit. The `ce-optimize` return decides what happens next:
 
 - `complete` with a confirmed gain: ship its branch as a PR with `ce-commit-push-pr mode:pipeline babysit:off`, adopt it, and land it like any other.
 - `complete` without one: record the target as `idea:<slug>` with what was learned, and choose another target next time.

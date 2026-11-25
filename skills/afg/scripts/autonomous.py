@@ -1670,6 +1670,12 @@ def cmd_direct(a, repo):
         reasons.append("default-branch-protected")
     if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0 or head == base:
         reasons.append("not-fast-forward")
+    elif policy["autonomous_merge_method"] == "merge":
+        # One commit, joined by a merge that adds nothing of its own.
+        parents = git("log", "-1", "--format=%P", head).stdout.split()
+        if len(parents) != 2 or parents[0] != base or git("log", "-1", "--format=%P", parents[1]).stdout.split() != [base] \
+                or git("rev-parse", f"{head}^{{tree}}").stdout != git("rev-parse", f"{parents[1]}^{{tree}}").stdout:
+            reasons.append("not-one-merged-commit")
     elif git("rev-list", "--count", f"{base}..{head}").stdout.strip() != "1":
         reasons.append("not-one-commit")
     facts = diff_facts(repo, base, head, policy)

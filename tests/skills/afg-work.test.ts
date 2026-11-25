@@ -309,6 +309,28 @@ describe("direct landing", () => {
     expect(w.git(path.join(w.root, "origin.git"), "rev-parse", "main")).toBe(d.sha)
   })
 
+  test.each([["only joins", false, undefined], ["adds something", true, "not-one-merged-commit"]])("a merge commit that %s", (_n, adds, reason) => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\nautonomous_merge_method: merge\n").begin()
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.git(w.repo, "checkout", "-q", "-b", "work", "origin/main")
+    w.write("app.rb", "two\n")
+    w.commit("work", ["app.rb"])
+    w.git(w.repo, "checkout", "-q", "--detach", "origin/main")
+    w.git(w.repo, "merge", "-q", "--no-ff", "-m", "Merge work", "work")
+    if (adds) {
+      w.write("app.rb", "three\n")
+      w.git(w.repo, "commit", "-q", "-a", "--amend", "--no-edit")
+    }
+    const sha = w.head()
+    w.git(w.repo, "checkout", "-q", "main")
+    expect(w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha]).code).toBe(0)
+    w.run(["test", "--token", w.token, "--sha", sha])
+    w.run(["review", "--token", w.token, "--sha", sha], w.reviewJson(sha))
+    const r = w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]).json
+    if (reason) expect(r.reasons).toEqual([reason])
+    else expect(r.landed).toBe(sha)
+  })
+
   test("never runs or lands a commit this account did not record", () => {
     const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
     const head = w.pr(8, { "app.rb": "evil\n" }, { login: "stranger" })
