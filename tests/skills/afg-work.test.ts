@@ -206,6 +206,85 @@ describe("own work", () => {
   })
 })
 
+describe("guards", () => {
+  const CHECK = "if grep -hvxFf allow.eslintignore *.rb; then echo refused; exit 1; fi"
+  const settings = (profile = "hands-off") =>
+    `autonomous_profile: ${profile}\nautonomous_landing: direct\nautonomous_ci: ignored\nautonomous_checks:\n  - { run: "${CHECK}" }\n`
+  const probe = "--- a/app.rb\n+++ b/app.rb\n@@ -1 +1 @@\n-two\n+three\n"
+
+  function change(team: string, extra: Record<string, string> = {}) {
+    const w = new World(team.replaceAll("allow.eslintignore", ".eslintignore")).begin()
+    const job = w.run(["job", "--token", w.token, "--motion", "main-red", "--what", "x"]).json.job
+      ?? w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.git(w.repo, "checkout", "-q", "-b", "work", "origin/main")
+    const files: Record<string, string> = { "app.rb": "two\n", ".eslintignore": "one\ntwo\n", ...extra }
+    for (const [p, t] of Object.entries(files)) w.write(p, t)
+    const sha = w.commit("guard", Object.keys(files))
+    w.git(w.repo, "checkout", "-q", "main")
+    expect(w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha]).code).toBe(0)
+    const tested = w.run(["test", "--token", w.token, "--sha", sha]).json
+    w.run(["review", "--token", w.token, "--sha", sha], w.reviewJson(sha, { scope: { base: w.git(w.repo, "rev-parse", "origin/main"), head_sha: sha, files_changed: Object.keys(files).length } }))
+    const verdict = { head_sha: sha, reviewer: "fresh worker", reason: "r", narrow: true, probe_is_real: true, probe, expect: "refused", check: CHECK.replaceAll("allow.eslintignore", ".eslintignore") }
+    return {
+      w, tested,
+      guard: (over: any = {}) => w.run(["guard", "--token", w.token, "--sha", sha, "--file", ".eslintignore"], { ...verdict, ...over }),
+      go: () => w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]),
+    }
+  }
+
+  test("hands-off lands its own guard change only once a probe is caught", () => {
+    const c = change(settings())
+    expect(c.tested.ok).toBe(true)
+    expect(c.go().json.reasons).toEqual(["guard-missing"])
+    expect(c.guard().json.ok).toBe(true)
+    expect(c.go().json.landed).toBeTruthy()
+    expect(c.w.run(["digest"]).json.guards).toHaveLength(1)
+  })
+
+  test.each([
+    ["a guard that no longer catches anything", { ".eslintignore": "one\ntwo\nthree\n" }, {}, "probe-not-caught"],
+    ["a guard the reviewer finds wide", {}, { narrow: false }, "guard-not-narrow"],
+    ["a probe the reviewer calls unreal", {}, { probe_is_real: false }, "probe-not-real"],
+    ["a failure for another reason", {}, { expect: "some other text" }, "probe-not-caught"],
+  ])("%s does not land", (_n, files, over, reason) => {
+    const c = change(settings(), files as Record<string, string>)
+    expect(c.guard(over).json.reasons).toContain(reason)
+    expect(c.go().json.reasons).toEqual(["guard-failed"])
+  })
+
+  test.each([
+    ["edits the guard", { probe: "--- a/.eslintignore\n+++ b/.eslintignore\n@@ -1,2 +1 @@\n-one\n two\n" }, "probe-touches-a-judge"],
+    ["edits a test", { probe: "--- /dev/null\n+++ b/test/a.test.rb\n@@ -0,0 +1 @@\n+x\n" }, "probe-touches-a-judge"],
+    ["adds a symlink", { probe: "diff --git a/out b/out\nnew file mode 120000\n--- /dev/null\n+++ b/out\n@@ -0,0 +1 @@\n+/tmp\n\\ No newline at end of file\n" }, "probe-changes-a-mode"],
+    ["does not apply", { probe: "nonsense" }, "probe-does-not-apply"],
+    ["was written for another head", { head_sha: "0".repeat(40) }, "head-moved"],
+    ["names a check of its own", { check: "echo refused; false" }, "check-unknown"],
+  ])("a probe that %s is refused", (_n, over, reason) => {
+    const c = change(settings())
+    expect(c.guard().json.ok).toBe(true)
+    expect(c.guard(over).json.reasons).toEqual([reason])
+    // A refused verdict about this commit replaces the one before it; a call that names something else says nothing.
+    if (reason.startsWith("probe")) expect(c.go().json.reasons).toEqual(["guard-failed"])
+  })
+
+  test.each([
+    ["below hands-off", settings("balanced"), {}],
+    ["when the owner keeps the file", settings() + "autonomous_judges:\n  - .eslintignore\n", {}],
+    ["beside another protected file", settings(), { "db/migrate/1_x.rb": "x\n" }],
+  ])("a guard waits for a person %s", (_n, team, extra) => {
+    const c = change(team, extra as Record<string, string>)
+    expect(c.tested.reasons).toEqual(["hard-limit"])
+    expect(c.guard().json.reasons).toEqual(["hard-limit"])
+    expect(c.go().json.reasons).toContain("hard-limit")
+  })
+})
+
+test("parking says what was tried", () => {
+  const w = new World().begin()
+  const r = w.run(["park", "--token", w.token, "--item", "main:x", "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", " "])
+  expect(r.json.reasons).toEqual(["nothing-tried"])
+})
+
 describe("direct landing", () => {
   function direct(w: World, motion = "stack") {
     w.begin()
@@ -387,7 +466,7 @@ test("a parked item stays parked until it changes", () => {
   w.pr(7, { "app.rb": "two\n" })
   w.w.issues["7"] = { number: 7, updated_at: "2026-01-01T00:00:00Z" }
   w.save()
-  w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y"])
+  w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "authority", "--tried", "z"])
   expect(w.run(["observe"]).json.prs[0].parked).toBe(true)
   w.w.prs[7].updatedAt = "2026-01-02T00:00:00Z"
   w.save()
@@ -405,7 +484,7 @@ describe("recorded decisions", () => {
     w.pr(7, { "app.rb": "two\n" })
     w.w.issues["7"] = { number: 7, updated_at: "2026-01-01T00:00:00Z" }
     w.save()
-    w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y"])
+    w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "authority", "--tried", "z"])
     const id = answer(w, ...stated).json.id
     expect(w.run(["observe"]).json.prs[0].parked).toBe(false)
     expect(w.run(["decisions"]).json.decisions).toMatchObject([{ id, choice: "wait", reason: "overlapping gates slow both" }])

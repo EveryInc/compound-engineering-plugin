@@ -113,6 +113,11 @@ HARD_LINES = [
     ("secrets", r"BEGIN [A-Z ]*PRIVATE KEY|(api[_-]?key|secret|password|access[_-]?token)['\"]?\s*[:=]\s*['\"][^'\"]{8,}"),
 ]
 TEST_FILE = re.compile(r"(^|/)(tests?|specs?|__tests__|e2e|cypress)/|[._-](test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$")
+# What decides only what a check reports. Anything else that judges a change can also run, grant or publish.
+GUARD = re.compile(
+    r"(^|/)(\.rubocop[^/]*\.ya?ml|\.eslintrc(\.json|\.ya?ml)?|\.eslintignore|\.prettierrc(\.json|\.ya?ml)?|\.prettierignore|"
+    r"\.stylelintrc(\.json|\.ya?ml)?|\.stylelintignore|\.oxlintrc\.json|biome\.jsonc?|\.markdownlint(\.json|\.ya?ml)?|\.golangci\.ya?ml|\.flake8|\.pylintrc|"
+    r"\.?ruff\.toml|\.erb[-_]lint\.ya?ml|\.reek\.ya?ml|\.standard\.ya?ml|\.editorconfig|brakeman\.ignore)$")
 # Dependency manifests pass only when nothing but version numbers changed.
 MANIFEST = re.compile(r"(^|/)(package\.json|gemfile|cargo\.toml|pyproject\.toml|go\.mod|requirements[^/]*\.txt|composer\.json)$")
 LOCKFILE = re.compile(r"(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|gemfile\.lock|cargo\.lock|poetry\.lock|uv\.lock|go\.sum|composer\.lock)$")
@@ -696,8 +701,25 @@ def glob_match(name, glob):
 def judge_hits(policy, names):
     """Files the owner or a check command names as deciding whether a change passes."""
     said = {t.strip("'\"();") for c in policy.get("autonomous_checks", []) for t in c["run"].split()}
-    return [f"judge:{n}" for n in names
-            if n in said or f"./{n}" in said or any(glob_match(n, g) for g in policy.get("autonomous_judges", []))]
+    owner = [n for n in names if any(glob_match(n, g) for g in policy.get("autonomous_judges", []))]
+    run = [n for n in names if n in said or f"./{n}" in said]
+    return [f"judge:{n}" for n in owner] + [f"{'guard' if is_guard(n) else 'judge'}:{n}" for n in run]
+
+
+def is_guard(p):
+    low = p.lower()
+    named = re.search(r"(^|[_.-])(guard|lint|gate)([_.-]|$)", low.rsplit("/", 1)[-1])
+    return bool(GUARD.search(low) or (named and TEST_FILE.search(low) and not low.endswith(".sh")))
+
+
+def stops(policy, facts, own):
+    """Hard limits that still need a person. Hands-off settles a guard in its own work by a verdict and a probe."""
+    settles = own and policy["autonomous_profile"] == "hands-off"
+    return [h for h in facts["hard"] if not (settles and h.startswith("guard:"))]
+
+
+def guards_of(facts):
+    return sorted(h.partition(":")[2] for h in facts["hard"] if h.startswith("guard:"))
 
 
 def diff_facts(repo, base, head, policy=None):
@@ -724,7 +746,15 @@ def diff_facts(repo, base, head, policy=None):
             elif not LOCKFILE.search(low):
                 # userAuth and UserAuth read as user_auth.
                 spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "_", p).lower()
-                hits += [f"{name}:{p}" for name, pat in HARD_PATHS if re.search(pat, low) or re.search(pat, spaced)]
+                mine = [name for name, pat in HARD_PATHS if re.search(pat, low) or re.search(pat, spaced)]
+                if is_guard(p):
+                    mine.append("guard")
+                if GUARD.search(low):
+                    # Its own name is what a judge pattern sees; a protected folder or subject around it still counts.
+                    around = low.rsplit("/", 1)[0] + "/" if "/" in low else ""
+                    mine = [n for n in mine if n != "judge"] + \
+                        [n for n, pat in HARD_PATHS if n == "judge" and around and re.search(pat, around)]
+                hits += [f"{name}:{p}" for name in mine]
     for row in git("diff", "--numstat", "--no-renames", "-z", mb, head).stdout.split("\0"):
         added, _, rest = row.partition("\t")
         removed, _, name = rest.partition("\t")
@@ -742,7 +772,10 @@ def diff_facts(repo, base, head, policy=None):
     for p in files:
         if LOCKFILE.search(p.lower()):
             lines = changed_lines(mb, head, p)
-            major = major or lock_major(lines)
+            if p.lower().endswith("gemfile.lock"):
+                major = major or gem_major(git("show", f"{mb}:{p}", check=False).stdout, git("show", f"{head}:{p}", check=False).stdout)
+            else:
+                major = major or lock_major(lines)
             if lock_source_changed(lines):
                 hits.append(f"unclassified:{p}")
     for _, text in changed_lines(mb, head):
@@ -794,6 +827,21 @@ def lock_major(lines):
     old = [v for sign, t in lines if sign == "-" for v in VERSION.findall(t)]
     new = [v for sign, t in lines if sign == "+" for v in VERSION.findall(t)]
     return not old or len(old) != len(new) or any(major_pair(x, y) for x, y in zip(old, new))
+
+
+def gem_major(old, new):
+    """A gem that is new, or whose own version changed majorly. What one gem asks of another is not an install."""
+    def gems(text):
+        out = {}
+        for name, v in re.findall(r"^ {4}(\S+) \(([^)]+)\)\r?$", text, re.M):
+            out.setdefault(name, set()).add(v.split("-")[0])
+        return out
+    was, now_ = gems(old), gems(new)
+    rest = [re.search(r"^(?:RUBY VERSION|BUNDLED WITH)\r?\n\s+(.+)$", t, re.M | re.S) for t in (old, new)]
+    tools = [VERSION.findall(r.group(1)) if r else [] for r in rest]
+    return not was or not set(now_) <= set(was) or len(tools[0]) != len(tools[1]) \
+        or any(major_pair(x, y) for x, y in zip(*tools)) \
+        or any(major_pair(x, y) for n in now_ for x in was[n] for y in now_[n])
 
 
 def manifest_change(lines):
@@ -884,8 +932,14 @@ def receipt(rows, subject, head, base, kind, **match):
     return None
 
 
-def receipt_reasons(policy, rows, subject, head, base):
+def receipt_reasons(policy, rows, subject, head, base, guards=()):
     out = []
+    for g in guards:
+        r = receipt(rows, subject, head, base, "guard", file=g, checks=checks_id(policy))
+        if r is None:
+            out.append("guard-missing")
+        elif not r.get("ok"):
+            out.append("guard-failed")
     for kind in ("test", "review"):
         # A test under different checks is not a test under these.
         match = {"checks": checks_id(policy)} if kind == "test" else {}
@@ -979,13 +1033,14 @@ def gate(repo, policy, rows, number):
     reasons += main_reasons(repo, motion, job, passed)
     if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0:
         reasons.append("behind")
-    if facts["hard"]:
+    stopped = stops(policy, facts, trust == "own")
+    if stopped:
         reasons.append("hard-limit")
     if facts["major"]:
         reasons.append("major-update")
-    reasons += receipt_reasons(policy, rows, f"pr:{number}", head, base)
+    reasons += receipt_reasons(policy, rows, f"pr:{number}", head, base, () if stopped else guards_of(facts))
     return reasons, {"pr": number, "url": pr["url"], "head": head, "base": base, "level": level, "motion": motion,
-                     "author": author, "trust": trust, "hard_limits": facts["hard"], "branch": pr["headRefName"]}
+                     "author": author, "trust": trust, "hard_limits": stopped, "guards": guards_of(facts), "branch": pr["headRefName"]}
 
 
 # --- commands ----------------------------------------------------------------
@@ -1084,7 +1139,11 @@ def parked(rows):
             out.pop(r["item"], None)
         elif r["event"] in ("land", "rejected"):
             out.pop(f"pr:{r.get('pr')}", None)
-            out.pop(f"commit:{r.get('sha')}", None)
+            # Earlier attempts at the same job are settled with it.
+            jobs = {x["job"] for x in rows if x["event"] == "adopt" and r.get("sha") and x.get("sha") == r["sha"]}
+            for x in rows:
+                if x["event"] == "adopt" and x.get("sha") and (x["job"] in jobs or x["sha"] == r.get("sha")):
+                    out.pop(f"commit:{x['sha']}", None)
         elif r["event"] == "close":
             out.pop(r["item"], None)
     return out
@@ -1101,7 +1160,7 @@ def cmd_observe(a, repo):
 
     def is_parked(item, updated):
         p = park.get(item)
-        return bool(p and p.get("updated") == updated and p.get("main") == state
+        return bool(p and p.get("needs") != "later" and p.get("updated") == updated and p.get("main") == state
                     and parse_iso(p["at"]) > now() - timedelta(days=PARK_DAYS))
 
     for p in prs:
@@ -1266,6 +1325,10 @@ def subject_of(a, repo, policy, rows):
     return f"direct:{a.sha}", a.sha, []
 
 
+def is_own(a, repo, policy, rows):
+    return a.pr is None or author_facts(repo, policy, rows, pr_view(repo, a.pr))[0] == "own"
+
+
 def scrubbed_env(tmp):
     env = {k: v for k, v in os.environ.items()
            if not re.search(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY|^GH_|^GITHUB_|^SSH_", k, re.I)}
@@ -1301,9 +1364,10 @@ def cmd_test(a, repo):
     if why:
         return deny(*why)
     facts = diff_facts(repo, base, head, policy)
-    if facts["hard"]:
+    stopped = stops(policy, facts, is_own(a, repo, policy, rows))
+    if stopped:
         # Code that could rewrite its own judge is not run unattended.
-        return deny("hard-limit", hard_limits=facts["hard"])
+        return deny("hard-limit", hard_limits=stopped)
     if a.pr is not None:
         pr = pr_view(repo, a.pr)
         if handling(repo, policy, rows, {**pr, "job": None}) == "diff-only" or pr["headRefOid"] != head:
@@ -1318,11 +1382,8 @@ def cmd_test(a, repo):
     tmp = tempfile.mkdtemp(prefix="afg-test-")
     tree, log, proc, code = os.path.join(tmp, "tree"), os.path.join(tmp, "log"), None, "interrupted"
     ran = []
-
-    def stop(*_):
-        raise Failure("the test run was interrupted")
     for sig in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(sig, stop)
+        signal.signal(sig, interrupted)
     try:
         env = scrubbed_env(tmp)
         add = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", tree, head],
@@ -1366,7 +1427,7 @@ def cmd_test(a, repo):
         require_lease(repo, a.token)
         append(repo, "receipt", kind="test", subject=subject, head=head, base=base, ok=code == 0, exit=code,
                checks=checks_id(policy), ran=ran)
-    return emit({"ok": code == 0, "exit": code, "ran": ran, "log": kept, "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail}, 0 if code == 0 else 1)
+    return emit({"ok": code == 0, "exit": code, "ran": ran, "log": kept, "guards": guards_of(facts), "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail}, 0 if code == 0 else 1)
 
 
 def cmd_review(a, repo):
@@ -1400,6 +1461,106 @@ def cmd_review(a, repo):
             append(repo, "receipt", kind="review", subject=subject, head=head, base=base, ok=not why,
                    run_id=str(review.get("run_id")))
     return deny(*why) if why else emit({"ok": True, "head": head, "base": base})
+
+
+def cmd_guard(a, repo):
+    """Record an independent verdict on one guard file, and prove the check still catches a planted violation."""
+    policy = load_policy(repo)
+    if not policy["active"]:
+        return deny(policy["reason"])
+    try:
+        v = json.load(sys.stdin)
+        said = all(isinstance(v[k], str) and v[k].strip() for k in ("reviewer", "reason", "probe", "expect")) and \
+            isinstance(v["narrow"], bool) and isinstance(v["probe_is_real"], bool)
+    except (ValueError, KeyError, TypeError):
+        said = False
+    if not said:
+        return deny("guard-unreadable")
+    rows, base = ledger(repo), repo.tip()
+    subject, head, why = subject_of(a, repo, policy, rows)
+    if why:
+        return deny(*why)
+    facts = diff_facts(repo, base, head, policy)
+    if a.file not in guards_of(facts):
+        return deny("not-a-guard", guards=guards_of(facts))
+    stopped = stops(policy, facts, is_own(a, repo, policy, rows))
+    if stopped:
+        return deny("hard-limit", hard_limits=stopped)
+    if v.get("head_sha") != head:
+        return deny("head-moved")
+    reasons = [r for k, r in (("narrow", "guard-not-narrow"), ("probe_is_real", "probe-not-real")) if not v[k]]
+
+    def record(*more, **extra):
+        why = reasons + list(more)
+        with locked(repo):
+            require_lease(repo, a.token)
+            append(repo, "receipt", kind="guard", subject=subject, head=head, base=base, file=a.file, ok=not why,
+                   checks=checks_id(policy), reviewer=v["reviewer"], why=v["reason"], probe=v["probe"],
+                   expect=v["expect"], reasons=why)
+        return deny(*why, **extra) if why else emit({"ok": True, "file": a.file, **extra})
+    if reasons:
+        return record()
+    if v.get("check") not in applying_checks(policy, facts["names"]):
+        return deny("check-unknown", checks=applying_checks(policy, facts["names"]))
+    passed = receipt(rows, subject, head, base, "test", checks=checks_id(policy))
+    if not passed or not passed["ok"]:
+        return deny("test-missing")
+    with locked(repo):
+        require_lease(repo, a.token)
+    log = os.path.join(store_dir(repo), f"test-{head[:12]}.log")
+    with open(log, encoding="utf-8", errors="replace") as f:
+        # The log also names each command, which is not what it printed.
+        if v["expect"] in "\n".join(x for x in f.read().split("\n") if not re.match(r"\$ .*\(attempt \d\)$", x)):
+            return record("probe-text-not-new")
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, interrupted)
+    tmp, proc = tempfile.mkdtemp(prefix="afg-guard-"), None
+    tree, patch, out_path = (os.path.join(tmp, n) for n in ("tree", "patch", "log"))
+    missed = []
+    try:
+        env = scrubbed_env(tmp)
+        add = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", tree, head],
+                             cwd=repo.main or repo.common, env=env, capture_output=True, text=True)
+        if add.returncode != 0:
+            raise Failure(f"worktree: {add.stderr.strip()}")
+        with open(patch, "w", encoding="utf-8", newline="") as f:
+            f.write(v["probe"])
+        put = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "apply", "--index", patch], cwd=tree, env=env,
+                             capture_output=True, text=True)
+        if put.returncode != 0:
+            return record("probe-does-not-apply", error=put.stderr.strip())
+        names = git("diff", "--cached", "--name-only", "--no-renames", "-z", head, cwd=tree).stdout.split("\0")
+        modes = [row.split(" ")[:2] for row in git("diff", "--cached", "--raw", "--no-renames", "-z", head, cwd=tree).stdout.split("\0") if row.startswith(":")]
+        if any(new != "100644" and (new != "100755" or old != ":100755") and new != "000000" for old, new in modes):
+            return record("probe-changes-a-mode")
+        bad = [n for n in names if n and (TEST_FILE.search(n.lower()) or n == a.file or judge_hits(policy, [n]) or is_guard(n)
+                                          or any(re.search(p, n.lower()) for k, p in HARD_PATHS if k == "judge")
+                                          or MANIFEST.search(n.lower()) or LOCKFILE.search(n.lower()))]
+        if bad:
+            # The violation goes where work goes. Editing a check to fail proves nothing about it.
+            return record("probe-touches-a-judge", files=bad)
+        with open(out_path, "wb") as out:
+            proc = subprocess.Popen(v["check"], shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
+                                    stderr=subprocess.STDOUT, start_new_session=True)
+            try:
+                code = proc.wait(timeout=a.timeout)
+            except subprocess.TimeoutExpired:
+                code = "timeout"
+            kill_group(proc)
+        with open(out_path, encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        if code in (0, "timeout") or v["expect"] not in text:
+            missed.append("probe-not-caught")
+    finally:
+        if proc is not None:
+            kill_group(proc)
+        git("worktree", "remove", "--force", tree, cwd=repo.main or repo.common, check=False)
+        shutil.rmtree(tmp, ignore_errors=True)
+    return record(*missed, exit=code, tail=text[-3000:])
+
+
+def interrupted(*_):
+    raise Failure("the test run was interrupted")
 
 
 def cmd_rule(a, repo):
@@ -1436,7 +1597,7 @@ def cmd_update(a, repo):
     if facts.get("motion") == "main-red" and checks_at(repo, repo.tip())[0] == "red":
         # The repair is rebound to the new tip once it is up to date.
         remade.add("main-not-green")
-    blocking = [r for r in reasons if r not in remade and not r.startswith(("test-", "review-missing", "review-failed", "rule-"))]
+    blocking = [r for r in reasons if r not in remade and not r.startswith(("test-", "review-missing", "review-failed", "rule-", "guard-"))]
     if blocking or "behind" not in reasons:
         return deny(*(blocking or ["not-behind"]), **facts)
     if a.dry_run:
@@ -1512,7 +1673,8 @@ def cmd_direct(a, repo):
     elif git("rev-list", "--count", f"{base}..{head}").stdout.strip() != "1":
         reasons.append("not-one-commit")
     facts = diff_facts(repo, base, head, policy)
-    if facts["hard"]:
+    stopped = stops(policy, facts, True)
+    if stopped:
         reasons.append("hard-limit")
     if facts["major"]:
         reasons.append("major-update")
@@ -1523,9 +1685,9 @@ def cmd_direct(a, repo):
             reasons.append("main-not-green")
     # With CI ignored the checks here are the gate: the test receipt is for this commit on this tip, which is what the default
     # branch becomes. So a red main neither blocks a tested commit nor excuses an untested one.
-    reasons += receipt_reasons(policy, rows, subject, head, base)
+    reasons += receipt_reasons(policy, rows, subject, head, base, () if stopped else guards_of(facts))
     if reasons:
-        return deny(*reasons, hard_limits=facts["hard"])
+        return deny(*reasons, hard_limits=stopped, guards=guards_of(facts))
     if a.dry_run:
         return emit({"would_push": head, "base": base})
     with locked(repo):
@@ -1589,6 +1751,8 @@ def cmd_close(a, repo):
 
 
 def cmd_park(a, repo):
+    if not a.tried.strip():
+        return deny("nothing-tried")
     kind, _, number = a.item.partition(":")
     if kind not in ("pr", "issue", "main", "idea", "security", "commit"):
         return deny("item-invalid")
@@ -1600,7 +1764,8 @@ def cmd_park(a, repo):
     state, _, _ = checks_at(repo, repo.tip())
     with locked(repo):
         require_lease(repo, a.token)
-        append(repo, "park", item=a.item, updated=updated, main=state, why=a.why, recommend=a.recommend)
+        append(repo, "park", item=a.item, updated=updated, main=state, why=a.why, recommend=a.recommend,
+               needs=a.needs, tried=a.tried)
     return emit({"parked": a.item})
 
 
@@ -1644,6 +1809,8 @@ def cmd_digest(a, repo):
     rows = [r for r in ledger(repo) if parse_iso(r["at"]) > cutoff]
     return emit({"since": iso(cutoff),
                  **{k: [r for r in rows if r["event"] == k] for k in ("run", "job", "land", "rejected", "close", "update", "answer")},
+                 # Guards changed without a person, told afterward.
+                 "guards": [r for r in rows if r["event"] == "receipt" and r.get("kind") == "guard" and r["ok"]],
                  "parked": sorted(parked(rows).values(), key=lambda r: r["at"])})
 
 
@@ -1686,6 +1853,10 @@ def main():
     subject(p)
     p.add_argument("--timeout", type=int, default=3600)
     subject(add("review", cmd_review, dry=True))
+    p = add("guard", cmd_guard)
+    subject(p)
+    p.add_argument("--file", required=True)
+    p.add_argument("--timeout", type=int, default=3600)
     p = add("rule", cmd_rule)
     subject(p)
     p.add_argument("--rule", required=True)
@@ -1711,6 +1882,9 @@ def main():
     p.add_argument("--updated", help="updatedAt of the pr or issue as this run read it")
     p.add_argument("--why", required=True)
     p.add_argument("--recommend", required=True)
+    p.add_argument("--needs", required=True, choices=["authority", "access", "fact", "later"],
+                   help="what only a person can supply; later: unfinished work the next run continues")
+    p.add_argument("--tried", required=True, help="how this run tried to settle it, and what that showed")
     p = add("answer", cmd_answer, token=False)
     p.add_argument("--item", required=True)
     p.add_argument("--situation", required=True)

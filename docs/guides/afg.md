@@ -53,7 +53,9 @@ host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-deb
 
 **The exact commit.** A landing needs a passing local test and a clean review of the PR's current head on the current base. Either moving voids both.
 
-**Some changes always wait for you.** Permissions, data deletion and migrations, secrets, billing, releases, and the CI, tests, scripts and instructions that judge a change.
+**Some changes always wait for you.** Permissions, data deletion and migrations, secrets, billing, releases, major updates, fewer tests, and the CI, scripts and instructions that judge a change. Linter settings and guard tests wait too, except in hands-off. There, its own change to one lands when an independent reviewer finds it narrow and the script sees the check still catch a planted violation; the digest tells you afterward. A file listed in `autonomous_judges` always waits.
+
+**It decides before it parks.** Parking records what only you can supply and what the run tried first.
 
 ---
 
