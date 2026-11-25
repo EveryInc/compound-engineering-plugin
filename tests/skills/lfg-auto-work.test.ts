@@ -120,9 +120,10 @@ describe("own work", () => {
 
   test("a person's merge of recorded work is a clean landing, and a closed PR is not", () => {
     const w = new World(HANDS_OFF.replace("hands-off", "balanced"))
-    own(w, "stack")
+    const head = own(w, "stack")
     w.run(["end", "--token", w.token])
-    Object.assign(w.w.prs[7], { state: "MERGED", mergeCommit: { oid: "f".repeat(40) } })
+    w.git(w.repo, "push", "-q", "origin", `${head}:main`)
+    Object.assign(w.w.prs[7], { state: "MERGED", mergeCommit: { oid: head } })
     w.save()
     w.begin()
     expect(w.run(["digest"]).json.land).toMatchObject([{ pr: 7, motion: "stack", by: "person" }])

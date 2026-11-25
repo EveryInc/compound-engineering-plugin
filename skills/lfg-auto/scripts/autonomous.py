@@ -877,8 +877,12 @@ def settle(repo, rows):
             continue
         pr = gh_json("pr", "view", str(number), "-R", repo.name, "--json", "state,mergeCommit,headRefOid")
         if pr["state"] == "MERGED" and pr["headRefOid"] == h["head"]:
+            sha = (pr.get("mergeCommit") or {}).get("oid") or ""
+            repo.tip(fresh=True)
+            if not SHA.match(sha) or git("merge-base", "--is-ancestor", sha, repo.tip(), check=False).returncode != 0:
+                continue  # merged, but not visible on the default branch; asked again next run
             append(repo, "land", pr=number, motion=h["motion"], head=h["head"],
-                   by="script" if h["by"] == "land-intent" else "person", merge_sha=(pr.get("mergeCommit") or {}).get("oid"))
+                   by="script" if h["by"] == "land-intent" else "person", merge_sha=sha)
         elif pr["state"] in ("MERGED", "CLOSED"):
             # Closed, or merged only after a person changed it: not a clean landing.
             append(repo, "rejected", pr=number, motion=h["motion"], head=h["head"])

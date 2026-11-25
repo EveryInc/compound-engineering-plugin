@@ -24,7 +24,11 @@ if a[:2] == ["pr", "list"]:
 if a[:2] == ["issue", "list"]: out(w.get("issue_list", []))
 if a[:2] == ["pr", "view"]: out(w["prs"][a[2]])
 if a[:2] == ["pr", "merge"]:
-    w["prs"][a[2]].update(state="MERGED", mergeCommit={"oid": "f" * 40})
+    head = a[a.index("--match-head-commit") + 1]
+    if not w.get("merge_invisible"):
+        import subprocess
+        subprocess.run(["git", "-C", os.path.join(d, "..", "origin.git"), "update-ref", "refs/heads/main", head], check=True)
+    w["prs"][a[2]].update(state="MERGED", mergeCommit={"oid": head if not w.get("merge_invisible") else "f" * 40})
     json.dump(w, open(os.path.join(d, "world.json"), "w")); sys.exit(0)
 if a[0] in ("pr", "issue") and a[1] in ("close", "comment"):
     if a[1] == "close" and not w.get("close_ignored"):

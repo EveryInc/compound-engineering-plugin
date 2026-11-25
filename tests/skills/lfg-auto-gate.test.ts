@@ -17,6 +17,15 @@ describe("merge gate", () => {
     expect(w.writes()).toEqual([["pr", "merge", "7", "-R", "o/r", "--squash", "--match-head-commit", head]])
   })
 
+  test("a merge that is not on the default branch is not recorded as landed", () => {
+    const w = new World()
+    const head = w.ready()
+    w.w.merge_invisible = true
+    w.save()
+    expect(w.land(7, head).json.reasons).toEqual(["not-confirmed-merged"])
+    expect(w.run(["digest"]).json.land).toEqual([])
+  })
+
   test("landing needs the live lease", () => {
     const w = new World()
     const head = w.ready()
