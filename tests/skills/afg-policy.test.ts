@@ -84,8 +84,29 @@ describe("lease and caps", () => {
     expect(w.run(["begin"]).json.reasons).toEqual(["state-corrupt"])
   })
 
-  test("the hourly cap stops a third job", () => {
+  test("without an hourly cap a run keeps taking jobs, two at a time", () => {
     const w = new World().begin()
+    const job = () => w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json
+    for (let i = 0; i < 4; i++) {
+      const id = job().job
+      expect(id).toBeTruthy()
+      w.run(["job-end", "--token", w.token, "--job", id, "--why", "done"])
+    }
+    job()
+    job()
+    expect(job()).toMatchObject({ reasons: ["jobs-at-once"], going: [{ what: "x" }, { what: "x" }] })
+    expect(w.run(["policy"]).json.jobs_left).toBeNull()
+  })
+
+  test("a local file can add an hourly cap", () => {
+    const w = new World(HANDS_OFF, "autonomous_jobs_per_hour: 1\n").begin()
+    const job = () => w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"])
+    expect(job().code).toBe(0)
+    expect(job().json.reasons).toEqual(["hourly-cap"])
+  })
+
+  test("the hourly cap stops a third job", () => {
+    const w = new World(HANDS_OFF + "autonomous_jobs_per_hour: 2\n").begin()
     const job = () => w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"])
     expect(job().code).toBe(0)
     expect(job().code).toBe(0)

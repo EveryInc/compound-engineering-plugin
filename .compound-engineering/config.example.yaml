@@ -1,5 +1,5 @@
 # Compound Engineering -- repo config
-# ce-config-template-version: 5
+# ce-config-template-version: 6
 # Copy to .compound-engineering/config.yaml in your project root (team defaults).
 # Optional override: .compound-engineering/config.local.yaml, same keys.
 # Ordinary keys: local wins when set, then this file, then the skill default.
@@ -250,7 +250,7 @@
 #   - { author: teammate, max: pr }
 # autonomous_rules:                           # your own words; each can only make a landing stricter
 #   - Ask me about anything that changes what users pay
-# autonomous_jobs_per_hour: 2                 # default 2
+# autonomous_jobs_per_hour: 6                 # unset by default: a run works until a usage limit
 # autonomous_open_pr_cap: 5                   # default 5
 
 # --- Compound Packs ---

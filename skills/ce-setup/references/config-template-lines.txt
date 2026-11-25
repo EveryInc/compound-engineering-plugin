@@ -332,3 +332,5 @@
 # autonomous_open_pr_cap: 5                   # default 5
 # autonomous_landing: pull-request            # pull-request | direct (one squashed commit on the default branch, no PR)
 # ce-config-template-version: 5
+# autonomous_jobs_per_hour: 6                 # unset by default: a run works until a usage limit
+# ce-config-template-version: 6

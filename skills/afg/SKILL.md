@@ -1,14 +1,14 @@
 ---
 name: afg
 description: "Autonomous mode for a repository: one scheduled run picks the next enabled job, delegates it, and lands, babysits, closes, or parks the result within saved tolerances. Use only when the user or a schedule invokes it by name, or asks to set up or change a repository's autonomous mode. Use lfg for one named request."
-argument-hint: "[setup | status | dry-run | answer <item>; blank runs once]"
+argument-hint: "[setup | status | dry-run | answer <item>; blank keeps working until a limit]"
 ---
 
 # Autonomous mode
 
-**Outcome:** one bounded run moves this repository's highest-priority enabled work as far as its saved tolerances allow, and leaves a digest a person can read in a minute.
+**Outcome:** a run takes this repository's highest-priority enabled work, one item after another, as far as its saved tolerances allow, and keeps going until a limit stops it or nothing is left. It leaves a digest a person can read in a minute.
 
-**Done:** the run's lease is released, every item it touched is landed, in flight, closed or parked with a recommendation, and the digest is printed. A run that finds nothing to do is done.
+**Done:** the run's lease is released, every item it touched is landed, in flight, closed or parked with a recommendation, and the digest is printed. Landing something is not the end of a run: look again and take the next item. Nothing to do, or a limit in `references/run.md`, is.
 
 **Safe direction:** decide what the settings let you decide. When a fact, receipt or permission is missing and this run cannot supply it, park the item and continue with the next one. Nobody is waiting to answer, so a parked item is work that stopped.
 

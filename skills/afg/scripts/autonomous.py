@@ -61,7 +61,7 @@ TABLE = {
 }
 # A job that answers someone's request records who asked.
 ORIGIN_REQUIRED = {"bugs", "security", "backlog"}
-DEFAULTS = {"autonomous_motions": DEFAULT_MOTIONS, "autonomous_jobs_per_hour": 2, "autonomous_open_pr_cap": 5,
+DEFAULTS = {"autonomous_motions": DEFAULT_MOTIONS, "autonomous_jobs_per_hour": None, "autonomous_open_pr_cap": 5,
             "autonomous_overrides": [], "autonomous_trusted_authors": [], "autonomous_babysit_authors": [],
             "autonomous_rules": [], "autonomous_landing_steps": [], "autonomous_judges": [], "autonomous_checks": [],
             "autonomous_landing": "pull-request", "autonomous_ci": "required", "autonomous_merge_method": None}
@@ -70,6 +70,7 @@ CHOICES = {"autonomous_landing": ["pull-request", "direct"], "autonomous_ci": ["
 # How work lands is the repository's own rule; a local file may repeat it, never replace it.
 FIXED = ["autonomous_landing", "autonomous_ci", "autonomous_merge_method", "autonomous_checks"]
 PARK_DAYS = 7
+JOBS_AT_ONCE = 2
 KEYS = {
     "autonomous_profile": "str",
     "autonomous_motions": "list",
@@ -440,7 +441,7 @@ def load_policy(repo):
                 p[k] = [v for v in p[k] if v in mine[k]]
         for k in ("autonomous_jobs_per_hour", "autonomous_open_pr_cap"):
             if k in mine:
-                p[k] = min(p[k], mine[k])
+                p[k] = mine[k] if p[k] is None else min(p[k], mine[k])
         for k in FIXED:
             if k in mine and mine[k] != p[k]:
                 return {"active": False, "reason": "policy-malformed",
@@ -656,6 +657,9 @@ def deny_allowance(repo, rows, reasons):
 
 
 def jobs_left(policy, rows):
+    """None when the owner set no hourly limit."""
+    if policy["autonomous_jobs_per_hour"] is None:
+        return None
     cutoff = now() - timedelta(hours=1)
     used = sum(1 for r in rows if r["event"] == "job" and parse_iso(r["at"]) > cutoff)
     return max(0, policy["autonomous_jobs_per_hour"] - used)
@@ -1297,11 +1301,14 @@ def cmd_job(a, repo):
         rows = ledger(repo)
         if origin not in ("internal", "external") and any(r["origin"] == origin for r in unfinished(rows)):
             return deny("job-unfinished")
-        if jobs_left(policy, rows) < 1:
+        if jobs_left(policy, rows) == 0:
             return deny("hourly-cap")
         reasons = allowance_reasons(repo, rows)
         if reasons:
             return deny_allowance(repo, rows, reasons)
+        if allowance(repo) is None and len(active_work(rows)) >= JOBS_AT_ONCE:
+            # Without an allocator nothing else shares this machine out.
+            return deny("jobs-at-once", going=[{k: r[k] for k in ("job", "worker", "what", "at") if k in r} for r in active_work(rows)])
         # With CI ignored the checks here say whether main is broken, and a repair gets no exception from them.
         local = policy["autonomous_landing"] == "direct" and policy["autonomous_ci"] == "ignored"
         if a.motion == "main-red" and state != "red" and not local:

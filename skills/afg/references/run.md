@@ -32,7 +32,7 @@ Babysit only a PR that needs it: failing checks, unanswered review feedback, or 
 
 1. `job --motion <m> --what "<one line>"`, with `--opens-pr` when the result will be a PR (never on `direct`), and `--origin issue:<n>` or `--origin pr:<n>` when a person's request led to it. Use `--origin external` for any other outside report, and `--origin internal` only when you found the work yourself. A denial ends that job. An `allowance-*` denial is a limit on this machine's shared capacity. `allowance-spent` clears when something in `going` ends; `job-end` or `worker-end` an entry there only when its worker is gone. Any other ends new work for this run: start no job and no worker, land what is ready, and end. Never write that file.
 2. Delegate it to a worker in its own worktree, never in the main checkout. The running agent may do a small job itself the same way, but never reviews its own work or gives its guard verdict. Where the project's instructions allow no reviewer this run may start, the commit parks with `--needs access`. Use the host's own delegation when it has one that gives a separate checkout. Give the worker the job, its sources, the callee from `references/motions.md`, the end state, the Authority section of SKILL.md, and the repository to pass to every `gh` command (`-R <origin owner/name>`), because in a fork `gh` picks the upstream. Other work shares this machine: a worker confirms that everything it started has stopped before it returns, and anything made to load the machine ends itself after a set time.
-3. When a worker stops because a provider reported a usage limit, hand the job to another provider the host offers. When none is available, park it and end the run.
+3. When a worker stops because a provider reported a usage limit, hand the job to another provider the host offers. When none is available, park it with `--needs later` and end the run.
 4. Do not trust a worker's account of where things stand. Read the PR back, check that its head is the one the worker reported, then `adopt --job <id> --pr <n> --head <sha>`. A commit for direct landing is `adopt --job <id> --sha <sha>`. A job that produces neither ends with `job-end`.
 
 Call `heartbeat` when a wait is long. The lease expires after three hours without a write; a run that loses it stops at once.
@@ -72,6 +72,21 @@ Prefer fixing the code to loosening the guard. When the guard is wrong, change o
 ## Close
 
 Close only what you can show is already fixed on the default branch, a duplicate of an older issue, or replaced by a merged PR. Read the code or the other item to establish it; a claim in the item is not evidence. `close --kind issue|pr --number <n> --as fixed|duplicate|replaced --evidence commit:<sha>|pr:<n>|issue:<n> --comment "<reason>"`. Age is never a reason.
+
+## Keep going
+
+After each item, `observe` again and take the next, alternating in-flight work with a new job while `job` allows one. A parked item, a failed job, a slow test or a finished report is a reason to take another item, not to end. While a worker, test or review runs, start or advance something else; wait only when nothing else can move, and `heartbeat`.
+
+End only when one of these holds, and name it first in the digest:
+
+- The quota is used: the provider reports a usage limit, and no provider the host offers and the owner allows can continue.
+- A limit the owner set refuses new jobs (`hourly-cap`, `open-pr-cap`, an `allowance-*` denial other than `allowance-spent`), and nothing in flight can move. With a schedule, the next run resumes.
+- Every enabled motion has been looked at since the last landing and none has an actionable item. `climb` has none once its measured targets and its untested or hard-to-follow areas are exhausted; do not invent work to continue.
+- The lease is lost, the owner says stop, or the machine cannot run the checks.
+
+Where the host shows remaining usage, read it before each new job and name it in the digest; a model with no reported limit has none, so keep going. Never end to save quota the owner did not ask to save.
+
+`jobs-at-once` is not an end: advance or finish what is going. `job-end` an entry only when its worker is gone.
 
 ## End
 

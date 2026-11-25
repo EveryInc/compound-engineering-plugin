@@ -1,8 +1,8 @@
 # `afg`
 
-> Autonomous mode for a repository. One run picks the next job you enabled, gets it done through the other skills, and lands, babysits, closes or parks the result within the tolerances you saved.
+> Autonomous mode for a repository. A run takes one job after another from what you enabled, gets each done through the other skills, and lands, babysits, closes or parks the result within the tolerances you saved. It stops at a usage limit or when nothing is left.
 
-`/lfg` takes one request you name. `afg` (always going) decides what to work on. You run it on a schedule, about hourly, and read its digest.
+`/lfg` takes one request you name. `afg` (always going) decides what to work on. Once started it keeps going. A schedule, about hourly, starts it again after a limit or when new work arrives.
 
 ```text
 host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-debug, ce-babysit-pr, ...
@@ -26,7 +26,7 @@ host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-deb
 ## Example invocations
 
 ```text
-# First run: interviews you and saves settings. Later: one run
+# First run: interviews you and saves settings. Later: works until a limit
 /afg
 
 # Change the settings or the schedule
@@ -86,6 +86,6 @@ Settings and their layering are in [Compound Engineering configuration](./config
 
 ## Scheduling
 
-Use your host's scheduler with the prompt `/afg`. In T3 Code, use an interval schedule with a new thread per run; a webhook schedule can start a run when an issue or PR opens. It does not read remaining subscription quota: it caps jobs per hour and moves to another provider when one reports a limit.
+Use your host's scheduler with the prompt `/afg`. In T3 Code, use an interval schedule with a new thread per run; a webhook schedule can start a run when an issue or PR opens. It does not read remaining subscription quota: it works until a provider reports a limit, moves to another provider where you allow one, and otherwise waits for the next scheduled run. Two jobs go at once. `autonomous_jobs_per_hour` limits it further if you want that.
 
 When something else shares this machine's capacity across repositories, it can write `.context/compound-engineering/afg/allowance.json`: `{"version": 1, "jobs": 2, "expires_at": "2026-01-01T12:00:00Z"}`. While that file exists, `afg` has no more jobs and workers than `jobs` at once, and starts none after `expires_at`; a file it cannot read starts none, and neither does a run that began with one and lost it. Work already going finishes. `policy` reports it under `allowance`, and a denial names the file. Without it nothing changes; remove it to stop limiting the repository.
