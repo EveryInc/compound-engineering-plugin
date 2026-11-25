@@ -309,6 +309,19 @@ describe("direct landing", () => {
     expect(w.git(path.join(w.root, "origin.git"), "rev-parse", "main")).toBe(d.sha)
   })
 
+  test("without CI a repair can start on an unknown main, and still needs its own receipts", () => {
+    const start = (more: string) => {
+      const w = new World(HANDS_OFF + more)
+      w.w.checks[w.head()] = []
+      w.save()
+      w.begin()
+      return w.run(["job", "--token", w.token, "--motion", "main-red", "--what", "x"]).json
+    }
+    expect(start("autonomous_landing: direct\nautonomous_ci: ignored\n").job).toBeTruthy()
+    expect(start("autonomous_landing: direct\n").reasons).toEqual(["main-not-red"])
+    expect(start("").reasons).toEqual(["main-not-red"])
+  })
+
   test.each([["only joins", false, undefined], ["adds something", true, "not-one-merged-commit"]])("a merge commit that %s", (_n, adds, reason) => {
     const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\nautonomous_merge_method: merge\n").begin()
     const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job

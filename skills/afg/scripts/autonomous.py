@@ -1302,7 +1302,9 @@ def cmd_job(a, repo):
         reasons = allowance_reasons(repo, rows)
         if reasons:
             return deny_allowance(repo, rows, reasons)
-        if a.motion == "main-red" and state != "red":
+        # With CI ignored the checks here say whether main is broken, and a repair gets no exception from them.
+        local = policy["autonomous_landing"] == "direct" and policy["autonomous_ci"] == "ignored"
+        if a.motion == "main-red" and state != "red" and not local:
             return deny("main-not-red")
         if a.opens_pr:
             if level_for(policy, a.motion, repo.login, landed_count(repo, rows, a.motion)) == "report":
@@ -1518,7 +1520,7 @@ def cmd_test(a, repo):
         require_lease(repo, a.token)
         append(repo, "receipt", kind="test", subject=subject, head=head, base=base, ok=code == 0, exit=code,
                checks=checks_id(policy), ran=ran)
-    return emit({"ok": code == 0, "exit": code, "ran": ran, "log": kept, "guards": guards_of(facts), "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail}, 0 if code == 0 else 1)
+    return emit({"ok": code == 0, "exit": code, "ran": ran, "log": kept, "guards": guards_of(facts), "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail if code != 0 else ""}, 0 if code == 0 else 1)
 
 
 def cmd_review(a, repo):
