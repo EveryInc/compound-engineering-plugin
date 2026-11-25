@@ -206,6 +206,16 @@ describe("own work", () => {
   })
 })
 
+test("a check cannot be pointed at a service in use by the shell it runs from", () => {
+  const w = new World(HANDS_OFF.replace("run: true", "run: env > ../seen; cat ../seen; false"))
+  Object.assign(w.env, { DATABASE_URL: "leak", BENCH_DB: "leak", PGHOST: "leak", REDIS_URL: "leak", RAILS_ENV: "leak", AUTH_TOKEN: "leak", KEPT: "kept" })
+  w.begin()
+  w.pr(7, { "app.rb": "two\n" })
+  const log = readFileSync(w.run(["test", "--token", w.token, "--pr", "7"]).json.log, "utf8")
+  expect(log).toContain("KEPT=kept")
+  expect(log).not.toContain("=leak")
+})
+
 describe("guards", () => {
   const CHECK = "if grep -hvxFf allow.eslintignore *.rb; then echo refused; exit 1; fi"
   const settings = (profile = "hands-off") =>

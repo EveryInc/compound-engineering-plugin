@@ -1424,7 +1424,9 @@ def is_own(a, repo, policy, rows):
 
 def scrubbed_env(tmp):
     env = {k: v for k, v in os.environ.items()
-           if not re.search(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY|^GH_|^GITHUB_|^SSH_", k, re.I)}
+           if not re.search(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY|^GH_|^GITHUB_|^SSH_", k, re.I)
+           # Nor anything that could point a test at a service in use or at its environment.
+           and not re.search(r"DATABASE|REDIS|MONGO|(^|_)(DB|DSN)(_|$)|^PG[A-Z]+$|^MYSQL_|^(RAILS|RACK|NODE|APP)_ENV$|_(URL|URI)$", k, re.I)}
     env.update(GH_CONFIG_DIR=os.path.join(tmp, "no-gh"), GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="true",
                GIT_SSH_COMMAND="false", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", CI="1")
     return env
