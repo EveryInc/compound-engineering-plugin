@@ -41,22 +41,33 @@ Call `heartbeat` when a wait is long. The lease expires after three hours withou
 
 Landing is judged on the exact head, after the last push to it. A review made before a later push does not count.
 
-1. `gate --pr <n>`. If any reason other than a missing receipt remains, stop here for this PR. `behind` alone, with or without missing receipts: `update --pr <n>`, and leave the rest for a later run.
+1. `gate --pr <n>`. If any reason other than a missing or failed receipt remains, stop here for this PR. `behind` alone, with or without missing receipts: `update --pr <n>`, and leave the rest for a later run.
 2. `test --pr <n>`. The script runs every check that applies to the changed files in a clean worktree without GitHub credentials, retries a failed one once, and returns each result and the path of the whole log. Name anything it lists as `flaky` in the digest.
 3. Review the same head, always. Do it before `test` when its author is not this account: in a clean worktree at that head, run `ce-code-review mode:agent base:<merge base sha>` and pipe its one JSON object, unedited, into `review --pr <n>`.
-4. A failed test or an open finding on an own PR goes to a fixing worker; then adopt the new head and repeat these steps in a later run. On anyone else's PR, park it.
+4. A failed test, a refused guard or an open finding on an own PR goes to a fixing worker; then adopt the new head and repeat these steps in a later run. On anyone else's PR, park it.
 5. For each entry in the policy's `rules`, which include the landing steps, judge the commit against its text and record `rule --pr <n> --rule <id> --head <sha> --verdict pass|fail --why "<reason>"`. Unsure is `fail`.
-6. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
+6. For each file `test` lists in `guards`, see Guards below.
+7. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
 
-A commit for direct landing takes `test`, `review` and `rule` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit under the same job, and repeat. One job lands one commit. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
+A commit for direct landing takes `test`, `review`, `rule` and `guard` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit under the same job, and repeat. One job lands one commit. With `autonomous_merge_method: merge`, that commit sits on the tip and the adopted `<sha>` is the `--no-ff` merge of it. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
 
 On the pull-request route, when main moves while it is red, `update` the repair PR, start a new `main-red` job for the new tip without `--opens-pr`, and adopt the updated head under it.
 
 Before parking a question, check `decisions`. One whose situation matches settles it: act on it within the item's level and cite its id. A near match is a recommendation, not an answer.
 
-When a denial needs a person, `park --item pr:<n> --updated <updatedAt as you read it> --why "<reasons>" --recommend "<merge, fix, or close, and why>"`.
+When a denial needs a person, `park --item pr:<n> --updated <updatedAt as you read it> --why "<reasons>" --recommend "<merge, fix, or close, and why>" --needs authority|access|fact|later --tried "<what was tried to settle it, and what it showed>"`. Trying means the question ladder in SKILL.md, or the work itself. `authority` names the setting or limit that refuses. Use `later` for unfinished work; the next run continues it instead of skipping it.
 
 Do not park what a later run settles by itself: pending checks, unknown mergeability, an unreadable fact.
+
+## Guards
+
+A guard is a file that decides only what a check reports, such as linter settings or a guard test. In hands-off, own work may change one. `guards` names the files the script holds to this; `hard-limit` means something else needs a person. A missing receipt is a step not taken yet, not a final denial. A change elsewhere that makes a check accept more is a question for the code review, and needs no guard receipt.
+
+Prefer fixing the code to loosening the guard. When the guard is wrong, change only what it gets wrong. After `test` passes, give a fresh worker that did not write the change the diff, the guard and the code it judges, not your conclusion. It returns one JSON object per guard file, piped unedited into `guard --sha <sha>|--pr <n> --file <path>`:
+
+`{"head_sha", "reviewer", "narrow": bool, "probe_is_real": bool, "reason", "check": "<the run command of a check that reads this file>", "probe": "<unified diff>", "expect": "<text>"}`
+
+`narrow` means it lets through nothing beyond what the change needs. `probe` plants, in ordinary code and never in a test, a violation of the kind this change loosens, as close to the new exception as one can be and still be wrong. `expect` is what the check prints when it catches it. The script applies the probe and runs the check: the guard passes only when the check fails with that text.
 
 ## Close
 
@@ -64,6 +75,6 @@ Close only what you can show is already fixed on the default branch, a duplicate
 
 ## End
 
-Run `digest`, then `end --token`. Print, in this order: what needs the owner, each with its recommendation; what landed or closed, with links; what was decided on the owner's behalf and why; what is in flight; main's health. Say plainly when nothing changed.
+Run `digest`, then `end --token`. Print, in this order: what needs the owner, each with its recommendation; what landed or closed, with links; what was decided on the owner's behalf and why, with every guard changed and the probe it still catches; what is in flight; main's health. Say plainly when nothing changed.
 
 **A security finding that is not fixed yet is never written to an issue, PR, comment, commit, or pushed branch in a repository other people can read.** Put it in the digest only.

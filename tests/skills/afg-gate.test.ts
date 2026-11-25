@@ -381,6 +381,43 @@ describe("merge gate", () => {
     expect(w.gate(8).hard_limits).toContain("judge:gates/size.mjs")
   })
 
+  test.each([
+    ["tools/guard.test.mjs", "guard"], ["test/run.sh", "judge"], ["test/guard.sh", "judge"],
+  ])("a file a check runs: %s is a %s", (file, kind) => {
+    const w = new World(HANDS_OFF.replace("run: true", `run: node ${file}`))
+    w.pr(7, { [file]: "x\n" })
+    expect(w.gate().hard_limits).toContain(`${kind}:${file}`)
+  })
+
+  test.each([["test/delegate.test.ts"], ["test/models/aggregate_test.rb"], ["src/splinter.spec.ts"]])("%s is an ordinary test", (file) => {
+    const w = new World()
+    w.pr(7, { [file]: "x\n" })
+    expect(w.gate().hard_limits).toEqual([])
+  })
+
+  test.each([
+    [".github/.rubocop.yml"], ["bin/.eslintrc.js"], ["lib/billing/.rubocop.yml"], [".npmrc"], [".envrc"], ["vite.config.ts"], ["config/auth_guard.test.mjs"],
+    ["eslint.config.js"], ["spec/support/gate_helper.rb"], ["tests/tsconfig.lint.json"], ["tests/lint.env"],
+  ])("a protected file is not a guard: %s", (file) => {
+    const w = new World()
+    w.pr(7, { [file]: "x\n" })
+    expect(w.gate().hard_limits.filter((h: string) => !h.startsWith("guard:"))).not.toEqual([])
+  })
+
+  test("what a gem asks of another gem is not an update of it", () => {
+    const lock = (v: string, need: string) => `GEM\n  specs:\n    rails (${v})\n      sanitizer (${need})\n    sanitizer (1.7.1)\n`
+    const w = new World()
+    w.write("Gemfile.lock", lock("8.1.4", "~> 1.6"))
+    w.commit("lock", ["Gemfile.lock"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    w.pr(7, { "Gemfile.lock": lock("8.1.4.1", "~> 1.7, >= 1.7.1") })
+    expect(w.gate().reasons).not.toContain("major-update")
+    w.pr(8, { "Gemfile.lock": lock("9.0.0", "~> 1.6") })
+    expect(w.gate(8).reasons).toContain("major-update")
+    w.pr(9, { "Gemfile.lock": "GEM\n  specs:\n    rails (8.1.5)\n    brandnew (1.7.1)\n      sanitizer (~> 1.6)\n" })
+    expect(w.gate(9).reasons).toContain("major-update")
+  })
+
   test("a commit message that steers CI or a release waits for a person", () => {
     const w = new World()
     w.git(w.repo, "config", "alias.x", "commit")
