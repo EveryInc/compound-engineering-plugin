@@ -207,16 +207,16 @@ describe("own work", () => {
 })
 
 describe("direct landing", () => {
-  function direct(w: World) {
+  function direct(w: World, motion = "stack") {
     w.begin()
-    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    const job = w.run(["job", "--token", w.token, "--motion", motion, "--what", "x"]).json.job
     w.git(w.repo, "checkout", "-q", "-b", "work", "origin/main")
     w.write("app.rb", "two\n")
     const sha = w.commit("work", ["app.rb"])
     w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
     w.run(["test", "--token", w.token, "--sha", sha])
     w.run(["review", "--token", w.token, "--sha", sha], w.reviewJson(sha))
-    return { sha, go: () => w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]) }
+    return { sha, job, go: () => w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]) }
   }
 
   test("is off by default", () => {
@@ -233,6 +233,8 @@ describe("direct landing", () => {
   test("never runs or lands a commit this account did not record", () => {
     const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
     const head = w.pr(8, { "app.rb": "evil\n" }, { login: "stranger" })
+    w.w.published = [head]
+    w.save()
     const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
     expect(w.run(["test", "--token", w.token, "--sha", head]).json.reasons).toEqual(["author-not-trusted"])
     expect(w.run(["adopt", "--token", w.token, "--job", job, "--sha", head]).json.reasons).toEqual(["author-not-trusted"])
@@ -246,6 +248,41 @@ describe("direct landing", () => {
     expect(d.go().json.landed).toBe(d.sha)
     const u = new World(HANDS_OFF.replace("run: true", "run: false") + "autonomous_landing: direct\nautonomous_ci: ignored\n")
     expect(direct(u).go().json.reasons).toEqual(["test-failed"])
+  })
+
+  test("a commit GitHub already knows, or cannot answer for, is not this account's work", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    w.w.published = [d.sha]
+    w.save()
+    expect(d.go().json.reasons).toEqual(["author-not-trusted"])
+    w.w.published = []
+    w.w.commit_error = "HTTP 500"
+    w.save()
+    expect(d.go().json.reasons).toEqual(["author-not-trusted"])
+  })
+
+  test("a commit stays with its first job, and a job lands once", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    const other = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "y"]).json.job
+    expect(w.run(["adopt", "--token", w.token, "--job", other, "--sha", d.sha]).json.reasons).toEqual(["commit-already-used"])
+    expect(d.go().json.landed).toBe(d.sha)
+    w.write("app.rb", "four\n")
+    const next = w.commit("next", ["app.rb"])
+    expect(w.run(["adopt", "--token", w.token, "--job", d.job, "--sha", next]).json.reasons).toEqual(["job-already-used"])
+  })
+
+  test("a red-main repair lands directly on its own test when CI is required", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\n")
+    w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+    expect(direct(w, "main-red").go().json.landed).toBeTruthy()
+  })
+
+  test("a repository that stops landing directly can still open PR jobs", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    direct(w)
+    expect(w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x", "--opens-pr"]).code).toBe(0)
   })
 
   test("CI still gates a direct landing when settings require it", () => {

@@ -46,7 +46,7 @@ Landing is judged on the exact head, after the last push to it. A review made be
 5. For each entry in the policy's `rules`, which include the landing steps, judge the commit against its text and record `rule --pr <n> --rule <id> --head <sha> --verdict pass|fail --why "<reason>"`. Unsure is `fail`.
 6. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
 
-A commit for direct landing takes `test`, `review` and `rule` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit, and repeat. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
+A commit for direct landing takes `test`, `review` and `rule` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit under the same job, and repeat. One job lands one commit. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
 
 On the pull-request route, when main moves while it is red, `update` the repair PR, start a new `main-red` job for the new tip without `--opens-pr`, and adopt the updated head under it.
 

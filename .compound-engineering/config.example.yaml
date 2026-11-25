@@ -237,6 +237,8 @@
 # autonomous_checks:                          # must pass on this machine, paths limits one to the files changed
 #   - { run: bun run test }
 #   - { run: npm run types, paths: "*.ts *.tsx" }
+# autonomous_judges:                          # files that decide whether a check passes, changes to them wait for you
+#   - test/gates/*
 # autonomous_landing_steps:                   # your own words, each confirmed at the exact commit before it lands
 #   - The commit message says which checks ran and which did not
 

@@ -20,7 +20,6 @@ linked worktree; a bare repository uses <git common dir>/compound-engineering/af
                 park, answer, retire, land-intent, land, rejected, close, update
 """
 import argparse
-import fnmatch
 import hashlib
 import json
 import os
@@ -61,7 +60,7 @@ TABLE = {
 ORIGIN_REQUIRED = {"bugs", "security", "backlog"}
 DEFAULTS = {"autonomous_motions": DEFAULT_MOTIONS, "autonomous_jobs_per_hour": 2, "autonomous_open_pr_cap": 5,
             "autonomous_overrides": [], "autonomous_trusted_authors": [], "autonomous_babysit_authors": [],
-            "autonomous_rules": [], "autonomous_landing_steps": [], "autonomous_checks": [],
+            "autonomous_rules": [], "autonomous_landing_steps": [], "autonomous_judges": [], "autonomous_checks": [],
             "autonomous_landing": "pull-request", "autonomous_ci": "required", "autonomous_merge_method": None}
 CHOICES = {"autonomous_landing": ["pull-request", "direct"], "autonomous_ci": ["required", "ignored"],
            "autonomous_merge_method": ["squash", "rebase", "merge"]}
@@ -82,9 +81,11 @@ KEYS = {
     "autonomous_merge_method": "str",
     "autonomous_checks": "maps",
     "autonomous_landing_steps": "list",
+    "autonomous_judges": "list",
 }
 OK_CONCLUSIONS = {"success", "neutral", "skipped"}
-CI_EVENTS = {"push", "pull_request", "pull_request_target", "merge_group", "dynamic"}
+NOT_CI = {"issues", "issue_comment", "schedule", "workflow_dispatch", "discussion", "discussion_comment", "label",
+          "milestone", "watch", "fork", "gollum", "public", "page_build", "pull_request_review_comment"}
 SHA = re.compile(r"^[0-9a-f]{40}$")
 
 # Changes a human always lands. Matched against old and new paths, lowercased.
@@ -93,6 +94,9 @@ HARD_PATHS = [
     ("judge", r"(^|/)(\.gitlab-ci\.ya?ml|\.travis\.yml|azure-pipelines\.ya?ml|bitbucket-pipelines\.ya?ml|jenkinsfile|appveyor\.yml|\.drone\.yml)$|(^|/)\.githooks/"),
     ("judge", r"(^|/)(karma\.conf\.[^/]+|\.mocharc[^/]*|\.eslintrc[^/]*|phpunit\.xml[^/]*|[^/]*\.workspace\.[^/]+|jest\.setup\.[^/]+|tsconfig[^/]*\.json|turbo\.json|nx\.json|build\.gradle[^/]*|\.swcrc|biome\.jsonc?)$"),
     ("judge", r"(^|/)(\.pnpmfile\.c?js|pnpm-workspace\.yaml|build\.rs|gradlew[^/]*|pom\.xml|noxfile\.py|cmakelists\.txt|taskfile\.ya?ml|deno\.jsonc?|\.?mise\.toml|\.envrc|\.cursorrules|claude\.local\.md|action\.ya?ml|\.releaserc[^/]*)$|(^|/)(\.yarn|\.cargo|\.mvn)/"),
+    # Installed packages are never source, and a tool's own settings decide what it reports.
+    ("judge", r"(^|/)(node_modules|\.venv|venv|site-packages|vendor/bundle)/|\.env$"),
+    ("judge", r"(^|/)\.[^/]+(rc|\.ya?ml|\.jsonc?|\.toml|\.c?js|\.ini|ignore)$|\.config\.[^/]+$"),
     ("judge", r"(^|/)(agents|claude|gemini|coding_standards|review)\.md$"),
     ("judge", r"(^|/)(\.mcp\.json|\.gitattributes|\.gitmodules|codeowners|makefile|rakefile|justfile|dockerfile[^/]*|docker-compose[^/]*|conftest\.py|pytest\.ini|tox\.ini|setup\.(py|cfg)|lefthook\.ya?ml|\.pre-commit-config\.ya?ml|\.npmrc|\.yarnrc[^/]*|bunfig\.toml|\.bundle/config|\.rspec)$"),
     ("judge", r"(^|/)(jest|vitest|vite|playwright|cypress|babel|webpack|rollup|eslint|karma|metro)[^/]*\.config\.[^/]+$"),
@@ -365,6 +369,9 @@ def parse_policy(text, label):
     for c in values.get("autonomous_checks", []):
         if set(c) - {"run", "paths"} or not c.get("run"):
             raise ValueError(f"{label}: a check needs run, and may have paths")
+        globs(c.get("paths", ""), label)
+    for g in values.get("autonomous_judges", []):
+        globs(g, label)
     for m in values.get("autonomous_motions", []):
         if m not in MOTIONS:
             raise ValueError(f"{label}: unknown motion {m}")
@@ -379,6 +386,11 @@ def parse_policy(text, label):
         if "motion" in o and o["motion"] not in MOTIONS:
             raise ValueError(f"{label}: unknown motion {o['motion']}")
     return values
+
+
+def globs(text, label):
+    if re.search(r"[\[\]{},!\\]", text):
+        raise ValueError(f"{label}: paths take * ** and ? only, separated by spaces: {text!r}")
 
 
 def spell(login):
@@ -424,7 +436,7 @@ def load_policy(repo):
             if k in mine and mine[k] != p[k]:
                 return {"active": False, "reason": "policy-malformed",
                         "detail": f"config.local.yaml cannot replace the repository's {k}"}
-        for k in ("autonomous_overrides", "autonomous_rules", "autonomous_landing_steps"):
+        for k in ("autonomous_overrides", "autonomous_rules", "autonomous_landing_steps", "autonomous_judges"):
             p[k] = p[k] + mine.get(k, [])
     elif team:
         return {"active": False, "reason": "policy-malformed",
@@ -452,8 +464,8 @@ def checks_id(policy):
 def applying_checks(policy, names):
     out = []
     for c in policy["autonomous_checks"]:
-        globs = c.get("paths", "").split()
-        if not globs or any(fnmatch.fnmatch(n, g) for n in names for g in globs):
+        wanted = c.get("paths", "").split()
+        if not wanted or any(glob_match(n, g) for n in names for g in wanted):
             out.append(c["run"])
     return out
 
@@ -606,8 +618,8 @@ def checks_at(repo, sha):
     if runs["total_count"] > len(rows) or len(contexts) >= 100 or flows["total_count"] > len(flow_rows):
         return "unknown", [], []
     # Comments, schedules and manual runs attach to the same commit without testing it.
-    ci = [f for f in flow_rows if f.get("event") in CI_EVENTS]
-    other = {f.get("check_suite_id") for f in flow_rows if f.get("event") not in CI_EVENTS}
+    ci = [f for f in flow_rows if f.get("event") not in NOT_CI]
+    other = {f.get("check_suite_id") for f in flow_rows if f.get("event") in NOT_CI}
     rows = [c for c in rows if (c.get("check_suite") or {}).get("id") not in other - {None}]
     # A workflow between jobs shows only finished checks, so the run itself must be finished.
     pending = any(f.get("status") != "completed" for f in ci)
@@ -668,17 +680,30 @@ def canonical(author):
 
 
 PR_FIELDS = ("number,state,isDraft,author,headRefOid,headRefName,isCrossRepository,"
-             "headRepositoryOwner,baseRefName,mergeable,mergeStateStatus,reviewDecision,title,url,updatedAt")
+             "headRepositoryOwner,maintainerCanModify,baseRefName,mergeable,mergeStateStatus,reviewDecision,title,url,updatedAt")
 
 
 def pr_view(repo, number):
     return gh_json("pr", "view", str(number), "-R", repo.name, "--json", PR_FIELDS)
 
 
-def diff_facts(repo, base, head):
+def glob_match(name, glob):
+    """`*` crosses directories; `**/` may match none."""
+    pat = re.escape(glob).replace(r"\*\*/", "(?:.*/)?").replace(r"\*\*", ".*").replace(r"\*", ".*").replace(r"\?", ".")
+    return re.fullmatch(pat, name) is not None
+
+
+def judge_hits(policy, names):
+    """Files the owner or a check command names as deciding whether a change passes."""
+    said = {t.strip("'\"();") for c in policy.get("autonomous_checks", []) for t in c["run"].split()}
+    return [f"judge:{n}" for n in names
+            if n in said or f"./{n}" in said or any(glob_match(n, g) for g in policy.get("autonomous_judges", []))]
+
+
+def diff_facts(repo, base, head, policy=None):
     """Files changed from the merge base, and every hard limit the change matches."""
     mb = git("merge-base", base, head).stdout.strip()
-    hits, files, manifests = [], set(), []
+    hits, files, touched, manifests = [], set(), set(), []
     raw = git("diff", "--raw", "--no-abbrev", "-M", "-z", mb, head).stdout.split("\0")
     i = 0
     while i < len(raw) and raw[i]:
@@ -686,6 +711,7 @@ def diff_facts(repo, base, head):
         paths = raw[i + 1:i + (3 if status[0] in "RC" else 2)]
         i += 1 + len(paths)
         files.add(paths[-1])
+        touched |= set(paths)
         for mode in (old_mode, new_mode):
             if mode in ("120000", "160000"):
                 hits.append(f"unclassified:{paths[-1]}")
@@ -723,9 +749,13 @@ def diff_facts(repo, base, head):
         if "\r" in text.rstrip("\r"):
             hits.append("unclassified:carriage return")
         hits += [f"{name}:changed line" for name, pat in HARD_LINES if re.search(pat, text, re.I)]
+    hits += judge_hits(policy or {}, touched)
+    if re.search(r"\[(skip ci|ci skip|no ci|skip actions|actions skip)\]|^(skip-checks|release-as):",
+                 git("log", "--format=%B", f"{mb}..{head}").stdout, re.I | re.M):
+        hits.append("release:commit message")
     dependencies = bool(files) and all(MANIFEST.search(f.lower()) or LOCKFILE.search(f.lower()) for f in files)
     return {"merge_base": mb, "files": len(files), "hard": sorted(set(hits)), "major": major,
-            "only_dependencies": dependencies, "names": sorted(files)}
+            "only_dependencies": dependencies, "names": sorted(touched)}
 
 
 def changed_lines(base, head, path=None):
@@ -795,7 +825,8 @@ def commits_attributed(repo, pr, allowed):
         who = canonical(c.get("author") or {})
         verified = (c.get("commit", {}).get("verification") or {}).get("verified") is True
         # The address on an unsigned commit can be anyone's, unless only that person can push there.
-        if who not in allowed or (not verified and not (who == owner and who != repo.login)):
+        alone = pr.get("isCrossRepository") is True and pr.get("maintainerCanModify") is False
+        if who not in allowed or (not verified and not (alone and who == owner and who != repo.login)):
             return False
     return True
 
@@ -882,6 +913,11 @@ def main_reasons(repo, motion, job, passed):
     return ["main-not-green"]
 
 
+def job_landed(rows, job_id):
+    work = {r.get("sha") or r.get("pr") for r in rows if r["event"] == "adopt" and r["job"] == job_id}
+    return any(r["event"] == "land" and (r.get("sha") or r.get("pr")) in work for r in rows)
+
+
 def job_of(rows, job_id):
     return next((r for r in rows if r["event"] == "job" and r.get("job") == job_id), None)
 
@@ -902,7 +938,7 @@ def gate(repo, policy, rows, number):
     trust, author, adoption = author_facts(repo, policy, rows, pr)
     job = job_of(rows, adoption["job"]) if adoption else None
     repo.fetch_pr(number, head)
-    facts = diff_facts(repo, base, head)
+    facts = diff_facts(repo, base, head, policy)
     motion = motion_of(job, facts)
     level = level_for(policy, motion, author, landed_count(repo, rows, motion))
     if policy["autonomous_landing"] == "direct":
@@ -973,13 +1009,15 @@ def settle(repo, rows):
         if r["event"] in ("land-intent", "adopt") and r.get("pr"):
             motion = r.get("motion") or (job_of(rows, r["job"]) or {}).get("motion")
             heads[r["pr"]] = {"head": r["head"], "motion": motion, "by": r["event"]}
-    recorded = {r["pr"] for r in rows if r["event"] == "adopt" and r.get("pr")}
+    closed = {r["item"] for r in rows if r["event"] == "close"}
+    recorded = {r["pr"] for r in rows if r["event"] == "adopt" and r.get("pr") and f"pr:{r['pr']}" not in closed}
+    tip = repo.tip(fresh=True)
     for sha in {r["sha"] for r in rows if r["event"] in ("land-intent", "adopt") and r.get("sha")}:
         intent = next((r for r in reversed(rows) if r["event"] == "land-intent" and r.get("sha") == sha), None)
         job = job_of(rows, next((r["job"] for r in rows if r["event"] == "adopt" and r.get("sha") == sha), None))
         motion, by = (intent["motion"], "script") if intent else ((job or {}).get("motion"), "person")
         if not any(r["event"] == "land" and r.get("merge_sha") == sha for r in rows) \
-                and git("merge-base", "--is-ancestor", sha, repo.tip(fresh=True), check=False).returncode == 0:
+                and git("merge-base", "--is-ancestor", sha, tip, check=False).returncode == 0:
             append(repo, "land", sha=sha, motion=motion, head=sha, by=by, merge_sha=sha)
     for number, h in heads.items():
         if (number, h["head"]) in ended:
@@ -990,8 +1028,7 @@ def settle(repo, rows):
             continue  # one unreadable PR never stops a run; asked again next time
         if pr["state"] == "MERGED" and pr["headRefOid"] == h["head"]:
             sha = (pr.get("mergeCommit") or {}).get("oid") or ""
-            repo.tip(fresh=True)
-            if not SHA.match(sha) or git("merge-base", "--is-ancestor", sha, repo.tip(), check=False).returncode != 0:
+            if not SHA.match(sha) or git("merge-base", "--is-ancestor", sha, tip, check=False).returncode != 0:
                 continue  # merged, but not visible on the default branch; asked again next run
             append(repo, "land", pr=number, motion=h["motion"], head=h["head"],
                    by="script" if h["by"] == "land-intent" else "person", merge_sha=sha)
@@ -1045,8 +1082,9 @@ def parked(rows):
             out[r["item"]] = r
         elif r["event"] == "answer":
             out.pop(r["item"], None)
-        elif r["event"] in ("land", "rejected") and r.get("pr"):
-            out.pop(f"pr:{r['pr']}", None)
+        elif r["event"] in ("land", "rejected"):
+            out.pop(f"pr:{r.get('pr')}", None)
+            out.pop(f"commit:{r.get('sha')}", None)
         elif r["event"] == "close":
             out.pop(r["item"], None)
     return out
@@ -1056,7 +1094,7 @@ def cmd_observe(a, repo):
     policy, rows = load_policy(repo), ledger(repo)
     state, failing, _ = checks_at(repo, repo.tip())
     prs = gh_json("pr", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json",
-                  "number,title,author,isDraft,headRefOid,headRefName,headRepositoryOwner,baseRefName,isCrossRepository,updatedAt,mergeStateStatus,labels")
+                  "number,title,author,isDraft,headRefOid,headRefName,headRepositoryOwner,maintainerCanModify,baseRefName,isCrossRepository,updatedAt,mergeStateStatus,labels")
     issues = gh_json("issue", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json",
                      "number,title,author,updatedAt,labels")
     park = parked(rows)
@@ -1093,7 +1131,7 @@ def handling(repo, policy, rows, p):
     if trust == "unlisted":
         return "diff-only"
     repo.fetch_pr(p["number"], p["headRefOid"])
-    motion = motion_of(None, diff_facts(repo, repo.tip(), p["headRefOid"]))
+    motion = motion_of(None, diff_facts(repo, repo.tip(), p["headRefOid"], policy))
     level = level_for(policy, motion, who, landed_count(repo, rows, motion))
     if LEVELS.index(level) < LEVELS.index("babysit"):
         return "diff-only"
@@ -1109,7 +1147,7 @@ def unfinished(rows):
 
 
 def open_own_prs(repo, rows):
-    numbers = {r["pr"] for r in rows if r["event"] == "adopt"}
+    numbers = {r["pr"] for r in rows if r["event"] == "adopt" and r.get("pr")}
     live = gh_json("pr", "list", "-R", repo.name, "--state", "open", "--author", "@me", "--limit", "200", "--json", "number,author")
     if len(live) >= 200:
         raise Failure("too many open PRs to count")
@@ -1141,7 +1179,7 @@ def cmd_job(a, repo):
                 return deny("level-report")
             live = open_own_prs(repo, rows)
             if len(live) + len(unfinished(rows)) >= policy["autonomous_open_pr_cap"]:
-                repairs = [r for r in rows if r["event"] == "adopt" and r["pr"] in live
+                repairs = [r for r in rows if r["event"] == "adopt" and r.get("pr") in live
                            and (job_of(rows, r["job"]) or {}).get("motion") == "main-red"]
                 repairs += [r for r in unfinished(rows) if r["motion"] == "main-red"]
                 if a.motion != "main-red" or repairs:
@@ -1171,8 +1209,13 @@ def local_commits_own(repo, sha):
     commits = [x.split(" ") for x in lines if x]
     if not me or any(c[1:] != [me, me] for c in commits):
         return False
-    heads = {x.split("\t")[0] for x in git("ls-remote", "origin", "refs/pull/*/head").stdout.splitlines()}
-    return not heads & {c[0] for c in commits}
+    return all(unpublished(repo, c[0]) for c in commits)
+
+
+def unpublished(repo, sha):
+    """GitHub says it has never seen this commit. Any other answer is a no."""
+    p = run(["gh", "api", f"repos/{repo.name}/commits/{sha}"])
+    return p.returncode != 0 and re.search(r"HTTP (404|422)|No commit found", p.stdout + p.stderr) is not None
 
 
 def cmd_adopt(a, repo):
@@ -1199,8 +1242,11 @@ def cmd_adopt(a, repo):
         rows = ledger(repo)
         if not job_of(rows, a.job):
             return deny("job-missing")
-        if any(r["event"] == "adopt" and r["job"] == a.job and r.get("pr") != what.get("pr") for r in rows):
+        mine = [r for r in rows if r["event"] == "adopt" and r["job"] == a.job]
+        if any(r.get("pr") != what.get("pr") for r in mine) or job_landed(rows, a.job):
             return deny("job-already-used")
+        if a.sha and any(r["event"] == "adopt" and r.get("sha") == a.sha and r["job"] != a.job for r in rows):
+            return deny("commit-already-used")
         append(repo, "adopt", job=a.job, **what)
     return emit({"job": a.job, **what})
 
@@ -1228,6 +1274,15 @@ def scrubbed_env(tmp):
     return env
 
 
+def still_at(tree, head):
+    """The checked-out files are still exactly the commit under test."""
+    at = git("rev-parse", "HEAD", cwd=tree, check=False).stdout.strip()
+    hidden = git("ls-files", "-v", cwd=tree, check=False).stdout
+    dirty = git("status", "--porcelain", "--untracked-files=no", cwd=tree, check=False)
+    return at == head and dirty.returncode == 0 and not dirty.stdout.strip() \
+        and not any(x[:1].islower() or x[:1] == "S" for x in hidden.split("\n") if x)
+
+
 def kill_group(proc):
     """End whatever the command left running."""
     try:
@@ -1245,7 +1300,7 @@ def cmd_test(a, repo):
     subject, head, why = subject_of(a, repo, policy, rows)
     if why:
         return deny(*why)
-    facts = diff_facts(repo, base, head)
+    facts = diff_facts(repo, base, head, policy)
     if facts["hard"]:
         # Code that could rewrite its own judge is not run unattended.
         return deny("hard-limit", hard_limits=facts["hard"])
@@ -1280,6 +1335,8 @@ def cmd_test(a, repo):
             for command in commands:
                 # Every check runs, so one failure never hides another. A failure is tried once more and recorded.
                 for attempt in (1, 2):
+                    for clean in (["reset", "--quiet", "--hard", head], ["clean", "-ffdxq"]) if attempt == 2 else ():
+                        subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *clean], cwd=tree, env=env, capture_output=True)
                     out.write(f"\n$ {command}  (attempt {attempt})\n".encode())
                     out.flush()
                     proc = subprocess.Popen(command, shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
@@ -1289,7 +1346,9 @@ def cmd_test(a, repo):
                     except subprocess.TimeoutExpired:
                         one = "timeout"
                     kill_group(proc)
-                    if one == 0 or one == "timeout":
+                    if one == 0 and not still_at(tree, head):
+                        one = "changed-the-tree"
+                    if one in (0, "timeout", "changed-the-tree"):
                         break
                 ran.append({"run": command, "exit": one, "attempts": attempt})
                 if one != 0 and code == 0:
@@ -1322,7 +1381,7 @@ def cmd_review(a, repo):
         return deny("review-unreadable")
     rows, base = ledger(repo), repo.tip()
     subject, head, why = subject_of(a, repo, policy, rows)
-    facts = diff_facts(repo, base, head) if head else None
+    facts = diff_facts(repo, base, head, policy) if head else None
     if review.get("status") != "complete":
         why.append("review-not-complete")
     if review.get("verdict") != "Ready to merge":
@@ -1437,6 +1496,10 @@ def cmd_direct(a, repo):
         return deny(*reasons, "job-missing")
     if not any(r["event"] == "adopt" and r["job"] == a.job and r.get("sha") == head for r in rows):
         reasons.append("job-mismatch")
+    if job_landed(rows, a.job):
+        reasons.append("job-already-used")
+    if {r["job"] for r in rows if r["event"] == "adopt" and r.get("sha") == head} != {a.job}:
+        reasons.append("commit-already-used")
     if not job.get("origin_trusted") or not origin_trusted(repo, policy, job["origin"]):
         reasons.append("origin-not-trusted")
     if level_for(policy, job["motion"], repo.login, landed_count(repo, rows, job["motion"])) != "merge":
@@ -1448,13 +1511,16 @@ def cmd_direct(a, repo):
         reasons.append("not-fast-forward")
     elif git("rev-list", "--count", f"{base}..{head}").stdout.strip() != "1":
         reasons.append("not-one-commit")
-    facts = diff_facts(repo, base, head)
+    facts = diff_facts(repo, base, head, policy)
     if facts["hard"]:
         reasons.append("hard-limit")
     if facts["major"]:
         reasons.append("major-update")
     if policy["autonomous_ci"] == "required":
-        reasons += main_reasons(repo, job["motion"], None, [])
+        state = checks_at(repo, base)[0]
+        if state != "green" and not (state == "red" and job["motion"] == "main-red" and job.get("red_tip") == base):
+            # An unpublished repair has no hosted checks; its test on this tip stands for them.
+            reasons.append("main-not-green")
     # With CI ignored the checks here are the gate: the test receipt is for this commit on this tip, which is what the default
     # branch becomes. So a red main neither blocks a tested commit nor excuses an untested one.
     reasons += receipt_reasons(policy, rows, subject, head, base)
@@ -1467,7 +1533,7 @@ def cmd_direct(a, repo):
         if repo.tip(fresh=True) != base:
             return deny("base-moved")
         append(repo, "land-intent", sha=head, motion=job["motion"], head=head, base=base)
-        git("-c", "core.hooksPath=/dev/null", "push", "--quiet", "origin", f"{head}:refs/heads/{repo.default}")
+        git("-c", "core.hooksPath=/dev/null", "push", "--quiet", "--no-follow-tags", "--recurse-submodules=no", "origin", f"{head}:refs/heads/{repo.default}")
         settle(repo, ledger(repo))
         if not any(r["event"] == "land" and r.get("merge_sha") == head for r in ledger(repo)):
             return deny("not-confirmed-landed")

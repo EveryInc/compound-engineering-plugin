@@ -39,6 +39,10 @@ if a[0] in ("pr", "issue") and a[1] in ("close", "comment"):
     sys.exit(0)
 if a[0] == "api":
     u = a[1]
+    m = re.search(r"/commits/([0-9a-f]{40})$", u)
+    if m:
+        if m[1] in w.get("published", []): out({"sha": m[1]})
+        print(w.get("commit_error", "gh: No commit found for SHA (HTTP 422)"), file=sys.stderr); sys.exit(1)
     if u == "graphql": out({"data": {"repository": {"mergeQueue": w.get("queue")}}})
     if u == "-X": sys.exit(0)
     if u == "user": out({"login": "${ME}"})

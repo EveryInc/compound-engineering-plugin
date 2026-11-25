@@ -73,6 +73,9 @@ describe("merge gate", () => {
     ["deleted test lines", { "tests/app.test.rb": "a\n" }],
     ["carriage return", { "app.rb": "x = 1\rUser.find\n" }],
     ["more judges", { ".cargo/config.toml": "x\n" }],
+    ["linter settings", { ".rubocop.yml": "x\n" }],
+    ["test environment", { "desktop/test/as-a-mac.env": "x\n" }],
+    ["installed packages", { "node_modules/.bin/tsc": "x\n" }],
     ["own version", { "package.json": '{\n  "version": "1.2.1"\n}\n' }],
   ])("hard limit at merge level: %s (AE3)", (_n, files) => {
     const w = new World()
@@ -263,7 +266,7 @@ describe("merge gate", () => {
 
   test.each([["o", "author-not-trusted"], ["mate", undefined]])("a listed person's unsigned commit from %s's repository", (owner, reason) => {
     const w = new World(HANDS_OFF + "  - mate\n")
-    w.pr(7, { "app.rb": "two\n" }, { login: "mate" }, { headRepositoryOwner: { login: owner } })
+    w.pr(7, { "app.rb": "two\n" }, { login: "mate" }, { headRepositoryOwner: { login: owner }, isCrossRepository: true, maintainerCanModify: false })
     w.w.prs[7].api_commits[0].commit.verification.verified = false
     w.save()
     expect(w.gate().reasons.includes("author-not-trusted")).toBe(Boolean(reason))
@@ -368,6 +371,65 @@ describe("merge gate", () => {
     expect(r).toMatchObject({ ok: false, exit: 3, flaky: [flag] })
     expect(r.ran.map((x: any) => x.exit)).toEqual([3, 0])
     expect(readFileSync(r.log, "utf8")).toContain("attempt 2")
+  })
+
+  test("a file a check runs, or the owner names, waits for a person", () => {
+    const w = new World(HANDS_OFF.replace("run: true", "run: sh tools/check.sh") + "autonomous_judges:\n  - gates/**\n")
+    w.pr(7, { "tools/check.sh": "exit 0\n" })
+    expect(w.gate().hard_limits).toContain("judge:tools/check.sh")
+    w.pr(8, { "gates/size.mjs": "x\n" })
+    expect(w.gate(8).hard_limits).toContain("judge:gates/size.mjs")
+  })
+
+  test("a commit message that steers CI or a release waits for a person", () => {
+    const w = new World()
+    w.git(w.repo, "config", "alias.x", "commit")
+    w.pr(7, { "app.rb": "two\n" })
+    w.git(w.repo, "checkout", "-q", "pr7")
+    w.git(w.repo, "commit", "-q", "--amend", "-m", "x\n\n[skip ci]")
+    const head = w.head()
+    w.git(w.repo, "push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+    w.git(w.repo, "checkout", "-q", "main")
+    w.w.prs[7].headRefOid = head
+    w.w.prs[7].api_commits[0].sha = head
+    w.save()
+    expect(w.gate().hard_limits).toContain("release:commit message")
+  })
+
+  test("a moved file still runs the checks of where it was", () => {
+    const w = new World(HANDS_OFF.replace("  - { run: true }\n", '  - { run: "false", paths: "api/**/*.rb" }\n  - { run: "true" }\n'))
+    w.write("api/a.rb", "one\ntwo\nthree\n")
+    w.commit("api", ["api"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    w.begin()
+    w.git(w.repo, "checkout", "-q", "-b", "pr7", "origin/main")
+    mkdirSync(path.join(w.repo, "lib"))
+    w.git(w.repo, "mv", "api/a.rb", "lib/a.rb")
+    w.git(w.repo, "commit", "-q", "-m", "move")
+    const head = w.head()
+    w.git(w.repo, "push", "-q", "origin", "HEAD:refs/pull/7/head")
+    w.git(w.repo, "checkout", "-q", "main")
+    w.pr(8, { "app.rb": "x\n" })
+    w.w.prs[7] = { ...w.w.prs[8], number: 7, headRefOid: head, api_commits: [{ ...w.w.prs[8].api_commits[0], sha: head }] }
+    w.save()
+    expect(w.run(["test", "--token", w.token, "--pr", "7"]).json.ran.map((x: any) => x.run)).toEqual(["false", "true"])
+  })
+
+  test("a check that rewrites the commit, or passes only in its own leftovers, does not count", () => {
+    const checks = (cmd: string) => HANDS_OFF.replace("run: true", `run: "${cmd}"`)
+    for (const [cmd, ok] of [["for f in *.rb; do echo fixed > $f; done", false], ["test -f .seen || { touch .seen; exit 1; }", false]] as const) {
+      const w = new World(checks(cmd)).begin()
+      w.pr(7, { "app.rb": "two\n" })
+      expect(w.run(["test", "--token", w.token, "--pr", "7"]).json.ok).toBe(ok)
+    }
+  })
+
+  test("a failed run of an unknown event still counts", () => {
+    const w = new World()
+    const head = w.ready()
+    w.w.flows[head] = [{ event: "workflow_run", name: "e2e", status: "completed", conclusion: "failure" }]
+    w.save()
+    expect(w.gate().reasons).toContain("checks-red")
   })
 
   test("changed checks void an earlier test", () => {
