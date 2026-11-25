@@ -1,11 +1,11 @@
-# `lfg-auto`
+# `afg`
 
 > Autonomous mode for a repository. One run picks the next job you enabled, gets it done through the other skills, and lands, babysits, closes or parks the result within the tolerances you saved.
 
-`/lfg` takes one request you name. `lfg-auto` decides what to work on. You run it on a schedule, about hourly, and read its digest.
+`/lfg` takes one request you name. `afg` (always going) decides what to work on. You run it on a schedule, about hourly, and read its digest.
 
 ```text
-host schedule -> /lfg-auto -> look -> pick by motion order -> delegate to lfg, ce-debug, ce-babysit-pr, ...
+host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-debug, ce-babysit-pr, ...
                                                            -> review and test the exact head
                                                            -> script decides -> land | babysit | close | park
 ```
@@ -27,16 +27,16 @@ host schedule -> /lfg-auto -> look -> pick by motion order -> delegate to lfg, c
 
 ```text
 # First run: interviews you and saves settings. Later: one run
-/lfg-auto
+/afg
 
 # Change the settings or the schedule
-/lfg-auto setup
+/afg setup
 
 # Show the settings and what happened recently
-/lfg-auto status
+/afg status
 
 # Say what a run would do, and write nothing
-/lfg-auto dry-run
+/afg dry-run
 ```
 
 ---
@@ -84,4 +84,4 @@ Settings and their layering are in [Compound Engineering configuration](./config
 
 ## Scheduling
 
-Use your host's scheduler with the prompt `/lfg-auto`. In T3 Code, use an interval schedule with a new thread per run; a webhook schedule can start a run when an issue or PR opens. It does not read remaining subscription quota: it caps jobs per hour and moves to another provider when one reports a limit.
+Use your host's scheduler with the prompt `/afg`. In T3 Code, use an interval schedule with a new thread per run; a webhook schedule can start a run when an issue or PR opens. It does not read remaining subscription quota: it caps jobs per hour and moves to another provider when one reports a limit.

@@ -1,5 +1,5 @@
 ---
-name: lfg-auto
+name: afg
 description: "Autonomous mode for a repository: one scheduled run picks the next enabled job, delegates it, and lands, babysits, closes, or parks the result within saved tolerances. Use only when the user or a schedule invokes it by name, or asks to set up or change a repository's autonomous mode. Use lfg for one named request."
 argument-hint: "[setup | status | dry-run | answer <item>; blank runs once]"
 ---

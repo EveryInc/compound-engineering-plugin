@@ -2,7 +2,7 @@
 title: "An unattended landing gate fails on the assumptions its fake GitHub shares"
 category: skill-design
 date: 2026-11-25
-module: skills/lfg-auto
+module: skills/afg
 problem_type: design_pattern
 component: tooling
 severity: high
@@ -11,7 +11,7 @@ applies_when:
   - "Reading GitHub checks, merge queues, commit authors or merge results as proof of something"
   - "Building a fake gh or fake API for a gate's tests"
 tags:
-  - lfg-auto
+  - afg
   - github-api
   - merge-authorization
   - test-fakes
@@ -23,11 +23,11 @@ related_components:
 
 ## Context
 
-The first `lfg-auto` gate (PR #2096) passed its tests and refused hostile PRs in fresh-agent runs. Two adversarial reviews then found ways past it. Nearly every gap was a belief about GitHub or git that the fake `gh` also held, so the tests could not disagree with the code.
+The first `afg` gate (PR #2096) passed its tests and refused hostile PRs in fresh-agent runs. Two adversarial reviews then found ways past it. Nearly every gap was a belief about GitHub or git that the fake `gh` also held, so the tests could not disagree with the code.
 
 ## Guidance
 
-These beliefs were wrong. Each is now denied or handled in `skills/lfg-auto/scripts/autonomous.py`.
+These beliefs were wrong. Each is now denied or handled in `skills/afg/scripts/autonomous.py`.
 
 | Belief | What is true |
 |---|---|

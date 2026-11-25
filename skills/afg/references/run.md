@@ -1,6 +1,6 @@
 # One run
 
-Every command below is `"$PY" "$SKILL_DIR/scripts/autonomous.py" <subcommand>`, run from the repository's main checkout, with the assignments from SKILL.md in the same shell call. Each prints JSON. Exit 1 is a denial with `reasons`; exit 3 means a fact could not be read, which is also a denial.
+Every command below is `"$PY" "$SKILL_DIR/scripts/autonomous.py" <subcommand>`, run from the main checkout or any worktree of it, with the assignments from SKILL.md in the same shell call. Each prints JSON. Exit 1 is a denial with `reasons`; exit 3 means a fact could not be read, which is also a denial.
 
 ## Begin
 
@@ -40,13 +40,13 @@ Call `heartbeat` when a wait is long. The lease expires after three hours withou
 Landing is judged on the exact head, after the last push to it. A review made before a later push does not count.
 
 1. `gate --pr <n>`. If any reason other than a missing receipt remains, stop here for this PR. `behind` alone, with or without missing receipts: `update --pr <n>`, and leave the rest for a later run.
-2. `test --pr <n>`. The script runs the checks that apply to the changed files in a clean worktree without GitHub credentials.
-3. Review the same head before testing it, when its author is not this account: in a clean worktree at that head, run `ce-code-review mode:agent base:<merge base sha>` and pipe its one JSON object, unedited, into `review --pr <n>`.
+2. `test --pr <n>`. The script runs every check that applies to the changed files in a clean worktree without GitHub credentials, retries a failed one once, and returns each result and the path of the whole log. Name anything it lists as `flaky` in the digest.
+3. Review the same head, always. Do it before `test` when its author is not this account: in a clean worktree at that head, run `ce-code-review mode:agent base:<merge base sha>` and pipe its one JSON object, unedited, into `review --pr <n>`.
 4. A failed test or an open finding on an own PR goes to a fixing worker; then adopt the new head and repeat these steps in a later run. On anyone else's PR, park it.
 5. For each entry in the policy's `rules`, which include the landing steps, judge the commit against its text and record `rule --pr <n> --rule <id> --head <sha> --verdict pass|fail --why "<reason>"`. Unsure is `fail`.
 6. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
 
-A commit for direct landing takes `test`, `review` and `rule` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit, and repeat. Below level `merge`, keep the branch unpublished and park it for the owner to land.
+A commit for direct landing takes `test`, `review` and `rule` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit, and repeat. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
 
 On the pull-request route, when main moves while it is red, `update` the repair PR, start a new `main-red` job for the new tip without `--opens-pr`, and adopt the updated head under it.
 

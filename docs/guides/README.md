@@ -103,7 +103,7 @@ Invoked when a specific need arises, not part of any chain.
 | Skill | Description |
 |-------|-------------|
 | [`/lfg`](./lfg.md) | Hands-off pipeline through an open PR. Routes the request to a verified work source (a plan, a `ce-debug` fix for a bug, or a brainstorm then plan when product shape is unsettled and you are present), then implements, reviews, captures learnings, ships, and watches CI. Pushes without prompting when a remote exists; local commits only otherwise. Merging stays with you unless granted. |
-| [`/lfg-auto`](./lfg-auto.md) | Autonomous mode: one scheduled run picks the next enabled job, delegates it, and lands, babysits, closes or parks the result within saved tolerances |
+| [`/afg`](./afg.md) | Autonomous mode: one scheduled run picks the next enabled job, delegates it, and lands, babysits, closes or parks the result within saved tolerances |
 
 ---
 

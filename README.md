@@ -185,7 +185,7 @@ Starting from a bug instead of a feature? Use [`/ce-debug`](docs/guides/ce-debug
 | [Around the loop](docs/guides/README.md#around-the-loop) | `ce-strategy` `ce-product-pulse` `ce-sweep` `ce-retro` `ce-compound-refresh` | Anchors and feeds that keep the loop grounded |
 | [On demand](docs/guides/README.md#on-demand) | `ce-ideate` `ce-bakeoff` `ce-pov` `ce-debug` `ce-explain` `ce-simplify-code` `ce-code-review` `ce-doc-review` `ce-optimize` `ce-prototype` | Reached for when a specific need arises |
 | [Git workflow](docs/guides/README.md#git-workflow) | `ce-commit` `ce-commit-push-pr` `ce-babysit-pr` `ce-resolve-pr-feedback` `ce-worktree` | Committing, shipping, and shepherding PRs |
-| [Autonomous](docs/guides/README.md#autonomous-pipeline) | `lfg` `lfg-auto` | The whole pipeline, hands-off, on request or on a schedule |
+| [Autonomous](docs/guides/README.md#autonomous-pipeline) | `lfg` `afg` | The whole pipeline, hands-off, on request or on a schedule |
 | [Testing & design](docs/guides/README.md#frontend-design) | `ce-test-browser` `ce-test-xcode` `ce-polish` `ce-dogfood` | Verifying and polishing what you built |
 | [Collaboration](docs/guides/README.md#collaboration) | `ce-proof` `ce-handoff` `ce-promote` | Sharing work and handing it off |
 | [Utilities](docs/guides/README.md#workflow-utilities) | `ce-help` `ce-setup` `ce-noslop` `wtf` `ce-retune` `ce-riffrec-feedback-analysis` | Help, setup, writing, and maintenance |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Policy, state and landing gate for lfg-auto.
+"""Policy, state and landing gate for afg.
 
 This script is the only writer of autonomous-mode state and the only path through which
 autonomous mode merges, pushes to the default branch, updates a PR branch, or closes
@@ -13,8 +13,8 @@ Every subcommand prints one JSON object. Exit statuses:
   3  the repository, GitHub, or the store could not be read or written
 Anything unreadable denies. --dry-run evaluates and writes nothing.
 
-Store: <main checkout>/.context/compound-engineering/lfg-auto/, shared by every
-linked worktree; a bare repository uses <git common dir>/compound-engineering/lfg-auto/.
+Store: <main checkout>/.context/compound-engineering/afg/, shared by every
+linked worktree; a bare repository uses <git common dir>/compound-engineering/afg/.
   state.json    the run lease
   ledger.jsonl  append-only events: run, job, adopt, receipt, rule,
                 park, answer, retire, land-intent, land, rejected, close, update
@@ -241,7 +241,7 @@ class Repo:
         return self._tip
 
     def fetch_pr(self, number, expected):
-        ref = f"refs/lfg-auto/pr-{number}"
+        ref = f"refs/afg/pr-{number}"
         git("fetch", "--quiet", "--no-tags", "origin", f"+refs/pull/{number}/head:{ref}")
         got = git("rev-parse", ref).stdout.strip()
         if got != expected:
@@ -473,7 +473,7 @@ def level_for(policy, motion, author, landed):
 
 def store_dir(repo, create=True):
     base = repo.main or repo.common
-    parts = ([".context"] if repo.main else []) + ["compound-engineering", "lfg-auto"]
+    parts = ([".context"] if repo.main else []) + ["compound-engineering", "afg"]
     path = base
     for part in parts:
         path = os.path.join(path, part)
@@ -1020,7 +1020,7 @@ def cmd_begin(a, repo):
         write_state(repo, {"token": token, "at": iso(now())})
     for block in git("worktree", "list", "--porcelain").stdout.split("\n\n"):
         tree = block.split("\n")[0][len("worktree "):]
-        if os.path.basename(os.path.dirname(tree)).startswith("lfg-auto-test-"):
+        if os.path.basename(os.path.dirname(tree)).startswith("afg-test-"):
             git("worktree", "remove", "--force", tree, check=False)
     return emit({"token": token, "mode": "act", "reclaimed": reclaimed, "jobs_left": jobs_left(policy, ledger(repo))})
 
@@ -1260,7 +1260,7 @@ def cmd_test(a, repo):
         return emit({"would_run": commands, "head": head, "base": base})
     with locked(repo):
         require_lease(repo, a.token)
-    tmp = tempfile.mkdtemp(prefix="lfg-auto-test-")
+    tmp = tempfile.mkdtemp(prefix="afg-test-")
     tree, log, proc, code = os.path.join(tmp, "tree"), os.path.join(tmp, "log"), None, "interrupted"
     ran = []
 
@@ -1276,17 +1276,26 @@ def cmd_test(a, repo):
             raise Failure(f"worktree: {add.stderr.strip()}")
         with open(log, "wb") as out:
             deadline = now() + timedelta(seconds=a.timeout)
+            code = 0
             for command in commands:
-                ran.append(command)
-                proc = subprocess.Popen(command, shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
-                                        stderr=subprocess.STDOUT, start_new_session=True)
-                try:
-                    code = proc.wait(timeout=max(1, (deadline - now()).total_seconds()))
-                except subprocess.TimeoutExpired:
-                    code = "timeout"
-                kill_group(proc)
-                if code != 0:
-                    break
+                # Every check runs, so one failure never hides another. A failure is tried once more and recorded.
+                for attempt in (1, 2):
+                    out.write(f"\n$ {command}  (attempt {attempt})\n".encode())
+                    out.flush()
+                    proc = subprocess.Popen(command, shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
+                                            stderr=subprocess.STDOUT, start_new_session=True)
+                    try:
+                        one = proc.wait(timeout=max(1, (deadline - now()).total_seconds()))
+                    except subprocess.TimeoutExpired:
+                        one = "timeout"
+                    kill_group(proc)
+                    if one == 0 or one == "timeout":
+                        break
+                ran.append({"run": command, "exit": one, "attempts": attempt})
+                if one != 0 and code == 0:
+                    code = one
+        kept = os.path.join(store_dir(repo), f"test-{head[:12]}.log")
+        shutil.copyfile(log, kept)
         with open(log, encoding="utf-8", errors="replace") as f:
             tail = f.read()[-3000:]
     finally:
@@ -1298,7 +1307,7 @@ def cmd_test(a, repo):
         require_lease(repo, a.token)
         append(repo, "receipt", kind="test", subject=subject, head=head, base=base, ok=code == 0, exit=code,
                checks=checks_id(policy), ran=ran)
-    return emit({"ok": code == 0, "exit": code, "ran": ran, "not_run": commands[len(ran):], "head": head, "base": base, "tail": tail}, 0 if code == 0 else 1)
+    return emit({"ok": code == 0, "exit": code, "ran": ran, "log": kept, "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail}, 0 if code == 0 else 1)
 
 
 def cmd_review(a, repo):
@@ -1515,7 +1524,7 @@ def cmd_close(a, repo):
 
 def cmd_park(a, repo):
     kind, _, number = a.item.partition(":")
-    if kind not in ("pr", "issue", "main", "idea", "security"):
+    if kind not in ("pr", "issue", "main", "idea", "security", "commit"):
         return deny("item-invalid")
     updated = None
     if kind in ("pr", "issue"):

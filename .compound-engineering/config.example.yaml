@@ -217,10 +217,10 @@
 # sweep_lease_ttl_minutes: 60                       # single-writer lease staleness threshold
 # sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology
 
-# --- Autonomous mode (lfg-auto) ---
+# --- Autonomous mode (afg) ---
 
-# How far `lfg-auto` may go without a person. Unset profile means it reports
-# and does nothing else. `lfg-auto setup` writes these for you. A profile in
+# How far `afg` may go without a person. Unset profile means it reports
+# and does nothing else. `afg setup` writes these for you. A profile in
 # this file, on the default branch, is the repository policy and
 # config.local.yaml can only tighten it. Without one here, config.local.yaml
 # is the whole policy for that checkout. An invalid autonomous value turns
@@ -229,7 +229,7 @@
 # autonomous_profile: balanced                # cautious | balanced | hands-off
 # autonomous_motions: [main-red, bugs, backlog, stack]   # also security, climb, create
 
-# How work lands. `lfg-auto setup` fills these in from the project's own
+# How work lands. `afg setup` fills these in from the project's own
 # instructions. Local settings may repeat them, never replace them.
 # autonomous_landing: pull-request            # pull-request | direct (one squashed commit on the default branch, no PR)
 # autonomous_ci: required                     # required | ignored (direct only, the checks below are then the gate)

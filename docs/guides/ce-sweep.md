@@ -4,7 +4,7 @@
 
 `ce-sweep` sits around the loop, not inside it. The `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work` loop invents or refines work; this skill ingests what customers already sent and turns it into a requirements-only plan.
 
-You invoke it yourself, or `lfg-auto` runs it unattended once it is set up. The first run is an interactive setup interview. Later runs can be manual or scheduled with `mode:non-interactive`. The output is `docs/plans/feedback-sweep-plan.md`, which `/lfg` can execute. It is not a time-windowed metrics report (`ce-product-pulse`) and not a one-off recording analysis (`ce-riffrec-feedback-analysis`).
+You invoke it yourself, or `afg` runs it unattended once it is set up. The first run is an interactive setup interview. Later runs can be manual or scheduled with `mode:non-interactive`. The output is `docs/plans/feedback-sweep-plan.md`, which `/lfg` can execute. It is not a time-windowed metrics report (`ce-product-pulse`) and not a one-off recording analysis (`ce-riffrec-feedback-analysis`).
 
 ```text
 customer Slack / GitHub / email

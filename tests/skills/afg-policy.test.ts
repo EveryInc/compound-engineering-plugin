@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { writeFileSync } from "node:fs"
 import path from "node:path"
-import { cleanup, HANDS_OFF, ME, World } from "../helpers/lfg-auto-world"
+import { cleanup, HANDS_OFF, ME, World } from "../helpers/afg-world"
 
 setDefaultTimeout(60_000)
 afterAll(cleanup)
@@ -69,7 +69,7 @@ describe("lease and caps", () => {
   test("a second run is locked out and an old token is refused after takeover", () => {
     const w = new World().begin()
     expect(w.run(["begin"]).json.reasons).toEqual(["locked"])
-    const state = path.join(w.repo, ".context/compound-engineering/lfg-auto/state.json")
+    const state = path.join(w.repo, ".context/compound-engineering/afg/state.json")
     writeFileSync(state, JSON.stringify({ token: w.token, at: "2020-01-01T00:00:00Z" }))
     expect(w.run(["heartbeat", "--token", w.token]).code).toBe(3)
     expect(w.run(["begin"]).json.reclaimed).toBe(true)
@@ -78,7 +78,7 @@ describe("lease and caps", () => {
 
   test("corrupt state denies rather than starting a second run", () => {
     const w = new World().begin()
-    writeFileSync(path.join(w.repo, ".context/compound-engineering/lfg-auto/state.json"), "{")
+    writeFileSync(path.join(w.repo, ".context/compound-engineering/afg/state.json"), "{")
     expect(w.run(["begin"]).json.reasons).toEqual(["state-corrupt"])
   })
 

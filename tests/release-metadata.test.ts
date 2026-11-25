@@ -242,7 +242,7 @@ describe("release metadata", () => {
       .map((entry) => entry.name)
       .sort()
 
-    const listed = [...section.matchAll(/`(ce-[a-z0-9-]+|lfg(?:-auto)?|wtf)`/g)].map((match) => match[1])
+    const listed = [...section.matchAll(/`(ce-[a-z0-9-]+|lfg|afg|wtf)`/g)].map((match) => match[1])
     const listedSet = new Set(listed)
 
     expect(skills.filter((skill) => !listedSet.has(skill))).toEqual([])

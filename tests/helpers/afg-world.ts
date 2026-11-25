@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-export const SCRIPT = path.join(__dirname, "../../skills/lfg-auto/scripts/autonomous.py")
+export const SCRIPT = path.join(__dirname, "../../skills/afg/scripts/autonomous.py")
 export const ME = "maintainer"
 const roots: string[] = []
 export const cleanup = () => roots.forEach((r) => rmSync(r, { recursive: true, force: true }))
@@ -74,7 +74,7 @@ sys.exit(9)
 export const HANDS_OFF = "autonomous_profile: hands-off\nautonomous_checks:\n  - { run: true }\nautonomous_trusted_authors:\n  - dependabot[bot]\n"
 
 export class World {
-  root = realpathSync(mkdtempSync(path.join(tmpdir(), "lfg-auto-")))
+  root = realpathSync(mkdtempSync(path.join(tmpdir(), "afg-")))
   repo = path.join(this.root, "repo")
   fake = path.join(this.root, "fake")
   env: NodeJS.ProcessEnv

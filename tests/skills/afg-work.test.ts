@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { cleanup, HANDS_OFF, ME, World } from "../helpers/lfg-auto-world"
+import { cleanup, HANDS_OFF, ME, World } from "../helpers/afg-world"
 
 setDefaultTimeout(60_000)
 afterAll(cleanup)
@@ -26,7 +26,7 @@ describe("own work", () => {
     const w = new World().begin()
     const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
     const head = w.pr(7, { "app.rb": "two\n" }, { login: "stranger" })
-    const file = path.join(w.repo, ".context/compound-engineering/lfg-auto/ledger.jsonl")
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
     writeFileSync(file, readFileSync(file, "utf8") + JSON.stringify({ event: "adopt", at: "2026-01-01T00:00:00Z", pr: 7, job, head }) + "\n")
     expect(w.gate().reasons).toContain("author-not-trusted")
   })
@@ -147,7 +147,7 @@ describe("own work", () => {
 
   test("a squashed revert that names the PR resets earning", () => {
     const w = new World(HANDS_OFF.replace("hands-off", "balanced")).begin()
-    const file = path.join(w.repo, ".context/compound-engineering/lfg-auto/ledger.jsonl")
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
     writeFileSync(file, [1, 2, 3, 4, 5].map((i) =>
       JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", motion: "stack", pr: i, merge_sha: `${i}`.repeat(40) })).join("\n") + "\n")
     expect(w.run(["policy"]).json.levels.stack).toBe("merge")
@@ -167,7 +167,7 @@ describe("own work", () => {
 
   test("reverting an older landing resets earning", () => {
     const w = new World(HANDS_OFF.replace("hands-off", "balanced")).begin()
-    const file = path.join(w.repo, ".context/compound-engineering/lfg-auto/ledger.jsonl")
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
     writeFileSync(file, [1, 2, 3, 4, 5, 6].map((i) =>
       JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", motion: "stack", merge_sha: `${i}`.repeat(40) })).join("\n") + "\n")
     expect(w.run(["policy"]).json.levels.stack).toBe("merge")
@@ -179,7 +179,7 @@ describe("own work", () => {
   test("a damaged ledger denies instead of forgetting", () => {
     const w = new World()
     w.ready()
-    const file = path.join(w.repo, ".context/compound-engineering/lfg-auto/ledger.jsonl")
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
     writeFileSync(file, readFileSync(file, "utf8") + "{\n")
     expect(w.run(["gate", "--pr", "7"]).code).toBe(3)
   })
@@ -194,7 +194,7 @@ describe("own work", () => {
   test("five clean landings raise a motion to its ceiling and a revert resets it", () => {
     const w = new World(HANDS_OFF.replace("hands-off", "balanced"))
     w.begin()
-    const file = path.join(w.repo, ".context/compound-engineering/lfg-auto/ledger.jsonl")
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
     const land = (i: number) => JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", motion: "stack", merge_sha: `${i}`.repeat(40) })
     writeFileSync(file, [1, 2, 3, 4].map(land).join("\n") + "\n")
     expect(w.run(["policy"]).json.levels.stack).toBe("babysit")

@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { mkdirSync } from "node:fs"
+import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
-import { cleanup, HANDS_OFF, ME, SCRIPT, World } from "../helpers/lfg-auto-world"
+import { cleanup, HANDS_OFF, ME, SCRIPT, World } from "../helpers/afg-world"
 
 setDefaultTimeout(60_000)
 afterAll(cleanup)
@@ -353,11 +353,21 @@ describe("merge gate", () => {
   test("checks run for the files changed, and a change none covers does not land", () => {
     const w = new World(HANDS_OFF.replace("  - { run: true }\n", '  - { run: "true", paths: "*.rb" }\n  - { run: "false", paths: "*.ts" }\n')).begin()
     w.pr(7, { "app.rb": "two\n" })
-    expect(w.run(["test", "--token", w.token, "--pr", "7"]).json).toMatchObject({ ok: true, ran: ["true"] })
+    expect(w.run(["test", "--token", w.token, "--pr", "7"]).json).toMatchObject({ ok: true, ran: [{ run: "true", exit: 0 }] })
     w.pr(8, { "src/a.ts": "x\n" })
     expect(w.run(["test", "--token", w.token, "--pr", "8"]).json.ok).toBe(false)
     w.pr(9, { "notes.txt": "x\n" })
     expect(w.run(["test", "--token", w.token, "--pr", "9"]).json.reasons).toEqual(["no-check-applies"])
+  })
+
+  test("every check runs, and one that passes on a retry is named", () => {
+    const flag = "test -f ../flag || { touch ../flag; false; }"
+    const w = new World(HANDS_OFF.replace("  - { run: true }\n", `  - { run: "exit 3" }\n  - { run: "${flag}" }\n`)).begin()
+    w.pr(7, { "app.rb": "two\n" })
+    const r = w.run(["test", "--token", w.token, "--pr", "7"]).json
+    expect(r).toMatchObject({ ok: false, exit: 3, flaky: [flag] })
+    expect(r.ran.map((x: any) => x.exit)).toEqual([3, 0])
+    expect(readFileSync(r.log, "utf8")).toContain("attempt 2")
   })
 
   test("changed checks void an earlier test", () => {
