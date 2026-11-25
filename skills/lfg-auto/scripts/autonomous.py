@@ -75,6 +75,7 @@ KEYS = {
     "autonomous_direct": "bool",
 }
 OK_CONCLUSIONS = {"success", "neutral", "skipped"}
+CI_EVENTS = {"push", "pull_request", "pull_request_target", "merge_group", "dynamic"}
 SHA = re.compile(r"^[0-9a-f]{40}$")
 
 # Changes a human always lands. Matched against old and new paths, lowercased.
@@ -82,6 +83,7 @@ HARD_PATHS = [
     ("judge", r"(^|/)\.(github|gitlab|circleci|buildkite|husky|compound-engineering|claude|codex|cursor|agents|vscode|devcontainer)/"),
     ("judge", r"(^|/)(\.gitlab-ci\.ya?ml|\.travis\.yml|azure-pipelines\.ya?ml|bitbucket-pipelines\.ya?ml|jenkinsfile|appveyor\.yml|\.drone\.yml)$|(^|/)\.githooks/"),
     ("judge", r"(^|/)(karma\.conf\.[^/]+|\.mocharc[^/]*|\.eslintrc[^/]*|phpunit\.xml[^/]*|[^/]*\.workspace\.[^/]+|jest\.setup\.[^/]+|tsconfig[^/]*\.json|turbo\.json|nx\.json|build\.gradle[^/]*|\.swcrc|biome\.jsonc?)$"),
+    ("judge", r"(^|/)(\.pnpmfile\.c?js|pnpm-workspace\.yaml|build\.rs|gradlew[^/]*|pom\.xml|noxfile\.py|cmakelists\.txt|taskfile\.ya?ml|deno\.jsonc?|\.?mise\.toml|\.envrc|\.cursorrules|claude\.local\.md|action\.ya?ml|\.releaserc[^/]*)$|(^|/)(\.yarn|\.cargo|\.mvn)/"),
     ("judge", r"(^|/)(agents|claude|gemini|coding_standards|review)\.md$"),
     ("judge", r"(^|/)(\.mcp\.json|\.gitattributes|\.gitmodules|codeowners|makefile|rakefile|justfile|dockerfile[^/]*|docker-compose[^/]*|conftest\.py|pytest\.ini|tox\.ini|setup\.(py|cfg)|lefthook\.ya?ml|\.pre-commit-config\.ya?ml|\.npmrc|\.yarnrc[^/]*|bunfig\.toml|\.bundle/config|\.rspec)$"),
     ("judge", r"(^|/)(jest|vitest|vite|playwright|cypress|babel|webpack|rollup|eslint|karma|metro)[^/]*\.config\.[^/]+$"),
@@ -97,6 +99,7 @@ HARD_LINES = [
     ("data-deletion", r"\b(drop\s+(table|column|database)|truncate\s+table|delete\s+from)\b|\b(delete_all|destroy_all|deleteMany|drop_table|remove_column)\b"),
     ("secrets", r"BEGIN [A-Z ]*PRIVATE KEY|(api[_-]?key|secret|password|access[_-]?token)['\"]?\s*[:=]\s*['\"][^'\"]{8,}"),
 ]
+TEST_FILE = re.compile(r"(^|/)(tests?|specs?|__tests__|e2e|cypress)/|[._-](test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$")
 # Dependency manifests pass only when nothing but version numbers changed.
 MANIFEST = re.compile(r"(^|/)(package\.json|gemfile|cargo\.toml|pyproject\.toml|go\.mod|requirements[^/]*\.txt|composer\.json)$")
 LOCKFILE = re.compile(r"(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|gemfile\.lock|cargo\.lock|poetry\.lock|uv\.lock|go\.sum|composer\.lock)$")
@@ -140,8 +143,10 @@ def _env():
 
 def run(args, cwd=None, timeout=180):
     try:
-        return subprocess.run(args, cwd=cwd, env=_env(), capture_output=True, text=True,
-                              encoding="utf-8", errors="surrogateescape", timeout=timeout)
+        p = subprocess.run(args, cwd=cwd, env=_env(), capture_output=True, timeout=timeout)
+        # Decoded here so a carriage return inside a line is kept, not turned into a line end.
+        p.stdout, p.stderr = (x.decode("utf-8", "surrogateescape") for x in (p.stdout, p.stderr))
+        return p
     except (OSError, subprocess.TimeoutExpired) as e:
         raise Failure(f"{args[0]} could not run: {e}")
 
@@ -169,11 +174,16 @@ def gh_json(*args):
 
 
 def gh_list(repo, kind, number, what):
-    """A complete first page of a listing, or a Failure when more may exist."""
-    rows = gh_json("api", f"repos/{repo}/{kind}/{number}/{what}?per_page=100")
-    if not isinstance(rows, list) or len(rows) >= 100:
-        raise Failure(f"too many {what} on {kind} {number} to read completely")
-    return rows
+    """A complete listing, or a Failure when it cannot be read completely."""
+    out = []
+    for page in range(1, 11):
+        rows = gh_json("api", f"repos/{repo}/{kind}/{number}/{what}?per_page=100&page={page}")
+        if not isinstance(rows, list):
+            break
+        out += rows
+        if len(rows) < 100:
+            return out
+    raise Failure(f"too many {what} on {kind} {number} to read completely")
 
 
 # --- repository --------------------------------------------------------------
@@ -538,10 +548,12 @@ def landed_count(repo, rows, motion):
     lands = [r for r in rows if r["event"] == "land" and r.get("motion") == motion]
     resets = [parse_iso(r["at"]) for r in rows if r["event"] == "rejected" and r.get("motion") == motion]
     ours = {r.get("merge_sha") for r in lands}
-    log = git("log", "--fixed-strings", "--grep=This reverts commit ", "--format=%cI%x00%B%x01", repo.tip()).stdout
+    numbers = {r["pr"] for r in lands if r.get("pr")}
+    log = git("log", "-i", "--extended-regexp", "--grep=reverts? (commit |[A-Za-z0-9_./-]*#)", "--format=%cI%x00%B%x01", repo.tip()).stdout
     for entry in filter(None, (e.strip("\n") for e in log.split("\x01"))):
         when, _, body = entry.partition("\x00")
-        if ours & set(re.findall(r"This reverts commit ([0-9a-f]{40})", body)):
+        if ours & set(re.findall(r"This reverts commit ([0-9a-f]{40})", body)) \
+                or numbers & {int(n) for n in re.findall(r"[Rr]everts? (?:[\w.-]+/[\w.-]+)?#(\d+)", body)}:
             resets.append(parse_iso(when))
     last = max(resets, default=None)
     return sum(1 for r in lands if last is None or parse_iso(r["at"]) > last)
@@ -557,9 +569,14 @@ def checks_at(repo, sha):
     rows, contexts, flow_rows = runs["check_runs"], stats["statuses"], flows["workflow_runs"]
     if runs["total_count"] > len(rows) or len(contexts) >= 100 or flows["total_count"] > len(flow_rows):
         return "unknown", [], []
+    # Comments, schedules and manual runs attach to the same commit without testing it.
+    ci = [f for f in flow_rows if f.get("event") in CI_EVENTS]
+    other = {f.get("check_suite_id") for f in flow_rows if f.get("event") not in CI_EVENTS}
+    rows = [c for c in rows if (c.get("check_suite") or {}).get("id") not in other - {None}]
     # A workflow between jobs shows only finished checks, so the run itself must be finished.
-    pending = any(f.get("status") != "completed" for f in flow_rows)
-    failed, passed = set(), set()
+    pending = any(f.get("status") != "completed" for f in ci)
+    failed = set()
+    passed = {f["name"] for f in ci if f.get("name") and f.get("conclusion") == "success"}
     for c in rows:
         if c.get("status") != "completed":
             pending = True
@@ -575,8 +592,8 @@ def checks_at(repo, sha):
         else:
             failed.add(c["context"])
     passed -= failed
-    if any(f.get("conclusion") in ("action_required", "startup_failure") for f in flow_rows):
-        failed.add("workflow run")
+    failed |= {f.get("name") or "workflow run" for f in ci
+               if f.get("status") == "completed" and f.get("conclusion") not in OK_CONCLUSIONS}
     if failed:
         return "red", sorted(failed), sorted(passed)
     if pending or not passed:
@@ -598,6 +615,14 @@ def rules_on_default(repo):
         return None
 
 
+def has_merge_queue(repo):
+    """Classic branch protection can hold a queue that the rules listing never shows."""
+    owner, name = repo.name.split("/")
+    query = "query($o:String!,$n:String!,$b:String!){repository(owner:$o,name:$n){mergeQueue(branch:$b){id}}}"
+    d = gh_json("api", "graphql", "-f", f"query={query}", "-f", f"o={owner}", "-f", f"n={name}", "-f", f"b={repo.default}")
+    return d["data"]["repository"]["mergeQueue"] is not None
+
+
 def canonical(author):
     """One spelling per account, so a user named like a bot never matches the bot."""
     login = author.get("login") or ""
@@ -607,7 +632,7 @@ def canonical(author):
 
 
 PR_FIELDS = ("number,state,isDraft,author,headRefOid,headRefName,isCrossRepository,"
-             "baseRefName,mergeable,mergeStateStatus,reviewDecision,title,url,updatedAt")
+             "headRepositoryOwner,baseRefName,mergeable,mergeStateStatus,reviewDecision,title,url,updatedAt")
 
 
 def pr_view(repo, number):
@@ -638,9 +663,14 @@ def diff_facts(repo, base, head):
                 # userAuth and UserAuth read as user_auth.
                 spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "_", p).lower()
                 hits += [f"{name}:{p}" for name, pat in HARD_PATHS if re.search(pat, low) or re.search(pat, spaced)]
-    for row in git("diff", "--numstat", "-M", "-z", mb, head).stdout.split("\0"):
-        if row.startswith("-\t-\t"):
+    for row in git("diff", "--numstat", "--no-renames", "-z", mb, head).stdout.split("\0"):
+        added, _, rest = row.partition("\t")
+        removed, _, name = rest.partition("\t")
+        if added == "-":
             hits.append("unclassified:binary change")
+        elif name and TEST_FILE.search(name.lower()) and int(removed) > int(added):
+            # Tests judge the change; a person decides to have fewer of them.
+            hits.append(f"judge:{name}")
     major = False
     for p in sorted(set(manifests)):
         verdict = manifest_change(changed_lines(mb, head, p))
@@ -649,8 +679,13 @@ def diff_facts(repo, base, head):
         major = major or verdict == "major"
     for p in files:
         if LOCKFILE.search(p.lower()):
-            major = major or lock_major(changed_lines(mb, head, p))
+            lines = changed_lines(mb, head, p)
+            major = major or lock_major(lines)
+            if lock_source_changed(lines):
+                hits.append(f"unclassified:{p}")
     for _, text in changed_lines(mb, head):
+        if "\r" in text.rstrip("\r"):
+            hits.append("unclassified:carriage return")
         hits += [f"{name}:changed line" for name, pat in HARD_LINES if re.search(pat, text, re.I)]
     dependencies = bool(files) and all(MANIFEST.search(f.lower()) or LOCKFILE.search(f.lower()) for f in files)
     return {"merge_base": mb, "files": len(files), "hard": sorted(set(hits)), "major": major,
@@ -678,6 +713,17 @@ def major_pair(x, y):
     return xs[0] != ys[0] or (xs[0] == "0" and xs[1] != ys[1])
 
 
+def lock_source_changed(lines):
+    """Where a dependency comes from changed, or its contents did without its version."""
+    def hosts(sign):
+        return {h for s, t in lines if s == sign for h in re.findall(r"[a-z+]+://([^/\s\"']+)", t)}
+
+    def versions(sign):
+        return sorted(v for s, t in lines if s == sign for v in VERSION.findall(re.sub(r"\S+://\S+", "", t)))
+    git_source = any(s == "+" and re.search(r"git\+|git@|github:|\.git\b|file:|link:", t) for s, t in lines)
+    return bool(hosts("+") - hosts("-")) or git_source or versions("+") == versions("-")
+
+
 def lock_major(lines):
     old = [v for sign, t in lines if sign == "-" for v in VERSION.findall(t)]
     new = [v for sign, t in lines if sign == "+" for v in VERSION.findall(t)]
@@ -703,13 +749,17 @@ def adopted(rows, number):
     return [r for r in rows if r["event"] == "adopt" and r.get("pr") == number]
 
 
-def commits_attributed(repo, number, allowed):
-    """Every commit on the PR belongs to an allowed account GitHub can vouch for."""
-    for c in gh_list(repo.name, "pulls", number, "commits"):
+def commits_attributed(repo, pr, allowed):
+    """Every commit up to this exact head belongs to an allowed account GitHub can vouch for."""
+    commits = gh_list(repo.name, "pulls", pr["number"], "commits")
+    if not commits or len(commits) >= 250 or commits[-1].get("sha") != pr["headRefOid"]:
+        return False
+    owner = ((pr.get("headRepositoryOwner") or {}).get("login") or "").lower()
+    for c in commits:
         who = canonical(c.get("author") or {})
         verified = (c.get("commit", {}).get("verification") or {}).get("verified") is True
-        # The address on an unsigned commit can be anyone's, so it vouches only for its own listed author.
-        if who not in allowed or (not verified and (who.endswith("[bot]") or who == repo.login)):
+        # The address on an unsigned commit can be anyone's, unless only that person can push there.
+        if who not in allowed or (not verified and not (who == owner and who != repo.login)):
             return False
     return True
 
@@ -723,12 +773,13 @@ def author_facts(repo, policy, rows, pr):
             return "own", author, mine[-1]
         # The same account's other PRs are a person's, and a person lands them.
         return "own-unrecorded", author, None
-    trusted = policy.get("autonomous_trusted_authors", [])
-    if author in trusted and commits_attributed(repo, pr["number"], set(trusted) | {repo.login}):
+    trusted = set(policy.get("autonomous_trusted_authors", []))
+    babysit = set(policy.get("autonomous_babysit_authors", []))
+    if author in trusted and commits_attributed(repo, pr, trusted | {repo.login}):
         return "trusted", author, None
-    if author in trusted or author not in policy.get("autonomous_babysit_authors", []):
-        return "unlisted", author, None
-    return "babysit", author, None
+    if author in babysit and commits_attributed(repo, pr, trusted | babysit | {repo.login}):
+        return "babysit", author, None
+    return "unlisted", author, None
 
 
 def people_on(repo, kind, number):
@@ -797,6 +848,11 @@ def job_of(rows, job_id):
     return next((r for r in rows if r["event"] == "job" and r.get("job") == job_id), None)
 
 
+def motion_of(job, facts):
+    """The caller never picks the motion: it is the recorded job's, or what the diff is."""
+    return job["motion"] if job else "stack" if facts["only_dependencies"] else "backlog"
+
+
 def gate(repo, policy, rows, number):
     """Everything that decides whether this PR may merge now."""
     if not policy["active"]:
@@ -809,8 +865,7 @@ def gate(repo, policy, rows, number):
     job = job_of(rows, adoption["job"]) if adoption else None
     repo.fetch_pr(number, head)
     facts = diff_facts(repo, base, head)
-    # The caller never picks the motion: it is the recorded job's, or what the diff is.
-    motion = job["motion"] if job else "stack" if facts["only_dependencies"] else "backlog"
+    motion = motion_of(job, facts)
     level = level_for(policy, motion, author, landed_count(repo, rows, motion))
     if trust not in ("own", "trusted"):
         reasons.append("author-not-trusted")
@@ -835,11 +890,16 @@ def gate(repo, policy, rows, number):
     rules = rules_on_default(repo)
     if rules is None:
         reasons.append("rules-unreadable")
-    elif "merge_queue" in rules:
+    elif "merge_queue" in rules or has_merge_queue(repo):
         reasons.append("merge-queue")
     state, _, passed = checks_at(repo, head)
     if state != "green":
         reasons.append(f"checks-{state}")
+    _, main_failing, main_passed = checks_at(repo, base)
+    judges = set(main_passed) | set(main_failing)
+    if judges and not set(passed) & judges:
+        # Something passed, but nothing that also judges the default branch.
+        reasons.append("checks-unrelated")
     reasons += main_reasons(repo, motion, job, passed)
     if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0:
         reasons.append("behind")
@@ -872,10 +932,19 @@ def settle(repo, rows):
         if r["event"] in ("land-intent", "adopt") and r.get("pr"):
             motion = r.get("motion") or (job_of(rows, r["job"]) or {}).get("motion")
             heads[r["pr"]] = {"head": r["head"], "motion": motion, "by": r["event"]}
+    recorded = {r["pr"] for r in rows if r["event"] == "adopt" and r.get("pr")}
+    for sha in {r["sha"] for r in rows if r["event"] == "land-intent" and r.get("sha")}:
+        intent = next(r for r in reversed(rows) if r["event"] == "land-intent" and r.get("sha") == sha)
+        if not any(r["event"] == "land" and r.get("merge_sha") == sha for r in rows) \
+                and git("merge-base", "--is-ancestor", sha, repo.tip(fresh=True), check=False).returncode == 0:
+            append(repo, "land", sha=sha, motion=intent["motion"], head=sha, base=intent["base"], by="script", merge_sha=sha)
     for number, h in heads.items():
         if (number, h["head"]) in ended:
             continue
-        pr = gh_json("pr", "view", str(number), "-R", repo.name, "--json", "state,mergeCommit,headRefOid")
+        try:
+            pr = gh_json("pr", "view", str(number), "-R", repo.name, "--json", "state,mergeCommit,headRefOid")
+        except Failure:
+            continue  # one unreadable PR never stops a run; asked again next time
         if pr["state"] == "MERGED" and pr["headRefOid"] == h["head"]:
             sha = (pr.get("mergeCommit") or {}).get("oid") or ""
             repo.tip(fresh=True)
@@ -883,7 +952,7 @@ def settle(repo, rows):
                 continue  # merged, but not visible on the default branch; asked again next run
             append(repo, "land", pr=number, motion=h["motion"], head=h["head"],
                    by="script" if h["by"] == "land-intent" else "person", merge_sha=sha)
-        elif pr["state"] in ("MERGED", "CLOSED"):
+        elif pr["state"] in ("MERGED", "CLOSED") and number in recorded:
             # Closed, or merged only after a person changed it: not a clean landing.
             append(repo, "rejected", pr=number, motion=h["motion"], head=h["head"])
 
@@ -903,9 +972,9 @@ def cmd_begin(a, repo):
                 return deny("locked", since=state["at"])
             reclaimed = True
         token = secrets.token_hex(8)
-        write_state(repo, {"token": token, "at": iso(now())})
-        append(repo, "run", token=token, reclaimed=reclaimed)
         settle(repo, ledger(repo))
+        append(repo, "run", token=token, reclaimed=reclaimed)
+        write_state(repo, {"token": token, "at": iso(now())})
     for block in git("worktree", "list", "--porcelain").stdout.split("\n\n"):
         tree = block.split("\n")[0][len("worktree "):]
         if os.path.basename(os.path.dirname(tree)).startswith("lfg-auto-test-"):
@@ -933,6 +1002,10 @@ def parked(rows):
             out[r["item"]] = r
         elif r["event"] == "answer":
             out.pop(r["item"], None)
+        elif r["event"] in ("land", "rejected") and r.get("pr"):
+            out.pop(f"pr:{r['pr']}", None)
+        elif r["event"] == "close":
+            out.pop(r["item"], None)
     return out
 
 
@@ -940,7 +1013,7 @@ def cmd_observe(a, repo):
     policy, rows = load_policy(repo), ledger(repo)
     state, failing, _ = checks_at(repo, repo.tip())
     prs = gh_json("pr", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json",
-                  "number,title,author,isDraft,headRefOid,headRefName,baseRefName,isCrossRepository,updatedAt,mergeStateStatus,labels")
+                  "number,title,author,isDraft,headRefOid,headRefName,headRepositoryOwner,baseRefName,isCrossRepository,updatedAt,mergeStateStatus,labels")
     issues = gh_json("issue", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json",
                      "number,title,author,updatedAt,labels")
     park = parked(rows)
@@ -951,23 +1024,37 @@ def cmd_observe(a, repo):
                     and parse_iso(p["at"]) > now() - timedelta(days=PARK_DAYS))
 
     for p in prs:
-        trust, who, adoption = author_facts(repo, policy, rows, p)
         p["parked"] = is_parked(f"pr:{p['number']}", p["updatedAt"])
         p["job"] = next((r["job"] for r in reversed(adopted(rows, p["number"]))), None)
-        motion = (job_of(rows, p["job"]) or {}).get("motion", "backlog") if p["job"] else "backlog"
-        level = level_for(policy, motion, who, landed_count(repo, rows, motion))
-        may_run = LEVELS.index(level) >= LEVELS.index("babysit")
-        p["author"] = who
-        p["handling"] = ("own" if trust == "own" else
-                         "own-moved" if trust == "own-unrecorded" and p["job"] else
-                         "land" if trust == "trusted" and level == "merge" else
-                         "babysit" if trust in ("trusted", "babysit") and may_run else "diff-only")
+        try:
+            p["handling"], error = handling(repo, policy, rows, p), None
+        except (Failure, KeyError, TypeError, ValueError) as e:
+            p["handling"], error = "diff-only", str(e)
+        p["author"] = canonical(p["author"])
+        if error:
+            p["error"] = error
     for i in issues:
         i["author"], i["parked"] = canonical(i["author"]), is_parked(f"issue:{i['number']}", i["updatedAt"])
     return emit({"repo": repo.name, "default_branch": repo.default, "tip": repo.tip(), "main": state,
                  "main_failing": failing, "prs": prs, "issues": issues, "unfinished_jobs": unfinished(rows),
                  "parked_other": [r for k, r in park.items() if not k.startswith(("pr:", "issue:"))],
                  "truncated": len(prs) >= 200 or len(issues) >= 200})
+
+
+def handling(repo, policy, rows, p):
+    trust, who, adoption = author_facts(repo, policy, rows, p)
+    if trust == "own":
+        return "own"
+    if trust == "own-unrecorded":
+        return "own-moved" if p["job"] else "diff-only"
+    if trust == "unlisted":
+        return "diff-only"
+    repo.fetch_pr(p["number"], p["headRefOid"])
+    motion = motion_of(None, diff_facts(repo, repo.tip(), p["headRefOid"]))
+    level = level_for(policy, motion, who, landed_count(repo, rows, motion))
+    if LEVELS.index(level) < LEVELS.index("babysit"):
+        return "diff-only"
+    return "land" if trust == "trusted" and level == "merge" else "babysit"
 
 
 def unfinished(rows):
@@ -1057,7 +1144,10 @@ def cmd_adopt(a, repo):
             return deny("head-moved")
         if canonical(pr["author"]) != repo.login or pr["isCrossRepository"]:
             return deny("author-not-trusted")
-        who = {canonical(c.get("author") or {}) for c in gh_list(repo.name, "pulls", a.pr, "commits")}
+        commits = gh_list(repo.name, "pulls", a.pr, "commits")
+        if not commits or len(commits) >= 250 or commits[-1].get("sha") != a.head:
+            return deny("head-moved")
+        who = {canonical(c.get("author") or {}) for c in commits}
         if who != {repo.login}:
             return deny("commit-not-attributed", authors=sorted(who))
         what = {"pr": a.pr, "head": a.head}
@@ -1110,6 +1200,10 @@ def cmd_test(a, repo):
     if facts["hard"]:
         # Code that could rewrite its own judge is not run unattended.
         return deny("hard-limit", hard_limits=facts["hard"])
+    if a.pr is not None:
+        pr = pr_view(repo, a.pr)
+        if handling(repo, policy, rows, {**pr, "job": None}) == "diff-only" or pr["headRefOid"] != head:
+            return deny("level-below-babysit")
     if a.dry_run:
         return emit({"would_run": command, "head": head, "base": base})
     with locked(repo):
@@ -1212,7 +1306,9 @@ def cmd_update(a, repo):
     """Bring a PR that is otherwise next to land up to date, voiding its receipts."""
     policy, rows = load_policy(repo), ledger(repo)
     reasons, facts = gate(repo, policy, rows, a.pr)
-    remade = {"behind", "checks-unknown", "checks-red", "merge-state-unstable"}
+    remade = {"behind", "checks-unknown", "checks-red", "checks-unrelated", "merge-state-unstable"}
+    if {"checks-red", "checks-unknown"} & set(reasons) and "review-required" not in reasons:
+        remade.add("merge-state-blocked")
     if facts.get("motion") == "main-red" and checks_at(repo, repo.tip())[0] == "red":
         # The repair is rebound to the new tip once it is up to date.
         remade.add("main-not-green")
@@ -1299,10 +1395,11 @@ def cmd_direct(a, repo):
         require_lease(repo, a.token)
         if repo.tip(fresh=True) != base:
             return deny("base-moved")
-        git("push", "--quiet", "origin", f"{head}:refs/heads/{repo.default}")
-        if repo.tip(fresh=True) != head:
+        append(repo, "land-intent", sha=head, motion=job["motion"], head=head, base=base)
+        git("-c", "core.hooksPath=/dev/null", "push", "--quiet", "origin", f"{head}:refs/heads/{repo.default}")
+        settle(repo, ledger(repo))
+        if not any(r["event"] == "land" and r.get("merge_sha") == head for r in ledger(repo)):
             return deny("not-confirmed-landed")
-        append(repo, "land", sha=head, motion=job["motion"], head=head, base=base, merge_sha=head)
     return emit({"landed": head})
 
 
@@ -1495,7 +1592,7 @@ def main():
     a = ap.parse_args()
     try:
         return a.fn(a, Repo())
-    except (Failure, OSError, KeyError, TypeError, ValueError) as e:
+    except (Failure, OSError, KeyError, TypeError, ValueError, AttributeError) as e:
         return emit({"allowed": False, "reasons": ["unreadable"], "error": f"{type(e).__name__}: {e}"}, 3)
 
 

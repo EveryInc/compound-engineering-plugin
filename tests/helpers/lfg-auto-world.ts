@@ -22,7 +22,9 @@ if a[:2] == ["pr", "list"]:
     if "--base" in a: out([p for p in w["prs"].values() if p["baseRefName"] == a[a.index("--base") + 1]])
     out(list(w["prs"].values()))
 if a[:2] == ["issue", "list"]: out(w.get("issue_list", []))
-if a[:2] == ["pr", "view"]: out(w["prs"][a[2]])
+if a[:2] == ["pr", "view"]:
+    if w.get("view_fails"): sys.exit(1)
+    out(w["prs"][a[2]])
 if a[:2] == ["pr", "merge"]:
     head = a[a.index("--match-head-commit") + 1]
     if not w.get("merge_invisible"):
@@ -37,6 +39,7 @@ if a[0] in ("pr", "issue") and a[1] in ("close", "comment"):
     sys.exit(0)
 if a[0] == "api":
     u = a[1]
+    if u == "graphql": out({"data": {"repository": {"mergeQueue": w.get("queue")}}})
     if u == "-X": sys.exit(0)
     if u == "user": out({"login": "${ME}"})
     m = re.search(r"commits/([0-9a-f]+)/check-runs", u)
@@ -52,7 +55,9 @@ if a[0] == "api":
         flows = w.get("flows", {}).get(m[1], [])
         out({"total_count": len(flows), "workflow_runs": flows})
     m = re.search(r"pulls/(\\d+)/(commits|comments|reviews)", u)
-    if m: out(w["prs"][m[1]].get("api_" + m[2], []))
+    if m:
+        page = int(re.search(r"page=(\\d+)$", u)[1])
+        out(w["prs"][m[1]].get("api_" + m[2], [])[(page - 1) * 100:page * 100])
     m = re.search(r"issues/(\\d+)/comments", u)
     if m: out(w.get("comments", {}).get(m[1], []))
     m = re.search(r"issues/(\\d+)$", u)
@@ -156,7 +161,9 @@ export class World {
       number: n, state: "OPEN", isDraft: false, author, headRefOid: head, headRefName: `pr${n}`, isCrossRepository: false,
       baseRefName: "main", mergeable: "MERGEABLE", mergeStateStatus: "CLEAN", reviewDecision: "", title: "t", url: "u",
       updatedAt: "2026-01-01T00:00:00Z",
+      headRepositoryOwner: { login: "o" },
       api_commits: [{
+        sha: head,
         author: author.is_bot ? { login: "dependabot[bot]", type: "Bot" } : { login: author.login },
         commit: { verification: { verified: true } },
       }],

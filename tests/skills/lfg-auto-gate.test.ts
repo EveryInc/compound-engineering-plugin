@@ -70,9 +70,15 @@ describe("merge gate", () => {
     ["camelCase permissions", { "src/UserAuth.ts": "x\n" }],
     ["other CI", { ".gitlab-ci.yml": "x\n" }],
     ["content that looks like a diff header", { "app.rb": "-- \n++ User.delete_all\n" }],
+    ["deleted test lines", { "tests/app.test.rb": "a\n" }],
+    ["carriage return", { "app.rb": "x = 1\rUser.find\n" }],
+    ["more judges", { ".cargo/config.toml": "x\n" }],
     ["own version", { "package.json": '{\n  "version": "1.2.1"\n}\n' }],
   ])("hard limit at merge level: %s (AE3)", (_n, files) => {
     const w = new World()
+    w.write("tests/app.test.rb", "a\nb\n")
+    w.commit("tests", ["tests"])
+    w.git(w.repo, "push", "-q", "origin", "main")
     w.pr(7, files as Record<string, string>)
     expect(w.gate().reasons).toContain("hard-limit")
     w.begin()
@@ -117,7 +123,7 @@ describe("merge gate", () => {
   ])("a trusted bot PR with an %s is denied", (_n, c) => {
     const w = new World()
     w.ready()
-    w.w.prs[7].api_commits.push(c)
+    w.w.prs[7].api_commits.unshift(c)
     w.save()
     expect(w.gate().reasons).toContain("author-not-trusted")
   })
@@ -148,7 +154,7 @@ describe("merge gate", () => {
   test("CI awaiting approval denies", () => {
     const w = new World()
     w.ready()
-    w.w.flows[w.w.prs[7].headRefOid] = [{ status: "completed", conclusion: "action_required" }]
+    w.w.flows[w.w.prs[7].headRefOid] = [{ event: "pull_request", status: "completed", conclusion: "action_required" }]
     w.save()
     expect(w.gate().reasons).toEqual(["checks-red"])
   })
@@ -208,7 +214,7 @@ describe("merge gate", () => {
   test("an unfinished workflow is not green, on the PR or on main", () => {
     const w = new World()
     const head = w.ready()
-    w.w.flows = { [head]: [{ status: "in_progress" }], [w.git(w.repo, "rev-parse", "origin/main")]: [{ status: "queued" }] }
+    w.w.flows = { [head]: [{ event: "pull_request", status: "in_progress" }], [w.git(w.repo, "rev-parse", "origin/main")]: [{ event: "push", status: "queued" }] }
     w.save()
     expect(w.gate().reasons).toEqual(["checks-unknown", "main-not-green"])
   })
@@ -236,6 +242,97 @@ describe("merge gate", () => {
     const w = new World()
     w.git(w.repo, "remote", "set-url", "origin", "https://github.com/fork/r.git")
     expect(w.run(["observe"]).json.error).toContain("GitHub answered for")
+  })
+
+  test("commits that stop short of the head vouch for nothing", () => {
+    const w = new World()
+    w.ready()
+    w.w.prs[7].api_commits[0].sha = "a".repeat(40)
+    w.save()
+    expect(w.gate().reasons).toContain("author-not-trusted")
+  })
+
+  test("a stranger's commit is not run through a babysit author's PR", () => {
+    const w = new World(HANDS_OFF + "autonomous_babysit_authors: [mate]\n")
+    w.pr(7, { "app.rb": "two\n" }, { login: "mate" })
+    expect(w.run(["observe"]).json.prs[0].handling).toBe("babysit")
+    w.w.prs[7].api_commits[0].author.login = "stranger"
+    w.save()
+    expect(w.run(["observe"]).json.prs[0].handling).toBe("diff-only")
+  })
+
+  test.each([["o", "author-not-trusted"], ["mate", undefined]])("a listed person's unsigned commit from %s's repository", (owner, reason) => {
+    const w = new World(HANDS_OFF + "  - mate\n")
+    w.pr(7, { "app.rb": "two\n" }, { login: "mate" }, { headRepositoryOwner: { login: owner } })
+    w.w.prs[7].api_commits[0].commit.verification.verified = false
+    w.save()
+    expect(w.gate().reasons.includes("author-not-trusted")).toBe(Boolean(reason))
+  })
+
+  test("a queue that rules do not show denies a merge", () => {
+    const w = new World()
+    w.ready()
+    w.w.queue = { id: "q" }
+    w.save()
+    expect(w.gate().reasons).toEqual(["merge-queue"])
+  })
+
+  test("a comment-triggered run neither blocks nor counts as CI", () => {
+    const w = new World()
+    w.ready()
+    const tip = w.git(w.repo, "rev-parse", "origin/main")
+    w.w.flows[tip] = [{ event: "issue_comment", status: "queued", check_suite_id: 5 }]
+    w.save()
+    expect(w.gate().allowed).toBe(true)
+    w.w.checks[tip] = [{ name: "stale", status: "completed", conclusion: "success", check_suite: { id: 5 } }]
+    w.save()
+    expect(w.gate().reasons).toContain("main-not-green")
+  })
+
+  test("a pass that does not also judge main is not enough", () => {
+    const w = new World()
+    const head = w.ready()
+    w.w.checks[head] = [{ name: "review bot", status: "completed", conclusion: "success" }]
+    w.save()
+    expect(w.gate().reasons).toEqual(["checks-unrelated"])
+  })
+
+  test("a lockfile source or content change without a version change waits for a person", () => {
+    const w = new World()
+    const lock = (host: string, sum: string) => `"left": { "version": "1.2.0",\n"resolved": "https://${host}/left-1.2.0.tgz",\n"integrity": "${sum}" }\n`
+    w.write("package-lock.json", lock("registry.example", "aa"))
+    w.commit("lock", ["package-lock.json"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    w.pr(7, { "package-lock.json": lock("evil.example", "bb") })
+    expect(w.gate().reasons).toContain("hard-limit")
+  })
+
+  test("observe and the gate agree on a dependency PR's motion", () => {
+    const w = new World(HANDS_OFF + "autonomous_motions: [stack]\n")
+    w.ready(7, { "package.json": '{\n  "dependencies": { "left": "1.2.1" }\n}\n' })
+    expect(w.gate().allowed).toBe(true)
+    expect(w.run(["observe"]).json.prs[0].handling).toBe("land")
+  })
+
+  test("one unreadable PR does not stop the rest", () => {
+    const w = new World()
+    w.pr(7, { "app.rb": "two\n" })
+    w.pr(8, { "app.rb": "three\n" })
+    w.w.prs[7].api_commits = Array(1000).fill(w.w.prs[7].api_commits[0])
+    w.save()
+    expect(w.run(["observe"]).json.prs.map((p: any) => p.handling)).toEqual(["diff-only", "land"])
+  })
+
+  test("update takes a behind PR whose required check failed", () => {
+    const w = new World()
+    const head = w.ready()
+    w.write("other.rb", "x\n")
+    w.commit("base", ["other.rb"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    w.fail(head)
+    w.w.prs[7].mergeStateStatus = "BLOCKED"
+    w.save()
+    expect(w.run(["update", "--token", w.token, "--pr", "7"]).json.updated).toBe(7)
   })
 
   test("an override's author spelling does not matter", () => {

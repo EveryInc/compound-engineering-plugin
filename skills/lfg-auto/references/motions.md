@@ -10,7 +10,7 @@ A repair that edits CI itself always parks for a person.
 
 ## bugs
 
-Sources: open issues that report wrong behavior, and the rolling `feedback-sweep-plan` that `ce-sweep` keeps with the repository's plans, when it has one. When feedback sources are configured, run `ce-sweep mode:non-interactive` first. Callee: `lfg <issue URL>`, with the instruction not to merge. Pass `--origin issue:<n>`, or `--origin external` for anything that came from outside GitHub.
+Sources: open issues that report wrong behavior, and the rolling `feedback-sweep-plan` that `ce-sweep` keeps with the repository's plans, when it has one. When feedback sources are configured and `sweep_shared_branch` is not set, run `ce-sweep mode:non-interactive` first, in a worktree on its own branch, so its commit never reaches the default branch from here. Its approved acknowledgements at the source are allowed; it lands nothing and needs no job. Callee: `lfg <issue URL>`, with the instruction not to merge. Pass `--origin issue:<n>`, or `--origin external` for anything that came from outside GitHub.
 
 `lfg` returns prose. Find the PR from its branch rather than from its text, and treat a non-empty `## Needs your decision` as questions to answer here before landing.
 

@@ -46,7 +46,7 @@ Landing is judged on the exact head, after the last push to it. A review made be
 5. For each entry in the policy's `rules`, judge the diff against its text and record `rule --pr <n> --rule <id> --head <sha> --verdict pass|fail --why "<reason>"`. Unsure is `fail`.
 6. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
 
-A commit for direct landing takes `test`, `review` and `rule` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. A red main is repaired through a PR, because an unpublished commit has no checks. When main moves while it is red, `update` the repair PR, start a new `main-red` job for the new tip, and adopt the updated head under it.
+A commit for direct landing takes `test`, `review` and `rule` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. A red main is repaired through a PR, because an unpublished commit has no checks. When main moves while it is red, `update` the repair PR, start a new `main-red` job for the new tip without `--opens-pr`, and adopt the updated head under it.
 
 Before parking a question, check `decisions`. One whose situation matches settles it: act on it within the item's level and cite its id. A near match is a recommendation, not an answer.
 

@@ -18,7 +18,7 @@ Read the repository first: open PRs and issues, who opens them, main's health, t
 
    Earning takes five clean landings of its own work in that motion, whether the script or a person merged them unchanged. A revert, or a PR a person closes, resets it. Closing items needs `backlog` at babysit, so cautious never closes. At every profile, a person lands changes to permissions, data deletion or migration, secrets, billing, releases, and the CI, tests, scripts and instructions that judge a change.
 3. **Motions.** Default: main-red, bugs, backlog, stack.
-4. **Who is trusted.** Accounts whose PRs may merge, accounts whose PRs may be babysat, and everyone else, whose code is never run. Write a bot as `name[bot]`. Babysitting or testing runs that person's code on this machine, where it can reach the user's files and keychain; say so before accepting a name. Review bots must be listed too, because an unlisted voice on an autonomous PR caps it.
+4. **Who is trusted.** Accounts whose PRs may merge, accounts whose PRs may be babysat, and everyone else, whose code is never run. Write a bot as `name[bot]`. Babysitting or testing runs that person's code on this machine, where it can reach the user's files and keychain; say so before accepting a name. A listed person's commits must be signed unless the PR comes from their own fork. Review bots must be listed too, because an unlisted voice on an autonomous PR caps it.
 5. **Test command.** What must pass on this machine before anything lands. Without one, nothing lands.
 6. **Direct to the default branch.** Off unless the user asks. It is refused where branch rules exist.
 7. **Rules in their own words.** Each can only make a landing stricter.

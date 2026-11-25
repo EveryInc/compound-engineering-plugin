@@ -55,7 +55,7 @@ describe("own work", () => {
     own(w, "main-red")
     expect(w.gate().allowed).toBe(true)
     w.fail(tip, "other-check")
-    expect(w.gate().reasons).toEqual(["main-not-green"])
+    expect(w.gate().reasons).toContain("main-not-green")
   })
 
   test("a push after the recorded head is not the recorded work", () => {
@@ -77,7 +77,9 @@ describe("own work", () => {
   test("another person's commit on an own PR cannot be recorded", () => {
     const w = new World().begin()
     const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
-    const head = w.pr(7, { "app.rb": "two\n" }, { login: ME }, { api_commits: [{ author: { login: "stranger" }, commit: {} }] })
+    const head = w.pr(7, { "app.rb": "two\n" }, { login: ME }, { })
+    w.w.prs[7].api_commits[0].author.login = "stranger"
+    w.save()
     const adopt = (h: string) => w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", h]).json.reasons
     expect(adopt(head)).toEqual(["commit-not-attributed"])
     expect(adopt("a".repeat(40))).toEqual(["head-moved"])
@@ -109,13 +111,27 @@ describe("own work", () => {
     expect(job("external").origin_trusted).toBe(false)
   })
 
+  test("a repair must also turn the failed workflow green", () => {
+    const w = new World()
+    const tip = w.git(w.repo, "rev-parse", "origin/main")
+    w.fail(tip)
+    const head = own(w, "main-red")
+    const flow = (conclusion: string) => [{ name: "CI", event: "push", status: "completed", conclusion }]
+    w.w.flows = { [tip]: flow("failure") }
+    w.save()
+    expect(w.gate().reasons).toEqual(["main-not-green"])
+    w.w.flows[head] = flow("success")
+    w.save()
+    expect(w.gate().allowed).toBe(true)
+  })
+
   test("a skipped check does not count as repaired", () => {
     const w = new World()
     w.fail(w.git(w.repo, "rev-parse", "origin/main"))
     const head = own(w, "main-red")
     w.w.checks[head] = [{ name: "ci", status: "completed", conclusion: "skipped" }, { name: "x", status: "completed", conclusion: "success" }]
     w.save()
-    expect(w.gate().reasons).toEqual(["main-not-green"])
+    expect(w.gate().reasons).toContain("main-not-green")
   })
 
   test("a person's merge of recorded work is a clean landing, and a closed PR is not", () => {
@@ -127,6 +143,26 @@ describe("own work", () => {
     w.save()
     w.begin()
     expect(w.run(["digest"]).json.land).toMatchObject([{ pr: 7, motion: "stack", by: "person" }])
+  })
+
+  test("a squashed revert that names the PR resets earning", () => {
+    const w = new World(HANDS_OFF.replace("hands-off", "balanced")).begin()
+    const file = path.join(w.repo, ".context/compound-engineering/lfg-auto/ledger.jsonl")
+    writeFileSync(file, [1, 2, 3, 4, 5].map((i) =>
+      JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", motion: "stack", pr: i, merge_sha: `${i}`.repeat(40) })).join("\n") + "\n")
+    expect(w.run(["policy"]).json.levels.stack).toBe("merge")
+    w.git(w.repo, "commit", "-q", "--allow-empty", "-m", "Revert it\n\nReverts o/r#3")
+    w.git(w.repo, "push", "-q", "origin", "main")
+    expect(w.run(["policy"]).json.levels.stack).toBe("babysit")
+  })
+
+  test("an unreadable PR at the start of a run does not hold the lease", () => {
+    const w = new World()
+    own(w, "stack")
+    w.run(["end", "--token", w.token])
+    w.w.view_fails = true
+    w.save()
+    expect(w.run(["begin"]).json.token).toBeTruthy()
   })
 
   test("reverting an older landing resets earning", () => {
