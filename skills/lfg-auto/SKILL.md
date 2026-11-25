@@ -22,11 +22,11 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 "$PY" "$SKILL_DIR/scripts/autonomous.py" policy
 ```
 
+- **`dry-run`:** `observe` and say what a run would do, without a lease, a worker, or any write. With `no-profile`, preview each profile instead and offer `setup`. Malformed policy is reported as below.
 - **`active: false` with `no-profile`, or the `setup` argument:** when a person can answer in this session, read `references/setup.md` and follow it. Otherwise report that autonomous mode is not set up here, and stop.
 - **`active: false` for any other reason:** report the detail and stop. Never repair policy to make a run possible.
 - **`status`:** print the policy and the `digest` subcommand's output, and stop.
 - **`answer`, or a person in this session deciding a parked item:** read `references/answers.md` and follow it.
-- **`dry-run`:** observe and say what a run would do, without a lease, a worker, or any write.
 - **Otherwise:** read `references/run.md` and follow it.
 
 ## Authority
