@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { writeFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import { readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { cleanup, HANDS_OFF, ME, World } from "../helpers/afg-world"
 
@@ -128,12 +129,47 @@ describe("lease and caps", () => {
       expect(job(w).code).toBe(0)
     })
 
-    test("a job left by a crashed run takes no place", () => {
+    const ledger = (w: World) => path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    const again = (w: World) => {
+      w.run(["end", "--token", w.token])
+      return w.begin()
+    }
+
+    test("work outlives the run that started it, until it is too old to be going", () => {
       const w = world({ version: 1, jobs: 1, expires_at: soon() })
-      job(w)
-      writeFileSync(path.join(w.repo, ".context/compound-engineering/afg/state.json"), JSON.stringify({ token: w.token, at: "2020-01-01T00:00:00Z" }))
-      w.begin()
+      const first = job(w).json.job
+      const denied = job(again(w)).json
+      expect(denied.reasons).toEqual(["allowance-spent"])
+      expect(denied.going).toMatchObject([{ job: first, what: "x" }])
+      expect(denied.allowance.file).toEndWith("afg/allowance.json")
+      writeFileSync(ledger(w), readFileSync(ledger(w), "utf8").replaceAll(/"at": "[^"]+"(?=, "event": "job")/g, '"at": "2020-01-01T00:00:00Z"'))
       expect(job(w).code).toBe(0)
+    })
+
+    test("a worker on work in flight takes a place too", () => {
+      const w = world({ version: 1, jobs: 1, expires_at: soon() })
+      const worker = w.run(["worker", "--token", w.token, "--what", "fix pr 7"]).json.worker
+      expect(job(w).json.reasons).toEqual(["allowance-spent"])
+      expect(w.run(["worker", "--token", w.token, "--what", "another"]).json.reasons).toEqual(["allowance-spent"])
+      w.run(["worker-end", "--token", w.token, "--worker", worker])
+      expect(job(w).code).toBe(0)
+    })
+
+    test("that disappears mid-run stops the run it bounded, and not the next", () => {
+      const w = world()
+      give(w, { version: 1, jobs: 5, expires_at: soon() })
+      again(w)
+      rmSync(path.join(w.repo, ".context/compound-engineering/afg/allowance.json"))
+      expect(job(w).json.reasons).toEqual(["allowance-missing"])
+      expect(job(again(w)).code).toBe(0)
+    })
+
+    test("a pipe or a folder in its place starts nothing and hangs nothing", () => {
+      for (const make of ["mkfifo", "mkdir"]) {
+        const w = world()
+        spawnSync(make, [path.join(w.repo, ".context/compound-engineering/afg/allowance.json")])
+        expect(job(w).json.reasons).toEqual(["allowance-unreadable"])
+      }
     })
 
     test.each([
@@ -146,6 +182,8 @@ describe("lease and caps", () => {
       ["a negative count", { version: 1, jobs: -1, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
       ["true as a count", { version: 1, jobs: true, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
       ["a list", [], "allowance-unreadable"],
+      ["true as a version", { version: true, jobs: 3, expires_at: "2999-01-01T00:00:00Z" }, "allowance-unreadable"],
+      ["deeply nested", "[".repeat(4000), "allowance-unreadable"],
     ])("that is %s starts nothing", (_name, given, reason) => {
       expect(job(world(given)).json.reasons).toEqual([reason])
     })
