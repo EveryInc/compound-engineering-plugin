@@ -27,7 +27,7 @@ describe("policy", () => {
     ["duplicate", "autonomous_profile: cautious\nautonomous_profile: hands-off\n"],
     ["no profile", "autonomous_trusted_authors: [a]\n"],
     ["CI ignored on the PR route", "autonomous_profile: balanced\nautonomous_ci: ignored\n"],
-    ["direct with a merge commit", "autonomous_profile: balanced\nautonomous_landing: direct\nautonomous_merge_method: merge\n"],
+    ["direct with a rebase", "autonomous_profile: balanced\nautonomous_landing: direct\nautonomous_merge_method: rebase\n"],
     ["paths it cannot match", "autonomous_profile: balanced\nautonomous_checks:\n  - { run: x, paths: \"*.{ts}\" }\n"],
     ["check without a command", "autonomous_profile: balanced\nautonomous_checks:\n  - { paths: x }\n"],
     ["bad number", "autonomous_profile: balanced\nautonomous_jobs_per_hour: lots\n"],

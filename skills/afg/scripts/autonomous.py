@@ -369,7 +369,7 @@ def parse_policy(text, label):
             raise ValueError(f"{label}: {k} must be one of {', '.join(allowed)}")
     if values.get("autonomous_ci") == "ignored" and values.get("autonomous_landing") != "direct":
         raise ValueError(f"{label}: autonomous_ci: ignored needs autonomous_landing: direct")
-    if values.get("autonomous_landing") == "direct" and values.get("autonomous_merge_method", "squash") != "squash":
+    if values.get("autonomous_landing") == "direct" and values.get("autonomous_merge_method") == "rebase":
         raise ValueError(f"{label}: direct landing is always one squashed commit")
     for c in values.get("autonomous_checks", []):
         if set(c) - {"run", "paths"} or not c.get("run"):
