@@ -24,7 +24,7 @@ Optional body.
 CE_COMMIT_MESSAGE_END
 ```
 
-The quoted delimiter keeps the message literal, `$` and backticks included. It is not `EOF` because a message line reading `EOF` would end the heredoc there and run the lines after it as shell commands.
+The quoted delimiter keeps the message literal, `$` and backticks included.
 
 Under PowerShell:
 
