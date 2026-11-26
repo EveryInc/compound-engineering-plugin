@@ -207,8 +207,10 @@ describe("own work", () => {
 })
 
 test("checks take turns on one machine, and a swamped machine starts no job", async () => {
-  const w = new World(HANDS_OFF.replace("run: true", "run: date +%s >> $HOME/turns; sleep 3; date +%s >> $HOME/turns"))
-  const u = new World(HANDS_OFF.replace("run: true", "run: date +%s >> $HOME/turns; sleep 3; date +%s >> $HOME/turns"))
+  // With a meeting place, each waits inside for the other, so both finish only when they run together.
+  const check = HANDS_OFF.replace("  - { run: true }", () => "  - run: echo s >> $HOME/turns; if [ -d $HOME/meet ]; then touch $HOME/meet/$$; n=0; until [ $(ls $HOME/meet | wc -l) -ge 2 ]; do n=$((n+1)); [ $n -lt 15 ] || { rm $HOME/meet/$$; exit 1; }; sleep 1; done; else sleep 4; fi; echo e >> $HOME/turns")
+  const w = new World(check)
+  const u = new World(check)
   u.env.AFG_TURN_DIR = w.env.AFG_TURN_DIR
   u.env.HOME = w.env.HOME
   for (const x of [w, u]) {
@@ -217,15 +219,11 @@ test("checks take turns on one machine, and a swamped machine starts no job", as
   }
   const go = (x: World) => Bun.spawn(["python3", SCRIPT, "test", "--token", x.token, "--pr", "7"], { cwd: x.repo, env: x.env as any, stdout: "ignore", stderr: "ignore" }).exited
   expect(await Promise.all([go(w), go(u)])).toEqual([0, 0])
-  const t = readFileSync(path.join(w.env.HOME!, "turns"), "utf8").trim().split("\n").map(Number)
-  expect(t).toHaveLength(4)
-  expect(t[2]!).toBeGreaterThanOrEqual(t[1]!)
+  expect(readFileSync(path.join(w.env.HOME!, "turns"), "utf8").trim().split("\n")).toEqual(["s", "e", "s", "e"])
   // With processors to spare the second does not wait.
   for (const x of [w, u]) x.env.AFG_SPARE_LIMIT = "100000"
-  writeFileSync(path.join(w.env.HOME!, "turns"), "")
+  mkdirSync(path.join(w.env.HOME!, "meet"))
   expect(await Promise.all([go(w), go(u)])).toEqual([0, 0])
-  const both = readFileSync(path.join(w.env.HOME!, "turns"), "utf8").trim().split("\n").map(Number)
-  expect(both[1]! - both[0]!).toBeLessThan(3)
   w.env.AFG_LOAD_LIMIT = "0"
   expect(w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.reasons).toEqual(["machine-busy"])
 })
