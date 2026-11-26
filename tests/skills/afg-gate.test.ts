@@ -617,3 +617,23 @@ describe("merge gate", () => {
     expect(w.gate().reasons).toEqual(["rule-denied"])
   })
 })
+
+test("Dependabot's own updater failing on main's commit is not main failing; code scanning is", () => {
+  const w = new World(HANDS_OFF).begin()
+  const tip = w.git(w.repo, "rev-parse", "origin/main")
+  w.w.checks[tip] = [
+    { name: "ci", status: "completed", conclusion: "success", check_suite: { id: 1 } },
+    { name: "Dependabot", status: "completed", conclusion: "failure", check_suite: { id: 2 } },
+  ]
+  const main = (path: string, event = "dynamic") => {
+    w.w.flows[tip] = [
+      { id: 1, name: "CI", event: "push", path: ".github/workflows/ci.yml", status: "completed", conclusion: "success", check_suite_id: 1 },
+      { id: 2, name: "update", event, path, status: "completed", conclusion: "failure", check_suite_id: 2 },
+    ]
+    w.save()
+    return w.run(["observe"]).json.main
+  }
+  expect(main("dynamic/dependabot/dependabot-updates")).toBe("green")
+  expect(main("dynamic/github-code-scanning/codeql")).toBe("red")
+  expect(main("dynamic/dependabot/dependabot-updates", "push")).toBe("red")
+})

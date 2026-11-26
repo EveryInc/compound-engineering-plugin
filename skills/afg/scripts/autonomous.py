@@ -859,9 +859,12 @@ def checks_at(repo, sha):
     rows, contexts, flow_rows = runs["check_runs"], stats["statuses"], flows["workflow_runs"]
     if runs["total_count"] > len(rows) or len(contexts) >= 100 or flows["total_count"] > len(flow_rows):
         return "unknown", [], []
-    # Comments, schedules and manual runs attach to the same commit without testing it.
-    ci = [f for f in flow_rows if f.get("event") not in NOT_CI]
-    other = {f.get("check_suite_id") for f in flow_rows if f.get("event") in NOT_CI}
+    # Comments, schedules, manual runs and Dependabot's own updater attach to the same commit without testing it.
+    # Code scanning is dynamic too and does test it, so the event alone does not say; GitHub sets the path.
+    apart = [f for f in flow_rows if f.get("event") in NOT_CI
+             or f.get("event") == "dynamic" and f.get("path") == "dynamic/dependabot/dependabot-updates"]
+    ci = [f for f in flow_rows if f not in apart]
+    other = {f.get("check_suite_id") for f in apart}
     rows = [c for c in rows if (c.get("check_suite") or {}).get("id") not in other - {None}]
     rows = [c for c in rows if c.get("name") not in ignored]
     contexts = [c for c in contexts if c.get("context") not in ignored]
