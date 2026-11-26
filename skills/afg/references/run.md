@@ -4,7 +4,7 @@ Every command below is `"$PY" "$SKILL_DIR/scripts/autonomous.py" <subcommand>`, 
 
 ## Begin
 
-`begin` before making a branch or worktree, so a run that finds the lock leaves nothing behind. It returns a `token`; pass it as `--token` to every later command that takes one (`answer` does not). `locked` means another run is active: report that, settle or close this thread where the host can, and stop. `report-only` means observe, report, and stop.
+`begin` before making a branch or worktree, so a run that finds the lock leaves nothing behind. It returns a `token`; pass it as `--token` to every later command that takes one (`answer` does not). `locked` means another run is active: report that and stop. Settle or close this thread only when it is this run's alone: a schedule may reuse one thread, and settling it ends the run that holds the lock. `report-only` means observe, report, and stop.
 
 Whatever happens after a token is issued, finish with `end --token`. `heartbeat` when a wait is long: the lease expires after three hours without a write, and a run that loses it stops at once.
 
@@ -63,7 +63,7 @@ When a denial needs a person, `park --item pr:<n>|issue:<n>|commit:<sha>|main|id
 
 ## Keep going
 
-After each item, `observe` again and take the next, alternating in-flight work with a new job while `job` allows one. A parked item, a failed job, a slow test or a finished report is a reason to take another item, not to end. While a worker, test or review runs, start or advance something else; wait only when nothing else can move. Never end a turn with nothing set to wake it: a worker that reports back, or `room` in the background, which ends when a job could start (`machine-busy`, `jobs-at-once`) and keeps the lease meanwhile. Run `test` and `guard` in the background, because they wait in the machine's line. A wrong belief about this repository that the run corrected outside a job's `lfg`, such as which check is flaky, how it lands or what its boot touches, goes to `ce-compound mode:non-interactive` in a worktree once no job waits on review or a landing, and what that writes lands by the rule in `references/motions.md`, Between jobs; when that cannot happen in this run, name the lesson in the digest.
+After each item, `observe` again and take the next, alternating in-flight work with a new job while `job` allows one. A parked item, a failed job, a slow test or a finished report is a reason to take another item, not to end. While a worker, test or review runs, start or advance something else; wait only when nothing else can move. Never end a turn with nothing set to wake it: a worker that reports back, or `room` in the background, which ends when a job could start (`machine-busy`, `jobs-at-once`) and keeps the lease meanwhile. Where the host settles a thread once its linked PRs have merged, see that yours is still open after the last one lands, while work remains. Run `test` and `guard` in the background, because they wait in the machine's line. A wrong belief about this repository that the run corrected outside a job's `lfg`, such as which check is flaky, how it lands or what its boot touches, goes to `ce-compound mode:non-interactive` in a worktree once no job waits on review or a landing, and what that writes lands by the rule in `references/motions.md`, Between jobs; when that cannot happen in this run, name the lesson in the digest.
 
 End only when one of these holds, and name it first in the digest:
 
@@ -87,6 +87,6 @@ Nothing this run started outlives its use. As soon as an item is landed, closed,
 
 ## End
 
-`clean`, `digest`, then `end --token`. Print, in this order: what needs the owner, each with its recommendation; what landed or closed, with links; what was decided on the owner's behalf and why, with every guard changed and the probe it still catches; what is in flight; main's health; what could not be cleaned. Say plainly when nothing changed. A scheduled run that did nothing settles its own thread where the host can.
+`clean`, `digest`, then `end --token`. Print, in this order: what needs the owner, each with its recommendation; what landed or closed, with links; what was decided on the owner's behalf and why, with every guard changed and the probe it still catches; what is in flight; main's health; what could not be cleaned. Say plainly when nothing changed. A scheduled run that did nothing settles its own thread where the host can, unless another run uses it.
 
 **A security finding that is not fixed yet is never written to an issue, PR, comment, commit, or pushed branch in a repository other people can read.** Put it in the digest only.
