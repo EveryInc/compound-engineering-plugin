@@ -4,7 +4,7 @@ Every command below is `"$PY" "$SKILL_DIR/scripts/autonomous.py" <subcommand>`, 
 
 ## Begin
 
-`begin` returns a `token`; pass it as `--token` to every later command that takes one (`answer` does not). `locked` means another run is active: report that, settle or close this thread where the host can, and stop. `report-only` means observe, report, and stop.
+`begin` before making a branch or worktree, so a run that finds the lock leaves nothing behind. It returns a `token`; pass it as `--token` to every later command that takes one (`answer` does not). `locked` means another run is active: report that, settle or close this thread where the host can, and stop. `report-only` means observe, report, and stop.
 
 Whatever happens after a token is issued, finish with `end --token`. `heartbeat` when a wait is long: the lease expires after three hours without a write, and a run that loses it stops at once.
 
@@ -40,7 +40,7 @@ Babysit only a PR that needs it: failing checks, unanswered review feedback, or 
 
 Other work uses this machine, live copies of this project included.
 
-- Keep scratch files in a folder of your own. Stop processes by the ids you started, never by name. Before returning, confirm that everything you started has stopped; anything made to load the machine ends itself after a set time.
+- Keep scratch files in a folder of your own. Stop processes by the ids you started, never by name, and delete by exact path, never by a pattern: others use similar names. Before returning, confirm that everything you started has stopped; anything made to load the machine ends itself after a set time.
 - Run the tests your change needs. Whole suites run only through `test`. Anything heavy, such as browser checks, goes through `turn --run "<command>"`, which waits in the machine's line; nothing else takes that lock.
 - Before you or a skill you run boots the project, read what booting does to fixed ports, processes, files and services. When it would touch one in use, boot isolated or not at all.
 - Run tests without this shell's service credentials and addresses, as `test` does. Never print an environment, your own or another process's, or a file that holds credentials.
