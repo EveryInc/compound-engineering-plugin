@@ -1442,7 +1442,7 @@ describe("ce-code-review contract", () => {
 
   test("resolver commit recipe limits the commit to fix-owned paths", async () => {
     const fullMode = await readRepoFile("skills/ce-resolve-pr-feedback/references/full-mode.md")
-    expect(fullMode).toContain("git commit -F - -- [files in the change set] <<'EOF'")
+    expect(fullMode).toContain("git commit -F - -- [files in the change set] <<'CE_COMMIT_MESSAGE_END'")
     expect(fullMode).toContain("'@ | git commit -F - -- [files in the change set]")
   })
 

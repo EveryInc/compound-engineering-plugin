@@ -46,14 +46,14 @@ Each layer's full message goes on stdin, as in Step 3:
 ```bash
 gh stack init --base "<base>" "<bottom-branch>"
 git add <bottom-files>
-git commit -F - -- <bottom-files> <<'EOF'
+git commit -F - -- <bottom-files> <<'CE_COMMIT_MESSAGE_END'
 <bottom-message>
-EOF
+CE_COMMIT_MESSAGE_END
 gh stack add "<next-branch>"
 git add <next-files>
-git commit -F - -- <next-files> <<'EOF'
+git commit -F - -- <next-files> <<'CE_COMMIT_MESSAGE_END'
 <next-message>
-EOF
+CE_COMMIT_MESSAGE_END
 ```
 
 Under PowerShell:

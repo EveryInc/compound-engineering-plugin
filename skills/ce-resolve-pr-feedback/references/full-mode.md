@@ -159,11 +159,11 @@ Commit only the change set, preserving unrelated work in the tree and index, wit
 
 ```bash
 git add [files in the change set]
-git commit -F - -- [files in the change set] <<'EOF'
+git commit -F - -- [files in the change set] <<'CE_COMMIT_MESSAGE_END'
 Address PR review feedback (#PR_NUMBER)
 
 - [list changes from per-item results]
-EOF
+CE_COMMIT_MESSAGE_END
 ```
 
 Under PowerShell:

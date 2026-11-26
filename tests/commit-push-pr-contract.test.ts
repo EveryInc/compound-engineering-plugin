@@ -305,7 +305,7 @@ describe("ce-commit-push-pr contract", () => {
 
   test("passes the commit message on stdin, with a PowerShell route", async () => {
     const commitRef = await readRepoFile("skills/ce-commit-push-pr/references/commit-and-push.md")
-    expect(commitRef).toContain("git commit -F - -- file1 file2 file3 <<'EOF'")
+    expect(commitRef).toContain("git commit -F - -- file1 file2 file3 <<'CE_COMMIT_MESSAGE_END'")
     expect(commitRef).toContain("'@ | git commit -F - -- file1 file2 file3")
     expect(commitRef).not.toContain("git commit -m")
   })

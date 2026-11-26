@@ -75,9 +75,9 @@ For native host-owned Git commits, pass the full resolved message to Git on stdi
 git add <files related to this logical unit>
 
 # 3. Commit with the resolved message, limited to those same paths
-git commit -F - -- <files related to this logical unit> <<'EOF'
+git commit -F - -- <files related to this logical unit> <<'CE_COMMIT_MESSAGE_END'
 <resolved message>
-EOF
+CE_COMMIT_MESSAGE_END
 ```
 
 Under PowerShell:

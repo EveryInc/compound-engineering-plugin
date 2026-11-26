@@ -716,7 +716,7 @@ describe("ce-work implementation evidence characterization", () => {
     expect(incremental).toContain(precedence!)
     expect(incremental).toContain("User override wins.")
     expect(incremental).not.toMatch(/Commit with conventional message|use clean conventional messages|git commit -m "feat\(scope\):/)
-    expect(incremental).toContain("git commit -F - -- <files related to this logical unit> <<'EOF'")
+    expect(incremental).toContain("git commit -F - -- <files related to this logical unit> <<'CE_COMMIT_MESSAGE_END'")
     expect(incremental).toContain("'@ | git commit -F - -- <files related to this logical unit>")
     expect(incremental).toContain("**Native Git commit workflow:**")
     expect(incremental).not.toContain("git commit -m")

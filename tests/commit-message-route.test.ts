@@ -4,7 +4,9 @@ import { describe, expect, test } from "bun:test"
 
 /**
  * Every commit a skill prescribes passes its message to `git commit -F -` on stdin:
- * a quoted heredoc in bash, a single-quoted here-string piped in PowerShell. `-m`
+ * a quoted heredoc in bash, a single-quoted here-string piped in PowerShell. The
+ * heredoc ends at a delimiter no message line repeats: with `EOF`, a message line
+ * reading `EOF` ends it early and the rest runs as shell commands. `-m`
  * interpolates `$` and backticks in both shells, and an unnamed message file let
  * concurrent sessions commit each other's messages. A file that commits also
  * carries the PowerShell route and its encoding line: Windows PowerShell 5.1 pipes
@@ -56,7 +58,7 @@ describe("commit message route", () => {
       for (const fence of fileFences) {
         for (const line of fence.lines.filter((l) => commitLine.test(l))) {
           if (fence.lang === "powershell") expect(line).toMatch(/^'@ \| git commit -F - /)
-          else expect(line).toMatch(/git commit -F - .*<<'EOF'$/)
+          else expect(line).toMatch(/git commit -F - .*<<'CE_COMMIT_MESSAGE_END'$/)
         }
       }
       const powershell = fileFences.filter((f) => f.lang === "powershell")

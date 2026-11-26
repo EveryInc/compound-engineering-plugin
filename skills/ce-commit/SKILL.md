@@ -50,14 +50,14 @@ git add file1 file2 file3
 ```
 
 ```bash
-git commit -F - -- file1 file2 file3 <<'EOF'
+git commit -F - -- file1 file2 file3 <<'CE_COMMIT_MESSAGE_END'
 type(scope): subject line
 
 Optional body.
-EOF
+CE_COMMIT_MESSAGE_END
 ```
 
-The quoted `'EOF'` keeps the message literal, `$` and backticks included.
+The quoted delimiter keeps the message literal, `$` and backticks included. It is not `EOF` because a message line reading `EOF` would end the heredoc there and run the lines after it as shell commands.
 
 Under PowerShell:
 
