@@ -88,6 +88,8 @@ Without an explicit pipeline, autonomous runs skip planning, treat review as opt
 
 An invalidating settlement conflict from planning or review stops the pipeline before shipping. Non-halting flagged conflicts become residuals that reach the PR's settled-decisions line.
 
+A small change, such as a version bump, runs a smaller chain: no simplification, tests it can affect, and a browser pass only when it reaches a page. Review always runs.
+
 No git remote, or `mode:local-only` from a caller such as [`/afg`](./afg.md): commit locally and skip push, PR creation, and CI watch. That is a terminal local-only path, not an error to retry.
 
 `lfg` never launches `/goal` itself. `ce-work` implements the plan and returns control, so `lfg` can run review and shipping.

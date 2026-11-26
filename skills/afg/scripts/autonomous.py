@@ -995,6 +995,11 @@ def npm_change(old, new):
         name = k.split("node_modules/")[-1]
         # The package at this path, from the public registry, under its own name.
         here = "name" not in v and str(v.get("resolved", "")).startswith(f"{host}{name}/-/")
+        if v.get("inBundle") and "resolved" not in v and not v.get("link"):
+            # Shipped inside the package above it, whose own entry is checked.
+            if k.rsplit("/node_modules/", 1)[0] in b and (o is None or o.get("inBundle") or o == v):
+                continue
+            return "source"
         if o is not None and here and not str(o.get("resolved", "")).startswith(f"{host}{name}/-/"):
             return "source"
         if v.get("link") or not here or not v.get("integrity"):
@@ -1010,8 +1015,12 @@ def npm_change(old, new):
                 return "source"
         elif v.get("hasInstallScript") and not o.get("hasInstallScript"):
             return "source"
-        elif major_pair(str(o.get("version", "0.0")) + ".0", str(v.get("version", "0.0")) + ".0"):
-            verdict = "major"
+        else:
+            x, y = (str(e.get("version", "0.0")) + ".0" for e in (o, v))
+            # Below 1.0 a minor may break whoever asked for it directly; a transitive one is its parent's business.
+            direct = k == f"node_modules/{name}" and name in own(b)
+            if major_pair(x, y) and (direct or x.split(".")[0] != y.split(".")[0]):
+                verdict = "major"
     return verdict
 
 

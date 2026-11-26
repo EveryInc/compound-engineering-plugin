@@ -2,7 +2,7 @@
 
 Each section names what the motion may start, the callee, and what stays with a person. Workers are told the end state and never receive permission to land.
 
-Work is done by `lfg`, which picks the right skill for it and carries the result through the whole chain; only a measured search in `climb` uses `ce-optimize` instead. Run the callee as a skill in the worker's session, not reread and imitated: the chain inside it is the quality this mode relies on. `adopt --via <skill>` records it, taken from what the worker's session ran; `callee-missing` means the work is not done yet. A worker that may not run the skill, such as one the project forbids subagents, says so, and the job goes to a separate session or thread of its own that may.
+Work is done by `lfg`, which picks the right skill for it and carries the result through the whole chain; only a measured search in `climb` uses `ce-optimize` instead. For a small change, tell it that this run tests the whole suite itself. Run the callee as a skill in the worker's session, not reread and imitated: the chain inside it is the quality this mode relies on. `adopt --via <skill>` records it, taken from what the worker's session ran; `callee-missing` means the work is not done yet. A worker that may not run the skill, such as one the project forbids subagents, says so, and the job goes to a separate session or thread of its own that may.
 
 On the `direct` route, every "PR" below is one local commit: call `lfg mode:local-only <request>` from the worker's branch. When it is done, the worker squashes its commits into one. Its residuals are read like a PR's.
 

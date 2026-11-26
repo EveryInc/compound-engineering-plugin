@@ -1,10 +1,21 @@
-# Pre-ship quality steps (LFG steps 3–7)
+# Pre-ship quality steps (LFG steps 3–8)
 
 These are the quality steps that run after implementation and before shipping. On the defect route the implementation was `ce-debug`'s fix; `references/debug-return.md` names what each step below receives in place of the plan path. `ce-code-review` is review-only. LFG applies eligible fixes itself, then commits.
 
 ## The shipping precondition, in these steps
 
 When the repo has no remote, the run finishes locally. That is a final state, not an error: never retry a push or hunt for a remote. Step 5 still makes every commit it calls for; only the pushes and the records that would live on the PR are dropped. With no PR to hold the unapplied findings, step 6 files them as tracker tickets and the DONE report states the rest. Never write them to a committed file nobody will read.
+
+## Small changes
+
+A change is small when its work source is a one-pass statement and its diff only moves dependency versions in manifests and lockfiles, or is roughly under ten lines of code, and no risk surface (authentication, payments, migrations, stored data, external contracts) is touched. Every step still decides; a small change only sizes what it runs:
+
+- **Implementation:** `ce-work` in this context, with the tests the change can affect, once. A caller that runs the whole suite on the exact result, as its input says, makes a second full run here unnecessary.
+- **Step 3:** skipped, by the rules below.
+- **Step 4:** runs, and its own depth gate chooses how deep. For a version move the review reads what changed between the versions and where this project uses it.
+- **Step 8:** runs when the change reaches a page: a template, style, route, script, or a dependency that ships to the browser or reads or writes content people stored. A server, build, test or lint dependency does not reach one; say so in the DONE report.
+
+Start no subagent for a small change beyond what step 4's gate asks for. When reading shows it is not small, it takes the full chain from that step.
 
 ## Step 3 — simplify before review
 
