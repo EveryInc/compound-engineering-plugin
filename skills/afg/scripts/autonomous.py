@@ -675,6 +675,15 @@ def load_now():
         return None
 
 
+def machine_calm():
+    """Quiet enough that a timing test failing now says something about the code."""
+    limit = os.environ.get("AFG_LOAD_LIMIT")
+    try:
+        return os.getloadavg()[0] < (float(limit) if limit else 0.5 * (os.cpu_count() or 1))
+    except (OSError, AttributeError, ValueError):
+        return True
+
+
 def machine_spare():
     """Processors are still free, so another check would not slow the one running."""
     limit = os.environ.get("AFG_SPARE_LIMIT")
@@ -1811,7 +1820,7 @@ def cmd_test(a, repo):
                     # Every check runs, so one failure never hides another. A failure is tried once more and recorded.
                     for attempt in (1, 2):
                         calm = now() + timedelta(seconds=600)
-                        while attempt == 2 and machine_busy() and now() < min(calm, deadline):
+                        while attempt == 2 and not machine_calm() and now() < min(calm, deadline):
                             # The one retry is not spent on a machine that may be the cause.
                             time.sleep(5)
                         for clean in (["reset", "--quiet", "--hard", head], ["clean", "-ffdxq"]) if attempt == 2 else ():
