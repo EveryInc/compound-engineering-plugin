@@ -58,6 +58,12 @@ if a[0] == "api":
     if m:
         flows = w.get("flows", {}).get(m[1], [])
         out({"total_count": len(flows), "workflow_runs": flows})
+    m = re.search(r"actions/runs/(\\d+)/jobs", u)
+    if m:
+        jobs = w.get("jobs", {}).get(m[1], [])
+        out({"total_count": len(jobs), "jobs": jobs})
+    m = re.search(r"check-runs/(\\d+)/annotations", u)
+    if m: out(w.get("notes", {}).get(m[1], []))
     m = re.search(r"pulls/(\\d+)/(commits|comments|reviews)", u)
     if m:
         page = int(re.search(r"page=(\\d+)$", u)[1])

@@ -334,3 +334,6 @@
 # ce-config-template-version: 5
 # autonomous_jobs_per_hour: 6                 # unset by default: a run works until a usage limit
 # ce-config-template-version: 6
+# autonomous_ci: required                     # required | if-running (skips CI GitHub refuses to start, hands-off default) | ignored (direct only)
+# autonomous_ignored_checks: [deploy/old-host]   # hosted checks that do not count, such as a retired service
+# ce-config-template-version: 7

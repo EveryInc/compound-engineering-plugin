@@ -66,14 +66,15 @@ CALLEES = {"climb": ["ce-optimize", "lfg"]}
 ORIGIN_REQUIRED = {"bugs", "security", "backlog"}
 DEFAULTS = {"autonomous_motions": DEFAULT_MOTIONS, "autonomous_jobs_per_hour": None, "autonomous_open_pr_cap": 5,
             "autonomous_overrides": [], "autonomous_trusted_authors": [], "autonomous_babysit_authors": [],
-            "autonomous_rules": [], "autonomous_landing_steps": [], "autonomous_judges": [], "autonomous_checks": [],
+            "autonomous_rules": [], "autonomous_landing_steps": [], "autonomous_judges": [], "autonomous_ignored_checks": [], "autonomous_checks": [],
             "autonomous_landing": "pull-request", "autonomous_ci": "required", "autonomous_merge_method": None}
-CHOICES = {"autonomous_landing": ["pull-request", "direct"], "autonomous_ci": ["required", "ignored"],
+CHOICES = {"autonomous_landing": ["pull-request", "direct"], "autonomous_ci": ["required", "if-running", "ignored"],
            "autonomous_merge_method": ["squash", "rebase", "merge"]}
 # How work lands is the repository's own rule; a local file may repeat it, never replace it.
-FIXED = ["autonomous_landing", "autonomous_ci", "autonomous_merge_method", "autonomous_checks"]
+FIXED = ["autonomous_landing", "autonomous_ci", "autonomous_merge_method", "autonomous_checks", "autonomous_ignored_checks"]
 PARK_DAYS = 7
 JOBS_AT_ONCE = 2
+JOBS_WITH_ROOM = 4
 BUSY_PER_CPU = 4
 LANES = 3
 MACHINE_WAIT = 2 * 3600
@@ -92,6 +93,7 @@ KEYS = {
     "autonomous_checks": "maps",
     "autonomous_landing_steps": "list",
     "autonomous_judges": "list",
+    "autonomous_ignored_checks": "list",
 }
 OK_CONCLUSIONS = {"success", "neutral", "skipped"}
 NOT_CI = {"issues", "issue_comment", "schedule", "workflow_dispatch", "discussion", "discussion_comment", "label",
@@ -463,6 +465,10 @@ def load_policy(repo):
         p, source = {**DEFAULTS, **mine}, "config.local.yaml"
     else:
         return {"active": False, "reason": "no-profile"}
+    if p["autonomous_profile"] == "hands-off" and "autonomous_ci" not in {**team, **mine}:
+        # Hosted CI that does not run says nothing. Its own failures still count.
+        p["autonomous_ci"] = "if-running"
+    repo.policy = p
     return {"active": True, "source": source, **p}
 
 
@@ -823,8 +829,30 @@ def landed_count(repo, rows, motion):
 
 # --- GitHub facts ------------------------------------------------------------
 
+NOT_STARTED = "The job was not started because "
+
+
+def never_started(repo, flow):
+    """Names of this run's jobs, when GitHub itself refused to start every one that failed. Nothing in a repository can fake it."""
+    if not flow.get("id"):
+        return None
+    jobs = gh_json("api", f"repos/{repo.name}/actions/runs/{flow['id']}/jobs?per_page=100")
+    if jobs["total_count"] > len(jobs["jobs"]):
+        return None
+    bad = [j for j in jobs["jobs"] if j.get("conclusion") not in OK_CONCLUSIONS]
+    for j in bad:
+        if j.get("conclusion") != "failure" or j.get("runner_id") or j.get("steps"):
+            return None
+        notes = gh_json("api", f"repos/{repo.name}/check-runs/{j['id']}/annotations")
+        if not any((n.get("message") or "").startswith(NOT_STARTED) for n in notes):
+            return None
+    return {j["id"] for j in bad} if bad else None
+
+
 def checks_at(repo, sha):
-    """(state, failing names, names that succeeded). state is green, red or unknown."""
+    """(state, failing names, names that succeeded). state is green, red, unknown, or not-run when GitHub started nothing."""
+    policy = getattr(repo, "policy", None) or {}
+    ignored = set(policy.get("autonomous_ignored_checks", []))
     runs = gh_json("api", f"repos/{repo.name}/commits/{sha}/check-runs?per_page=100")
     stats = gh_json("api", f"repos/{repo.name}/commits/{sha}/status?per_page=100")
     flows = gh_json("api", f"repos/{repo.name}/actions/runs?head_sha={sha}&per_page=100")
@@ -835,6 +863,16 @@ def checks_at(repo, sha):
     ci = [f for f in flow_rows if f.get("event") not in NOT_CI]
     other = {f.get("check_suite_id") for f in flow_rows if f.get("event") in NOT_CI}
     rows = [c for c in rows if (c.get("check_suite") or {}).get("id") not in other - {None}]
+    rows = [c for c in rows if c.get("name") not in ignored]
+    contexts = [c for c in contexts if c.get("context") not in ignored]
+    idle = False
+    if policy.get("autonomous_ci") == "if-running":
+        for f in [f for f in ci if f.get("status") == "completed" and f.get("conclusion") == "failure"]:
+            dead = never_started(repo, f)
+            if dead:
+                idle = True
+                ci = [x for x in ci if x is not f]
+                rows = [c for c in rows if c.get("id") not in dead]
     # A workflow between jobs shows only finished checks, so the run itself must be finished.
     pending = any(f.get("status") != "completed" for f in ci)
     failed = set()
@@ -858,6 +896,8 @@ def checks_at(repo, sha):
                if f.get("status") == "completed" and f.get("conclusion") not in OK_CONCLUSIONS}
     if failed:
         return "red", sorted(failed), sorted(passed)
+    if idle and not pending:
+        return "not-run", [], sorted(passed)
     if pending or not passed:
         return "unknown", [], sorted(passed)
     return "green", [], sorted(passed)
@@ -1276,12 +1316,13 @@ def receipt_reasons(policy, rows, subject, head, base, guards=()):
     return out
 
 
-def main_reasons(repo, motion, job, passed):
+def main_reasons(repo, motion, job, passed, head_state=None):
     state, failing, _ = checks_at(repo, repo.tip())
-    if state == "green":
+    if state in ("green", "not-run"):
         return []
     if state == "red" and motion == "main-red" and job and job.get("red_tip") == repo.tip() \
-            and set(failing) <= set(passed):
+            and (set(failing) <= set(passed) or head_state == "not-run"):
+        # When GitHub runs nothing for the repair, its test on this tip stands for the checks that fail there.
         return []
     return ["main-not-green"]
 
@@ -1334,22 +1375,24 @@ def gate(repo, policy, rows, number):
         reasons.append("review-required")
     if pr["mergeable"] != "MERGEABLE":
         reasons.append("not-mergeable")
-    if pr["mergeStateStatus"] not in ("CLEAN", "HAS_HOOKS", "BEHIND"):
+    state, _, passed = checks_at(repo, head)
+    # Unstable means a check nothing requires failed, and which ones count is judged by name below.
+    steady = ("CLEAN", "HAS_HOOKS", "BEHIND") + (("UNSTABLE",) if state in ("green", "not-run") else ())
+    if pr["mergeStateStatus"] not in steady:
         reasons.append(f"merge-state-{pr['mergeStateStatus'].lower()}")
     rules = rules_on_default(repo)
     if rules is None:
         reasons.append("rules-unreadable")
     elif "merge_queue" in rules or has_merge_queue(repo):
         reasons.append("merge-queue")
-    state, _, passed = checks_at(repo, head)
-    if state != "green":
+    if state not in ("green", "not-run"):
         reasons.append(f"checks-{state}")
     _, main_failing, main_passed = checks_at(repo, base)
     judges = set(main_passed) | set(main_failing)
-    if judges and not set(passed) & judges:
+    if state == "green" and judges and not set(passed) & judges:
         # Something passed, but nothing that also judges the default branch.
         reasons.append("checks-unrelated")
-    reasons += main_reasons(repo, motion, job, passed)
+    reasons += main_reasons(repo, motion, job, passed, state)
     if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0:
         reasons.append("behind")
     stopped = stops(policy, facts, trust == "own")
@@ -1624,7 +1667,7 @@ def cmd_job(a, repo):
             return deny_allowance(repo, rows, reasons)
         # A repair everything else waits for takes one place beyond the limit.
         spare = a.motion == "main-red" and not any(r.get("motion") == "main-red" for r in active_work(rows))
-        if allowance(repo) is None and len(active_work(rows)) >= JOBS_AT_ONCE + spare:
+        if allowance(repo) is None and len(active_work(rows)) >= (JOBS_WITH_ROOM if machine_spare() else JOBS_AT_ONCE) + spare:
             # Without an allocator nothing else shares this machine out.
             return deny("jobs-at-once", going=[{k: r[k] for k in ("job", "worker", "what", "at") if k in r} for r in active_work(rows)])
         # With CI ignored the checks here say whether main is broken, and a repair gets no exception from them.
@@ -2186,9 +2229,9 @@ def cmd_direct(a, repo):
         reasons.append("hard-limit")
     if facts["major"]:
         reasons.append("major-update")
-    if policy["autonomous_ci"] == "required":
+    if policy["autonomous_ci"] in ("required", "if-running"):
         state = checks_at(repo, base)[0]
-        if state != "green" and not (state == "red" and job["motion"] == "main-red" and job.get("red_tip") == base):
+        if state not in ("green", "not-run") and not (state == "red" and job["motion"] == "main-red" and job.get("red_tip") == base):
             # An unpublished repair has no hosted checks; its test on this tip stands for them.
             reasons.append("main-not-green")
     # With CI ignored the checks here are the gate: the test receipt is for this commit on this tip, which is what the default

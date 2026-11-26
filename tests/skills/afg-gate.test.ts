@@ -474,6 +474,53 @@ describe("merge gate", () => {
     expect(seen(5, { "node_modules/left": pkg("1.3.0", { hasInstallScript: true }) })[1]).toEqual(bad)
   })
 
+  describe("hosted CI that does not run", () => {
+    const why = "The job was not started because recent account payments have failed"
+    function world(settings: string, job: any = {}, note = why) {
+      const w = new World(HANDS_OFF + settings)
+      const head = w.ready()
+      const main = w.git(w.repo, "rev-parse", "origin/main")
+      w.w.jobs = {}
+      w.w.notes = {}
+      ;[head, main].forEach((sha, i) => {
+        const id = 100 + i
+        w.w.checks[sha] = [{ id, name: "ci", status: "completed", conclusion: "failure" }]
+        w.w.flows[sha] = [{ id, name: "CI", event: "push", status: "completed", conclusion: "failure" }]
+        w.w.jobs[id] = [{ id, name: "ci", conclusion: "failure", runner_id: 0, steps: [], ...job }]
+        w.w.notes[id] = [{ message: note }]
+      })
+      w.w.prs[7].mergeStateStatus = "UNSTABLE"
+      w.save()
+      return w
+    }
+    test("is skipped by hands-off, and the local test and review decide", () => {
+      const w = world("")
+      expect(w.gate().allowed).toBe(true)
+    })
+    test.each([
+      ["settings require it", "autonomous_ci: required\n", {}, why],
+      ["a job ran", "", { runner_id: 4, steps: [{}] }, why],
+      ["a job ran no step but had a runner", "", { runner_id: 4 }, why],
+      ["GitHub gives another reason", "", {}, "The process exited with code 1"],
+    ])("still counts when %s", (_n, settings, job, note) => {
+      expect(world(settings, job, note).gate().reasons).toEqual(expect.arrayContaining(["checks-red", "merge-state-unstable"]))
+    })
+    test("a check the owner names does not count, and every other one does", () => {
+      const w = new World(HANDS_OFF + "autonomous_ignored_checks: [old/preview]\n")
+      const head = w.ready()
+      w.w.checks[head] = [
+        { name: "ci", status: "completed", conclusion: "success" },
+        { name: "old/preview", status: "completed", conclusion: "failure" },
+      ]
+      w.w.prs[7].mergeStateStatus = "UNSTABLE"
+      w.save()
+      expect(w.gate().allowed).toBe(true)
+      w.w.checks[head].push({ name: "other", status: "completed", conclusion: "failure" })
+      w.save()
+      expect(w.gate().reasons).toContain("checks-red")
+    })
+  })
+
   test("what a gem asks of another gem is not an update of it", () => {
     const lock = (v: string, need: string) => `GEM\n  specs:\n    rails (${v})\n      sanitizer (${need})\n    sanitizer (1.7.1)\n`
     const w = new World()
