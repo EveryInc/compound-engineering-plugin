@@ -402,8 +402,13 @@ test.each([
 })
 
 describe("a review after a rebase", () => {
-  function moved(files: Record<string, string>, change = "two\n", review: any = {}, back = false) {
+  function moved(files: Record<string, string>, change = "two\n", review: any = {}, back = false, start = "two\n", before?: string) {
     const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
+    if (before) {
+      w.write("lib/app.rb", before)
+      w.commit("before", ["lib/app.rb"])
+      w.git(w.repo, "push", "-q", "origin", "main")
+    }
     const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
     const commit = (text: string) => {
       w.git(w.repo, "checkout", "-q", "--detach", "origin/main")
@@ -413,7 +418,7 @@ describe("a review after a rebase", () => {
       w.run(["test", "--token", w.token, "--sha", sha])
       return sha
     }
-    const first = commit("two\n")
+    const first = commit(start)
     w.run(["review", "--token", w.token, "--sha", first], w.reviewJson(first, review))
     w.git(w.repo, "checkout", "-q", "main")
     for (const [p, t] of Object.entries(files)) w.write(p, t)
@@ -436,6 +441,10 @@ describe("a review after a rebase", () => {
     ["it was not clean", { "docs/a.md": "x\n" }, "two\n", { verdict: "Not ready" }, "review-missing", false],
   ])("is asked again when %s", (_n, files, change, review, reason, back) => {
     expect(moved(files as Record<string, string>, change as string, review, !!back).reasons).toEqual([reason])
+  })
+  test("is asked again when the same lines go elsewhere in the file, which patch-id does not see", () => {
+    const at = (n: number) => "same\n".repeat(n) + "new\n" + "same\n".repeat(60 - n)
+    expect(moved({ "docs/a.md": "x\n" }, at(40), {}, false, at(10), "same\n".repeat(60)).reasons).toEqual(["review-missing"])
   })
 })
 

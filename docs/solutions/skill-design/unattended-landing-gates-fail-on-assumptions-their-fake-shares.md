@@ -2,6 +2,7 @@
 title: "An unattended landing gate fails on the assumptions its fake GitHub shares"
 category: skill-design
 date: 2026-11-25
+last_updated: 2026-11-25
 module: skills/afg
 problem_type: design_pattern
 component: tooling
@@ -42,6 +43,7 @@ These beliefs were wrong. Each is now denied or handled in `skills/afg/scripts/a
 | `git ls-tree <ref> -- <path>` reads from the repository root | From a subdirectory the path is relative to it. Use `--full-tree` |
 | Text-mode subprocess output keeps lines intact | Newline translation splits a line at a lone carriage return, and the rest escapes a `+`/`-` filter |
 | A revert names the commit | A squashed revert may name only the PR |
+| A job that concluded `failure` ran and failed | GitHub can refuse to start a job, for example over billing, and still report `failure`: `runner_id` is 0, `steps` is empty, and an annotation starts with "The job was not started because". `never_started` requires all three, and only `autonomous_ci: if-running` then leaves the job out |
 
 Review such a gate adversarially with read-only calls to real public repositories. The queue and event findings came from looking at live data, not from reading the code.
 
