@@ -554,12 +554,21 @@ describe("finished", () => {
     expect(d.compose(j, { kind: "docs" }).ready).toBe(j.job)
   })
 
-  test("a moved parent voids the receipts", () => {
+  test("a parent that moves during a run leaves its work, shown as behind; the next run starts on the new tip", () => {
     const w = new Fork()
     const j = w.prove()
+    const began = w.git(w.repo, "rev-parse", "refs/afg/parent/main")
     w.write("other.rb", "x\n")
-    w.commit("moved", ["other.rb"])
+    const moved = w.commit("moved", ["other.rb"])
     w.git(w.repo, "push", "-q", "https://github.com/o/r.git", "main")
+    w.git(w.repo, "update-ref", "refs/afg/parent/main", moved)
+    expect(w.compose(j).ready).toBe(j.job)
+    expect(w.run(["upstream"]).json.tip).toBe(began)
+    expect(w.git(w.repo, "rev-parse", "refs/afg/parent/main")).toBe(began)
+    expect(w.run(["digest"]).json.prepared).toMatchObject([{ sha: j.sha, behind: true }])
+    w.t("end")
+    w.begin()
+    expect(w.run(["upstream"]).json.tip).toBe(moved)
     expect(w.compose(j).reasons).toEqual(expect.arrayContaining(["author-not-trusted", "test-missing", "reproduce-missing"]))
   })
 
@@ -840,4 +849,23 @@ test("nothing this keeps in the checkout shows up for the project to commit, and
   w.begin()
   expect(w.git(w.repo, "status", "--porcelain")).toBe("")
   expect(readFileSync(path.join(w.repo, ".git/info/exclude"), "utf8")).toBe("mine\n/.context/compound-engineering/afg/\n/.compound-engineering/config.local.yaml\n")
+})
+
+test("a GitHub call with any flag is refused, bundled ones included", () => {
+  const dir = path.dirname(SCRIPT)
+  const ask = (...args: string[]) => spawnSync("python3", ["-c", "import sys; sys.path.insert(0, sys.argv[1]); sys.dont_write_bytecode = True; import upstream; print(upstream.readable(tuple(sys.argv[2:])))", dir, ...args], { encoding: "utf8" }).stdout.trim()
+  expect(ask("api", "repos/o/r")).toBe("True")
+  for (const flag of ["-if", "-fa=b", "-XPOST", "--input"]) expect(ask("api", "repos/o/r/issues", flag, "a=b")).toBe("False")
+  expect(ask("api", "graphql")).toBe("False")
+  expect(ask("pr", "create")).toBe("False")
+})
+
+test("rules the parent changes during a run count at once", () => {
+  const w = new Fork()
+  const j = w.prove()
+  w.write("CONTRIBUTING.md", "No AI contributions.\n")
+  w.commit("ban", ["CONTRIBUTING.md"])
+  w.git(w.repo, "push", "-q", "https://github.com/o/r.git", "main")
+  expect(w.compose(j).reasons).toEqual(["rules-stale"])
+  expect(w.job().json.reasons).toContain("rules-stale")
 })

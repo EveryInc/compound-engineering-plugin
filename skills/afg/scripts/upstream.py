@@ -150,9 +150,8 @@ def readable(args):
     """A GitHub call that cannot change anything."""
     if args[:2] in (("pr", "list"), ("pr", "view"), ("issue", "list"), ("issue", "view"), ("repo", "view")):
         return True
-    # Any field makes gh send a POST unless the method says otherwise.
-    return args[:1] == ("api",) and not any(
-        re.match(r"-[XfFH]|--(method|field|raw-field|input|header)", x) for x in args[1:]) and "graphql" not in args
+    # An address and nothing else. A flag can make gh write, alone or bundled with another.
+    return len(args) == 2 and args[0] == "api" and not args[1].startswith("-") and args[1] != "graphql"
 
 
 def refuse(a):
@@ -160,6 +159,40 @@ def refuse(a):
         return ["upstream-mode"]
     # Other people's code is never adopted, run or judged here.
     return ["upstream-mode"] if a.cmd in ("adopt", "test", "review", "rule") and a.pr is not None else []
+
+
+def keep(repo):
+    return {"tip": repo.tip(), "tip_of": [repo.upstream["parent"], repo.default]}
+
+
+def kept_tip(core, repo):
+    """The parent's tip this run began with. A busy project moves faster than its own gate runs, and nothing lands from here.
+
+    From the run's own state: code under test can move a ref.
+    """
+    state = core.read_state(repo)
+    tip = state.get("tip")
+    if repo.beginning or not state.get("token") or state.get("tip_of") != [repo.upstream["parent"], repo.default]:
+        return None
+    try:
+        if core.parse_iso(state["at"]) + core.LEASE_TTL < core.now():
+            return None
+    except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+        return None
+    if not isinstance(tip, str) or not core.SHA.match(tip) or core.git("cat-file", "-e", f"{tip}^{{commit}}", check=False).returncode != 0:
+        return None
+    # Work starts from this name.
+    core.git("update-ref", f"refs/afg/parent/{repo.default}", tip)
+    return tip
+
+
+def live_tip(core, repo):
+    """The parent's tip now, where its rules are read from."""
+    if getattr(repo, "live", None) is None:
+        ref = f"refs/afg/live/{repo.default}"
+        core.git("fetch", "--quiet", "--no-tags", repo.upstream["parent_url"], f"+refs/heads/{repo.default}:{ref}")
+        repo.live = core.git("rev-parse", ref).stdout.strip()
+    return repo.live
 
 
 def settings(core, mine):
@@ -201,7 +234,7 @@ def resolved(core, tip, path, hops=20):
 
 def rule_files(core, repo):
     """[(path, text)] for every file that says how to contribute, at the parent's tip or inherited from its organization."""
-    up, tip = repo.upstream, repo.tip()
+    up, tip = repo.upstream, live_tip(core, repo)
     names = [n for n in core.git("ls-tree", "-r", "-z", "--full-tree", "--name-only", tip).stdout.split("\0") if n and RULE_FILE.search(n)]
     out = [(n, blob_at(core, tip, n)) for n in names]
     try:
@@ -341,8 +374,8 @@ def waiting(core, repo, rows):
         return []
     fine = not recorded_rules(core, repo, rows)[1]
     out = prepared(core, rows, {p["headRefOid"] for p in own_prs(core, repo, "state=all", first)})
-    base = {r["sha"]: r.get("base") for r in rows if r["event"] == "upstream-ready"}
-    return [{**p, "confirmed": p["confirmed"] and fine, "behind": base[p["sha"]] != repo.tip()} for p in out]
+    base, tip = {r["sha"]: r.get("base") for r in rows if r["event"] == "upstream-ready"}, live_tip(core, repo)
+    return [{**p, "confirmed": p["confirmed"] and fine, "behind": base[p["sha"]] != tip} for p in out]
 
 
 def tend_only(core, repo, policy, rows, mine=None):

@@ -241,6 +241,7 @@ class Repo:
         first = git("worktree", "list", "--porcelain").stdout.strip().split("\n\n")[0].splitlines()
         self.main = None if "bare" in first else os.path.realpath(first[0][len("worktree "):])
         self._gh = self._tip = self._login = self._up = None
+        self.beginning = False
 
     @property
     def upstream(self):
@@ -284,6 +285,10 @@ class Repo:
     def tip(self, fresh=False):
         if fresh or self._tip is None:
             ref = f"refs/afg/parent/{self.default}" if self.upstream else f"refs/remotes/origin/{self.default}"
+            kept = upstream.kept_tip(sys.modules[__name__], self) if self.upstream else None
+            if kept:
+                self._tip = kept
+                return kept
             git("fetch", "--quiet", "--no-tags", self.upstream["parent_url"] if self.upstream else "origin", f"+refs/heads/{self.default}:{ref}")
             self._tip = git("rev-parse", ref).stdout.strip()
         return self._tip
@@ -1531,7 +1536,7 @@ def cmd_begin(a, repo):
         token = secrets.token_hex(8)
         settle(repo, ledger(repo))
         append(repo, "run", token=token, reclaimed=reclaimed, under_allowance=allowance(repo) is not None)
-        write_state(repo, {"token": token, "at": iso(now())})
+        write_state(repo, {"token": token, "at": iso(now()), **(upstream.keep(repo) if repo.upstream else {})})
     for block in git("worktree", "list", "--porcelain").stdout.split("\n\n"):
         tree = block.split("\n")[0][len("worktree "):]
         if os.path.basename(os.path.dirname(tree)).startswith("afg-test-"):
@@ -2566,6 +2571,7 @@ def main():
         if upstream.wanted(sys.modules[__name__], repo):
             gh.read_only = True
             os.environ["GH_HOST"] = "github.com"
+            repo.beginning = a.cmd == "begin"
             why = upstream.refuse(a)
             if why:
                 return deny(*why)
