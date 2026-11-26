@@ -55,6 +55,8 @@ if a[0] == "api":
     if u.endswith("/community/profile"):
         if w.get("parent", {}).get("fork"): print("gh: Not Found (HTTP 404)", file=sys.stderr); sys.exit(1)
         out({"files": w.get("profile", {"contributing": None, "pull_request_template": None})})
+    m = re.match(r"repos/o/r/(pulls|issues)/(\\d+)/(comments|reviews)\\?.*?page=(\\d+)$", u)
+    if m: out(w["prs"].get(m[2], {}).get("said_" + (m[3] if m[3] == "reviews" else m[1]), []) if m[4] == "1" else [])
     m = re.search(r"search/issues.q=([^&]+)", u)
     if m:
         q = urllib.parse.unquote(m[1])
@@ -913,4 +915,59 @@ test("a name under refs/afg that points at the owner's branch does not move it",
   for (const n of ["parent", "live"]) w.git(w.repo, "symbolic-ref", `refs/afg/${n}/main`, "refs/heads/main")
   expect(w.run(["upstream"]).code).toBe(0)
   expect(w.git(w.repo, "rev-parse", "refs/heads/main")).toBe(mine)
+})
+
+test("a check the owner saved for a required command proves it, only here and only as saved", () => {
+  const gate = { gate: ["bundle exec suite"] }
+  const bare = new Fork().begin()
+  expect(bare.rules(gate).json.reasons).toEqual(["gate-not-a-check"])
+  const w = new Fork(LOCAL.replace(/autonomous_checks:[^]*?(?=\nautonomous|$)/, 'autonomous_checks:\n  - { run: "make gate", for: "bundle exec suite, other" }'))
+  const j = w.prove({ rules: gate })
+  expect(w.compose(j).ready).toBe(j.job)
+  const plain = new World("autonomous_profile: hands-off\nautonomous_checks:\n  - { run: true, for: x }\n")
+  expect(plain.run(["policy"]).json.reason).toBe("policy-malformed")
+})
+
+test("a review thread or a person left without an answer needs attention; a bot's summary does not", () => {
+  const w = new Fork().begin()
+  const bot = { login: "reviewer[bot]", type: "Bot" }, person = { login: "owner", type: "User" }, me = { login: ME, type: "User" }
+  const see = (pulls: any[], issues: any[], reviews: any[] = []) => {
+    const at = (rows: any[]) => rows.map((r, i) => ({ created_at: `2026-01-0${i + 1}T00:00:00Z`, submitted_at: `2026-01-0${i + 1}T00:00:00Z`, ...r }))
+    w.theirs(5, { said_pulls: pulls, said_issues: at(issues), said_reviews: at(reviews) })
+    return w.run(["observe"]).json.own_prs[0].attention
+  }
+  const open = ["unanswered"]
+  expect(see([], [{ user: bot, body: "Summary" }])).toEqual([])
+  expect(see([{ id: 1, position: 3, user: bot }], [])).toEqual(open)
+  expect(see([{ id: 1, position: 3, user: bot }, { id: 2, in_reply_to_id: 1, position: 3, user: me }, { id: 3, in_reply_to_id: 1, position: 3, user: bot }], [])).toEqual([])
+  expect(see([{ id: 1, position: null, user: bot }], [])).toEqual([])
+  expect(see([{ id: 1, position: null, user: person }], [])).toEqual(open)
+  expect(see([], [{ user: person, body: "Why?" }])).toEqual(open)
+  expect(see([], [{ user: null, body: "Why?" }])).toEqual(open)
+  expect(see([], [{ user: person, body: "Why?" }, { user: me, body: "Because" }])).toEqual([])
+  expect(see([], [], [{ user: person, body: "Can you explain?" }])).toEqual(open)
+  expect(see([], [], [{ user: person, body: "" }])).toEqual([])
+  expect(see([], [{ user: bot, body: `@${ME} please rebase` }])).toEqual(open)
+  expect(see([], [{ user: bot, body: `@${ME}-two please rebase` }])).toEqual([])
+})
+
+test("a change to the command a check stands for is a judge too", () => {
+  const w = new Fork(LOCAL.replace("{ run: make gate }", '{ run: "make gate", for: "sh suite.txt" }'))
+  w.write("suite.txt", "echo\n")
+  w.commit("suite", ["suite.txt"])
+  w.git(w.repo, "push", "-q", "https://github.com/o/r.git", "main")
+  w.begin()
+  w.rules({ gate: ["sh suite.txt"] })
+  const job = w.job().json.job
+  const sha = w.branch({ ...FIX, "suite.txt": "true\n" })
+  w.t("adopt", "--job", job, "--sha", sha)
+  expect(w.t("test", "--sha", sha).json.reasons).toContain("hard-limit")
+})
+
+test("a skill the project ships for contributors is one of its rules", () => {
+  const w = new Fork()
+  w.write(".claude/skills/contributing/SKILL.md", "x\n")
+  w.commit("skill", [".claude"])
+  w.git(w.repo, "push", "-q", "https://github.com/o/r.git", "main")
+  expect(w.run(["upstream"]).json.rule_files).toContain(".claude/skills/contributing/SKILL.md")
 })

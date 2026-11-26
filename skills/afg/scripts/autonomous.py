@@ -418,7 +418,7 @@ def parse_policy(text, label):
     if values.get("autonomous_landing") == "direct" and values.get("autonomous_merge_method") == "rebase":
         raise ValueError(f"{label}: direct landing is one commit (squash), or the merge of one (merge)")
     for c in values.get("autonomous_checks", []):
-        if set(c) - {"run", "paths"} or not c.get("run"):
+        if set(c) - ({"run", "paths", "for"} if values.get("autonomous_landing") == "upstream" else {"run", "paths"}) or not c.get("run"):
             raise ValueError(f"{label}: a check needs run, and may have paths")
         globs(c.get("paths", ""), label)
     for g in values.get("autonomous_judges", []):
@@ -1013,7 +1013,7 @@ def glob_match(name, glob):
 
 def judge_hits(policy, names):
     """Files the owner or a check command names as deciding whether a change passes."""
-    said = {t.strip("'\"();") for c in policy.get("autonomous_checks", []) for t in c["run"].split()}
+    said = {t.strip("'\"();") for c in policy.get("autonomous_checks", []) for t in (c["run"] + " " + c.get("for", "").replace(",", " ")).split()}
     owner = [n for n in names if any(glob_match(n, g) for g in policy.get("autonomous_judges", []))]
     run = [n for n in names if n in said or f"./{n}" in said]
     return [f"judge:{n}" for n in owner] + [f"{'guard' if is_guard(n) else 'judge'}:{n}" for n in run]

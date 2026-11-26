@@ -12,7 +12,7 @@ For a fork of a project the owner does not maintain. Its maintainers owe this ac
 
 `because` says, for each key recorded as `none`, `pr`, `unstated` or `welcome`, what the files say about it or that they say nothing.
 
-`gate-not-a-check` means the owner must save that command as a check: park `setting:upstream-gate`. Before a job, read `scope` again; what the project does not ask for is not work here. Features, taste and refactors are not.
+`gate-not-a-check` means the owner must save that command as a check, or with `for` a check that stands for it on this machine: park `setting:upstream-gate`. Text that leaves this machine names the command that ran, never the one it stands for. Before a job, read `scope` again; what the project does not ask for is not work here. Features, taste and refactors are not.
 
 **No text that leaves this machine says which model did the work.** The disclosure names the tool. A field that asks for the model stays empty for the owner, and a project that asks is recorded `model: asked`, so the owner fills it.
 

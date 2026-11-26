@@ -28,7 +28,7 @@ RULE_FILE = re.compile(
     r"^((\.github|docs)/)?(contributing|security|code_of_conduct|(ai|llm)[-_]\w+|dco|cla|governance|pull_request_template)"
     r"([-_][\w-]+)?((\.[a-z]{2}(-\w+)?)?\.(md|markdown|txt|rst|adoc))?$|"
     r"^((\.github|docs)/)?(pull_request_template|contributing)/[^/]+$|^(agents|claude|gemini)\.md$|^\.cursorrules$|^\.cursor/rules/|"
-    r"^\.github/copilot-instructions\.md$|^\.(overcommit|lefthook|pre-commit-config)\.ya?ml$|^lefthook\.ya?ml$|"
+    r"^\.(claude|agents)/skills/contribut\w*/SKILL\.md$|^\.github/copilot-instructions\.md$|^\.(overcommit|lefthook|pre-commit-config)\.ya?ml$|^lefthook\.ya?ml$|"
     r"(^|/)(\.husky|\.githooks|hooks)/(pre-commit|pre-push|commit-msg)$", re.I)
 TEMPLATE = re.compile(r"(^|[/:])pull_request_template(\.(md|txt))?$|(^|/)pull_request_template/[^/]+\.(md|txt)$", re.I)
 # A reading that asks nothing of the contributor needs its reason.
@@ -341,7 +341,7 @@ def cmd_rules(core, a, repo):
     unexplained = [k for k in LAX if d[k] in LAX[k] and len(str(because.get(k) or "").strip()) < 20]
     if unexplained:
         return core.deny("rules-unexplained", keys=unexplained)
-    missing = [g for g in d["gate"] if not any(proves(c["run"], g) for c in policy["autonomous_checks"])]
+    missing = [g for g in d["gate"] if not any(stands_for(policy, c["run"], g) for c in policy["autonomous_checks"])]
     if missing:
         # What the project requires is what this machine must run, so the owner saves it as a check.
         return core.deny("gate-not-a-check", missing=missing)
@@ -444,6 +444,29 @@ def failing_at(core, repo, sha):
                   | {c["context"] for c in stats if c.get("state") in ("failure", "error")})
 
 
+def unanswered(core, repo, number):
+    """What people said last in a review thread or comment, and bot threads this account never answered."""
+    def who(x):
+        return core.canonical(x.get("user") or {}), (x.get("user") or {}).get("type") != "Bot"
+    threads = {}
+    for c in core.gh_list(repo.name, "pulls", number, "comments"):
+        threads.setdefault(c.get("in_reply_to_id") or c["id"], []).append(c)
+    for said in threads.values():
+        last, person = who(said[-1])
+        if last == repo.login:
+            continue
+        # A person's question outlives the line it was on. A bot gets one answer, not the last word.
+        live = any(c.get("position") is not None or c.get("line") is not None for c in said)
+        if person or live and all(who(c)[0] != repo.login for c in said):
+            return True
+    talk = [(c.get("created_at") or "", *who(c), c.get("body") or "") for c in core.gh_list(repo.name, "issues", number, "comments")]
+    talk += [(r.get("submitted_at") or "", *who(r), r["body"]) for r in core.gh_list(repo.name, "pulls", number, "reviews") if r.get("body")]
+    mine = max((at for at, login, _, _ in talk if login == repo.login), default="")
+    named = re.compile(r"@" + re.escape(repo.login) + r"(?![\w-])", re.I)
+    # A bot's summary asks nothing. One that names this account does.
+    return any(at >= mine and login != repo.login and (person or named.search(body)) for at, login, person, body in talk)
+
+
 def observe(core, repo, policy, rows):
     """Own open PRs first, each with what it waits for, then the project's open issues."""
     park, mine = core.parked(rows), own_prs(core, repo)
@@ -456,7 +479,7 @@ def observe(core, repo, policy, rows):
         p.update(core.gh_json("pr", "view", str(p["number"]), "-R", repo.name, "--json", "mergeable,reviewDecision"))
         p["failing"], p["parked"] = failing_at(core, repo, p["headRefOid"]), quiet(f"pr:{p['number']}", p["updatedAt"])
         p["attention"] = [x for x, on in (("conflict", p["mergeable"] == "CONFLICTING"), ("checks-failing", bool(p["failing"])),
-                                          ("changes-requested", p["reviewDecision"] == "CHANGES_REQUESTED")) if on]
+                                          ("changes-requested", p["reviewDecision"] == "CHANGES_REQUESTED"), ("unanswered", unanswered(core, repo, p["number"]))) if on]
     issues = core.gh_json("issue", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json",
                           "number,title,author,updatedAt,labels") if repo.upstream["has_issues"] else []
     for i in issues:
@@ -571,6 +594,13 @@ def cmd_judge(core, a, repo):
 
 # --- proof ----------------------------------------------------------------------
 
+def stands_for(policy, ran, wanted_command):
+    """It ran that command, or the owner saved it as what stands for that command on this machine."""
+    said = [c.get("for", "") for c in policy["autonomous_checks"] if c["run"] == ran]
+    want = wanted_command.strip()
+    return proves(ran, want) or bool(want) and any(want == s.strip() or want in [x.strip() for x in s.split(",")] for s in said)
+
+
 def proves(ran, wanted_command):
     """This command ran as part of that one, and that one could only pass if it did."""
     if ran.strip() == wanted_command.strip():
@@ -684,7 +714,7 @@ def proof_reasons(core, repo, policy, rows, job_id, sha):
     out += moved(core, repo, base, sha)
     out += core.receipt_reasons(policy, rows, f"direct:{sha}", sha, base)
     passed = passed_commands(core, policy, rows, sha, base)
-    if rules and not all(any(proves(p, g) for p in passed) for g in rules["gate"]):
+    if rules and not all(any(stands_for(policy, p, g) for p in passed) for g in rules["gate"]):
         out.append("gate-not-passed")
     if not docs_only(core, base, sha):
         r = core.receipt(rows, f"direct:{sha}", sha, base, "reproduce")
