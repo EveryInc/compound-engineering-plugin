@@ -43,6 +43,8 @@ host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-deb
 
 ## What makes it novel
 
+**The skills do the work.** Each job goes through `lfg`, also where work lands straight on main; measured speed work uses `ce-optimize`. The script refuses work whose run does not name the skill it went through, and the digest lists them.
+
 **A script decides landings.** The agent does the work; a bundled script reads policy from the default branch and facts from GitHub, then allows or denies. A PR cannot change the policy that judges it, and text in an issue or PR grants nothing.
 
 **Four settings combine.** A profile sets a start and a ceiling for each motion. Overrides lower a motion or an author. Rules in your own words make a landing stricter. Five clean landings raise a motion to its ceiling, and a revert or a closed PR resets it.

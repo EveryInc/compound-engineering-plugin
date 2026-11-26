@@ -6,6 +6,8 @@ Read this before choosing the route. It defines the routes, their precedence whe
 
 The work source starts from what the invocation and the conversation carry: a feature description, an issue reference, a plan path, a plan `ce-plan` wrote earlier in this session, a brainstorm artifact, or a handoff the user resumed. A file that exists in the plans directory but that nothing in the session names is not identified. `ce-work`'s blank-invocation intake discovers the newest plan on disk; `lfg` never invokes `ce-work` blank, so that path is unreachable from here. When nothing identifiable was given, the route is the plan route with an empty description, which `ce-plan` answers by asking what to plan when a human is present and by returning blocked when none is.
 
+`mode:local-only` is a token, not part of the request: remove it before routing and pass it to no child. It ends the run at commits on the current branch, with nothing pushed and no PR; report the branch, its head and any residuals in the DONE report.
+
 When the invocation passes a tracker reference (`ESP-1234`, `#123`, an issue URL), read that ticket and state its title in chat before any child skill starts implementation or investigation. If the title cannot be read, say that instead of guessing one and continue, since `lfg` does not wait on the user. When no reference was passed, there is no ticket to state: do not invent one.
 
 ## Routes, in precedence order

@@ -2,7 +2,7 @@
 
 Interactive only. Ask one question at a time with the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability. Fall back to numbered options in chat only when no such tool is in the list or a real question call errors. Never silently skip a question. On `setup` with settings present, show them and ask only about what the user wants to change.
 
-Read the repository first: open PRs and issues, who opens them, main's health, the test command, and whether branch rules exist. Offer answers from what you found.
+Read the repository first: open PRs and issues, who opens them, main's health, the test command, whether branch rules exist, and, on the pull-request route, any check that failed on every recent PR, such as a retired service's: each one blocks every landing until the owner removes or fixes it, so say so before the first run. Offer answers from what you found.
 
 ## Questions
 

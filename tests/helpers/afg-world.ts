@@ -84,6 +84,7 @@ export class World {
   env: NodeJS.ProcessEnv
   w: any = { prs: {}, checks: {}, issues: {}, flows: {}, comments: {} }
   token = ""
+  noVia = false
 
   constructor(team: string | null = HANDS_OFF, local?: string) {
     roots.push(this.root)
@@ -144,6 +145,7 @@ export class World {
     return this.calls().filter((c) => ["merge", "close", "comment"].includes(c[1]!) || c.includes("-X"))
   }
   run(args: string[], input?: unknown) {
+    if (args[0] === "adopt" && !args.includes("--via") && !this.noVia) args = [...args, "--via", "lfg"]
     const r = spawnSync("python3", [SCRIPT, ...args], {
       cwd: this.repo, env: this.env, encoding: "utf8", input: input === undefined ? "" : JSON.stringify(input),
     })

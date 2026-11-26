@@ -289,6 +289,27 @@ describe("guards", () => {
   })
 })
 
+test.each([
+  ["stack", [], ["lfg"]],
+  ["stack", ["ce-optimize"], ["lfg"]],
+  ["stack", ["lfg"], null],
+  ["climb", ["ce-optimize"], null],
+  ["climb", ["ce-work", "ce-simplify-code"], ["ce-optimize", "lfg"]],
+])("a %s job built through %p", (motion, via, callees) => {
+  const w = new World(HANDS_OFF + "autonomous_motions: [stack, climb]\n").begin()
+  w.noVia = true
+  const job = w.run(["job", "--token", w.token, "--motion", motion as string, "--what", "x", "--opens-pr"]).json.job
+  const head = w.pr(7, { "app.rb": "two\n" }, { login: ME })
+  const adopt = (v: string[]) => w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", head, ...v.flatMap((x) => ["--via", x])]).json
+  const r = adopt(via as string[])
+  if (callees) expect(r).toMatchObject({ reasons: ["callee-missing"], callees })
+  else {
+    expect(r.job).toBe(job)
+    expect(adopt([]).job).toBe(job)
+    expect(w.run(["digest"]).json.skills[job]).toBeDefined()
+  }
+})
+
 test("parking says what was tried", () => {
   const w = new World().begin()
   const r = w.run(["park", "--token", w.token, "--item", "main:x", "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", " "])

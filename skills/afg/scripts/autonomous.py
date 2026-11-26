@@ -59,6 +59,8 @@ TABLE = {
     "climb": [("report", "report"), ("pr", "merge"), ("merge", "merge")],
     "create": [("report", "report"), ("pr", "pr"), ("pr", "merge")],
 }
+# The skill a job's work must have gone through. lfg is how work gets done; a measured search is the exception.
+CALLEES = {"climb": ["ce-optimize", "lfg"]}
 # A job that answers someone's request records who asked.
 ORIGIN_REQUIRED = {"bugs", "security", "backlog"}
 DEFAULTS = {"autonomous_motions": DEFAULT_MOTIONS, "autonomous_jobs_per_hour": None, "autonomous_open_pr_cap": 5,
@@ -1399,14 +1401,20 @@ def cmd_adopt(a, repo):
     with locked(repo):
         require_lease(repo, a.token)
         rows = ledger(repo)
-        if not job_of(rows, a.job):
+        job = job_of(rows, a.job)
+        if not job:
             return deny("job-missing")
         mine = [r for r in rows if r["event"] == "adopt" and r["job"] == a.job]
+        callees = CALLEES.get(job["motion"], ["lfg"])
+        via = sorted(set(a.via))
+        if not mine and not set(via) & set(callees):
+            # Asked once per job: a later head is a fix or a rebase of the same work.
+            return deny("callee-missing", callees=callees)
         if any(r.get("pr") != what.get("pr") for r in mine) or job_landed(rows, a.job):
             return deny("job-already-used")
         if a.sha and any(r["event"] == "adopt" and r.get("sha") == a.sha and r["job"] != a.job for r in rows):
             return deny("commit-already-used")
-        append(repo, "adopt", job=a.job, **what)
+        append(repo, "adopt", job=a.job, via=via, **what)
     return emit({"job": a.job, **what})
 
 
@@ -1917,6 +1925,7 @@ def cmd_digest(a, repo):
     rows = [r for r in ledger(repo) if parse_iso(r["at"]) > cutoff]
     return emit({"since": iso(cutoff),
                  **{k: [r for r in rows if r["event"] == k] for k in ("run", "job", "land", "rejected", "close", "update", "answer")},
+                 "skills": {r["job"]: r["via"] for r in rows if r["event"] == "adopt" and r.get("via")},
                  # Guards changed without a person, told afterward.
                  "guards": [r for r in rows if r["event"] == "receipt" and r.get("kind") == "guard" and r["ok"]],
                  "parked": sorted(parked(rows).values(), key=lambda r: r["at"])})
@@ -1954,6 +1963,7 @@ def main():
     p.add_argument("--job", required=True)
     subject(p)
     p.add_argument("--head", help="the PR head the worker reported; required with --pr")
+    p.add_argument("--via", action="append", default=[], help="each skill the work went through, from the session that ran it")
     p = add("job-end", cmd_job_end)
     p.add_argument("--job", required=True)
     p.add_argument("--why", required=True)
