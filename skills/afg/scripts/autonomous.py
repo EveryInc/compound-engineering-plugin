@@ -1642,7 +1642,7 @@ def cmd_test(a, repo):
                 raise Failure(f"worktree: {add.stderr.strip()}")
             with open(log, "wb") as out:
                 deadline = now() + timedelta(seconds=a.timeout)
-                code = 0
+                code, failed_at = 0, None
                 for command in commands:
                     # Every check runs, so one failure never hides another. A failure is tried once more and recorded.
                     for attempt in (1, 2):
@@ -1662,12 +1662,17 @@ def cmd_test(a, repo):
                         if one in (0, "timeout", "changed-the-tree"):
                             break
                     ran.append({"run": command, "exit": one, "attempts": attempt})
+                    out.seek(0, os.SEEK_END)
+                    if one != 0 and failed_at is None:
+                        # What failed first is what the caller needs to see.
+                        failed_at = out.tell()
                     if one != 0 and code == 0:
                         code = one
             kept = os.path.join(store_dir(repo), f"test-{head[:12]}.log")
             shutil.copyfile(log, kept)
-            with open(log, encoding="utf-8", errors="replace") as f:
-                tail = f.read()[-3000:]
+            with open(log, "rb") as f:
+                f.seek(max(0, (failed_at or 0) - 3000))
+                tail = f.read(3000 if failed_at is None else min(3000, failed_at)).decode("utf-8", "replace")
         finally:
             if proc is not None:
                 kill_group(proc)

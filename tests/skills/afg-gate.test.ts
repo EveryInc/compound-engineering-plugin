@@ -382,6 +382,8 @@ describe("merge gate", () => {
     const w = new World(HANDS_OFF.replace("  - { run: true }\n", `  - { run: "exit 3" }\n  - { run: "${flag}" }\n`)).begin()
     w.pr(7, { "app.rb": "two\n" })
     const r = w.run(["test", "--token", w.token, "--pr", "7"]).json
+    expect(r.tail).toContain("exit 3")
+    expect(r.tail).not.toContain("touch ../flag")
     expect(r).toMatchObject({ ok: false, exit: 3, flaky: [flag] })
     expect(r.ran.map((x: any) => x.exit)).toEqual([3, 0])
     expect(readFileSync(r.log, "utf8")).toContain("attempt 2")
