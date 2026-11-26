@@ -99,6 +99,7 @@ export class World {
       AFG_TURN_DIR: this.root,
       AFG_LOAD_LIMIT: "100000",
       AFG_NO_WAIT: "1",
+      AFG_SPARE_LIMIT: "0",
       GIT_CONFIG_NOSYSTEM: "1",
       GIT_CONFIG_GLOBAL: "/dev/null",
       GIT_AUTHOR_NAME: "t",

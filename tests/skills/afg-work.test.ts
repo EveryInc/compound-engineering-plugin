@@ -220,6 +220,12 @@ test("checks take turns on one machine, and a swamped machine starts no job", as
   const t = readFileSync(path.join(w.env.HOME!, "turns"), "utf8").trim().split("\n").map(Number)
   expect(t).toHaveLength(4)
   expect(t[2]!).toBeGreaterThanOrEqual(t[1]!)
+  // With processors to spare the second does not wait.
+  for (const x of [w, u]) x.env.AFG_SPARE_LIMIT = "100000"
+  writeFileSync(path.join(w.env.HOME!, "turns"), "")
+  expect(await Promise.all([go(w), go(u)])).toEqual([0, 0])
+  const both = readFileSync(path.join(w.env.HOME!, "turns"), "utf8").trim().split("\n").map(Number)
+  expect(both[1]! - both[0]!).toBeLessThan(3)
   w.env.AFG_LOAD_LIMIT = "0"
   expect(w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.reasons).toEqual(["machine-busy"])
 })

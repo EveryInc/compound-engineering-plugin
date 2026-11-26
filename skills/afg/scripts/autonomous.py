@@ -593,21 +593,27 @@ def ledger(repo):
 
 @contextmanager
 def machine_turn(repo, token, seconds):
-    """One check at a time on this machine, whichever repository asks. Waiting is not failing."""
+    """One check at a time on this machine, and a second while it has processors to spare. Waiting is not failing."""
     if fcntl is None or not hasattr(os, "getuid"):
         raise Failure("file locking is unavailable")
     path = os.path.join(os.environ.get("AFG_TURN_DIR") or "/tmp", f"afg-turn-{os.getuid()}.lock")
-    fd, ticket = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600), None
+    second, fd, ticket = None, os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600), None
     try:
         if os.fstat(fd).st_uid != os.getuid():
             raise Failure("the machine lock belongs to someone else")
         end, beat = now() + timedelta(seconds=seconds), now()
+        second = os.open(path + ".2", os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600)
         ticket = take_ticket(path + ".d")
         while True:
             try:
                 if not first_in_line(ticket):
                     raise OSError("not yet")
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError:
+                    if not machine_spare():
+                        raise
+                    fcntl.flock(second, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except OSError:
                 if now() > end:
@@ -617,9 +623,14 @@ def machine_turn(repo, token, seconds):
                     with locked(repo):
                         require_lease(repo, token)
                     beat = now()
+        # The place in line is for waiting. The next one waits while this runs.
+        os.unlink(ticket)
+        ticket = None
         yield
     finally:
         os.close(fd)
+        if second is not None:
+            os.close(second)
         if ticket:
             try:
                 os.unlink(ticket)
@@ -662,6 +673,15 @@ def load_now():
         return round(os.getloadavg()[0], 1)
     except (OSError, AttributeError):
         return None
+
+
+def machine_spare():
+    """Less than half the processors are wanted, so another check would not slow the one running."""
+    limit = os.environ.get("AFG_SPARE_LIMIT")
+    try:
+        return os.getloadavg()[0] < (float(limit) if limit else 0.5 * (os.cpu_count() or 1)) and not machine_busy()
+    except (OSError, AttributeError, ValueError):
+        return False
 
 
 def machine_busy():
