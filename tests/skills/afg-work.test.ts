@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { cleanup, HANDS_OFF, ME, SCRIPT, World } from "../helpers/afg-world"
 
@@ -222,6 +222,20 @@ test("checks take turns on one machine, and a swamped machine starts no job", as
   expect(t[2]!).toBeGreaterThanOrEqual(t[1]!)
   w.env.AFG_LOAD_LIMIT = "0"
   expect(w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.reasons).toEqual(["machine-busy"])
+})
+
+test("the line is first come first served, and a place left by a dead process is skipped", () => {
+  const w = new World()
+  const line = path.join(w.env.AFG_TURN_DIR!, `afg-turn-${process.getuid!()}.lock.d`)
+  mkdirSync(line)
+  writeFileSync(path.join(line, "00000000000000000001-999999"), "")
+  expect(w.run(["turn", "--run", "test -f app.rb"]).json).toEqual({ ok: true, exit: 0 })
+  expect(readdirSync(line)).toEqual([])
+  writeFileSync(path.join(line, `00000000000000000001-${process.pid}`), "")
+  const waiting = Bun.spawn(["python3", SCRIPT, "turn", "--run", "true"], { cwd: w.repo, env: w.env as any, stdout: "ignore", stderr: "ignore" })
+  Bun.sleepSync(2500)
+  expect(waiting.exitCode).toBeNull()
+  waiting.kill()
 })
 
 test("setup can try a check on the tip, which leaves nothing behind", () => {

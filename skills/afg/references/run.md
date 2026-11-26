@@ -86,7 +86,7 @@ End only when one of these holds, and name it first in the digest:
 
 Where the host shows remaining usage, read it before each new job and name it in the digest; a model with no reported limit has none, so keep going. Never end to save quota the owner did not ask to save.
 
-`machine-busy` is not an end while something is going: start nothing new, let it finish, and ask again. With nothing going, end and let the schedule resume. `test` and `guard` wait their turn on this machine across repositories, so run them in the background; a worker runs the tests its change needs rather than whole suites, which `test` runs anyway.
+`machine-busy` is not an end while something is going: start nothing new, let it finish, and ask again. With nothing going, end and let the schedule resume. `test` and `guard` wait their turn on this machine across repositories, so run them in the background; a worker runs the tests its change needs rather than whole suites, which `test` runs anyway, and takes a place in the same line for anything heavy, such as browser checks, with `turn --run "<command>"`.
 
 `jobs-at-once` is not an end: advance or finish what is going. `job-end` an entry only when its worker is gone.
 

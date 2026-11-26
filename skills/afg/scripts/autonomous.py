@@ -597,13 +597,16 @@ def machine_turn(repo, token, seconds):
     if fcntl is None or not hasattr(os, "getuid"):
         raise Failure("file locking is unavailable")
     path = os.path.join(os.environ.get("AFG_TURN_DIR") or "/tmp", f"afg-turn-{os.getuid()}.lock")
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600)
+    fd, ticket = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600), None
     try:
         if os.fstat(fd).st_uid != os.getuid():
             raise Failure("the machine lock belongs to someone else")
         end, beat = now() + timedelta(seconds=seconds), now()
+        ticket = take_ticket(path + ".d")
         while True:
             try:
+                if not first_in_line(ticket):
+                    raise OSError("not yet")
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except OSError:
@@ -617,6 +620,41 @@ def machine_turn(repo, token, seconds):
         yield
     finally:
         os.close(fd)
+        if ticket:
+            try:
+                os.unlink(ticket)
+            except OSError:
+                pass
+
+
+def take_ticket(line):
+    """First come, first served. A lock alone goes to whoever asks at the right moment."""
+    os.makedirs(line, mode=0o700, exist_ok=True)
+    st = os.lstat(line)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        raise Failure("the machine queue belongs to someone else")
+    ticket = os.path.join(line, f"{time.time_ns():020d}-{os.getpid()}")
+    os.close(os.open(ticket, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+    return ticket
+
+
+def first_in_line(ticket):
+    for name in sorted(os.listdir(os.path.dirname(ticket))):
+        m = re.fullmatch(r"\d{20}-(\d+)", name)
+        if not m:
+            continue
+        if name == os.path.basename(ticket):
+            return True
+        try:
+            os.kill(int(m.group(1)), 0)
+            return False
+        except ProcessLookupError:
+            # Whoever held this one is gone.
+            try:
+                os.unlink(os.path.join(os.path.dirname(ticket), name))
+            except OSError:
+                pass
+    return True
 
 
 def load_now():
@@ -1730,6 +1768,26 @@ def cmd_test(a, repo):
     return emit({"ok": code == 0, "exit": code, "ran": ran, "log": log, "guards": guards_of(facts), "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail if code != 0 else ""}, 0 if code == 0 else 1)
 
 
+def cmd_turn(a, repo):
+    """Run one heavy command here, in this machine's turn, without credentials. For a worker's own checks."""
+    tmp, proc = tempfile.mkdtemp(prefix="afg-turn-"), None
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, interrupted)
+    try:
+        with machine_turn(repo, None, MACHINE_WAIT):
+            proc = subprocess.Popen(a.run, shell=True, env=scrubbed_env(tmp), stdin=subprocess.DEVNULL, stdout=sys.stderr,
+                                    start_new_session=True)
+            try:
+                code = proc.wait(timeout=a.timeout)
+            except subprocess.TimeoutExpired:
+                code = "timeout"
+    finally:
+        if proc is not None:
+            kill_group(proc)
+        shutil.rmtree(tmp, ignore_errors=True)
+    return emit({"ok": code == 0, "exit": code}, 0 if code == 0 else 1)
+
+
 def cmd_check(a, repo):
     """Run candidate checks on the default branch tip exactly as `test` would. Records nothing."""
     head, tmp, proc, ran = repo.tip(), tempfile.mkdtemp(prefix="afg-check-"), None, []
@@ -2199,6 +2257,9 @@ def main():
     p = add("test", cmd_test, dry=True)
     subject(p)
     p.add_argument("--timeout", type=int, default=3600)
+    p = add("turn", cmd_turn, token=False)
+    p.add_argument("--run", required=True)
+    p.add_argument("--timeout", type=int, default=1200)
     p = add("check", cmd_check, token=False)
     p.add_argument("--run", action="append", required=True)
     p.add_argument("--timeout", type=int, default=3600)
