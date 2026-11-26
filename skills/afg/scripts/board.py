@@ -20,6 +20,10 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import autonomous  # noqa: E402  the file beside this one
+
 HOME = os.path.join(os.environ.get("COMPOUND_ENGINEERING_HOME") or os.path.expanduser("~/.compound-engineering"), "afg")
 STALE_HOURS = 6
 
@@ -119,22 +123,15 @@ def next_step(pr, parks, on_default, ignored=()):
 
 
 def look(path):
-    name, rows = origin(path), ledger(path)
+    name, rows = origin(path), [r for r in ledger(path) if isinstance(r, dict) and "event" in r]
     out = {"path": path, "repo": name, "items": [], "unreadable": []}
-    parks, landed, adopted, ended = {}, set(), {}, set()
+    # The script's own rule for what is still parked.
+    parks, landed, adopted, ended = autonomous.parked(rows), set(), {}, set()
     jobs = {}
     for r in rows:
         e = r.get("event")
-        if e == "park":
-            parks[r["item"]] = r
-        elif e == "answer":
-            parks.pop(r.get("item"), None)
-        elif e in ("land", "rejected"):
+        if e in ("land", "rejected"):
             landed.add(r.get("sha") or r.get("pr"))
-            parks.pop(f"pr:{r.get('pr')}", None)
-            parks.pop(f"commit:{r.get('sha')}", None)
-        elif e == "close":
-            parks.pop(r["item"], None)
         elif e == "job":
             jobs[r["job"]] = r
         elif e == "job-end":

@@ -1,6 +1,6 @@
 import { afterAll, expect, setDefaultTimeout, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { readFileSync } from "node:fs"
+import { appendFileSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { cleanup, HANDS_OFF, ME, World } from "../helpers/afg-world"
 
@@ -35,4 +35,16 @@ test("every open pull request and unlanded commit has one next step and someone 
   ])
   expect(md).toContain("Your own pull requests:\n- [#8](u)")
   expect(md).toContain("`idea:x` because: do it")
+})
+
+test("a park of an earlier attempt is gone once a later attempt of the same job landed", () => {
+  const w = new World(HANDS_OFF).begin()
+  const add = (o: object) => appendFileSync(path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl"), JSON.stringify({ at: new Date().toISOString(), ...o }) + "\n")
+  const [one, two] = ["a".repeat(40), "b".repeat(40)]
+  add({ event: "job", job: "j", motion: "stack", what: "x", origin: "internal" })
+  for (const sha of [one, two]) add({ event: "adopt", job: "j", sha, head: sha })
+  add({ event: "park", item: `commit:${one}`, why: "w", recommend: "stale step", needs: "later" })
+  expect(board(w).md).toContain("stale step")
+  add({ event: "land", sha: two, head: two, motion: "stack", by: "script" })
+  expect(board(w).md).not.toContain("stale step")
 })
