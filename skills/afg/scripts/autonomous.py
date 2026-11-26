@@ -619,6 +619,13 @@ def machine_turn(repo, token, seconds):
         os.close(fd)
 
 
+def load_now():
+    try:
+        return round(os.getloadavg()[0], 1)
+    except (OSError, AttributeError):
+        return None
+
+
 def machine_busy():
     """Far more is waiting for a processor than this machine can run."""
     limit = os.environ.get("AFG_LOAD_LIMIT")
@@ -1630,7 +1637,7 @@ def cmd_test(a, repo):
             # Nothing tested on the old tip could land.
             return deny("base-moved", base=base)
         tmp = tempfile.mkdtemp(prefix="afg-test-")
-        tree, log, proc, code = os.path.join(tmp, "tree"), os.path.join(tmp, "log"), None, "interrupted"
+        tree, log, proc, code = os.path.join(tmp, "tree"), os.path.join(store_dir(repo), f"test-{head[:12]}.log"), None, "interrupted"
         ran = []
         for sig in (signal.SIGTERM, signal.SIGHUP):
             signal.signal(sig, interrupted)
@@ -1640,12 +1647,17 @@ def cmd_test(a, repo):
                                  cwd=repo.main or repo.common, env=env, capture_output=True, text=True)
             if add.returncode != 0:
                 raise Failure(f"worktree: {add.stderr.strip()}")
+            print(f"log: {log}", file=sys.stderr, flush=True)
             with open(log, "wb") as out:
                 deadline = now() + timedelta(seconds=a.timeout)
                 code, failed_at = 0, None
                 for command in commands:
                     # Every check runs, so one failure never hides another. A failure is tried once more and recorded.
                     for attempt in (1, 2):
+                        calm = now() + timedelta(seconds=600)
+                        while attempt == 2 and machine_busy() and now() < min(calm, deadline):
+                            # The one retry is not spent on a machine that may be the cause.
+                            time.sleep(5)
                         for clean in (["reset", "--quiet", "--hard", head], ["clean", "-ffdxq"]) if attempt == 2 else ():
                             subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *clean], cwd=tree, env=env, capture_output=True)
                         out.write(f"\n$ {command}  (attempt {attempt})\n".encode())
@@ -1661,15 +1673,13 @@ def cmd_test(a, repo):
                             one = "changed-the-tree"
                         if one in (0, "timeout", "changed-the-tree"):
                             break
-                    ran.append({"run": command, "exit": one, "attempts": attempt})
+                    ran.append({"run": command, "exit": one, "attempts": attempt, "load": load_now()})
                     out.seek(0, os.SEEK_END)
                     if one != 0 and failed_at is None:
                         # What failed first is what the caller needs to see.
                         failed_at = out.tell()
                     if one != 0 and code == 0:
                         code = one
-            kept = os.path.join(store_dir(repo), f"test-{head[:12]}.log")
-            shutil.copyfile(log, kept)
             with open(log, "rb") as f:
                 f.seek(max(0, (failed_at or 0) - 3000))
                 tail = f.read(3000 if failed_at is None else min(3000, failed_at)).decode("utf-8", "replace")
@@ -1682,7 +1692,7 @@ def cmd_test(a, repo):
         require_lease(repo, a.token)
         append(repo, "receipt", kind="test", subject=subject, head=head, base=base, ok=code == 0, exit=code,
                checks=checks_id(policy), ran=ran)
-    return emit({"ok": code == 0, "exit": code, "ran": ran, "log": kept, "guards": guards_of(facts), "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail if code != 0 else ""}, 0 if code == 0 else 1)
+    return emit({"ok": code == 0, "exit": code, "ran": ran, "log": log, "guards": guards_of(facts), "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail if code != 0 else ""}, 0 if code == 0 else 1)
 
 
 def cmd_check(a, repo):
