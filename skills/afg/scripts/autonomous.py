@@ -289,6 +289,8 @@ class Repo:
             if kept:
                 self._tip = kept
                 return kept
+            if self.upstream:
+                upstream.plain(sys.modules[__name__], ref)
             git("fetch", "--quiet", "--no-tags", self.upstream["parent_url"] if self.upstream else "origin", f"+refs/heads/{self.default}:{ref}")
             self._tip = git("rev-parse", ref).stdout.strip()
         return self._tip

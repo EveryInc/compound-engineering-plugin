@@ -119,7 +119,7 @@ class Fork extends World {
   local(text: string) { this.write(".compound-engineering/config.local.yaml", text) }
   t(...args: string[]) { return this.run([args[0]!, "--token", this.token, ...args.slice(1)]) }
   tin(input: unknown, ...args: string[]) { return this.run([args[0]!, "--token", this.token, ...args.slice(1)], input) }
-  rules(over: any = {}) { return this.tin({ ...RULES, ...over }, "rules") }
+  rules(over: any = {}) { return this.tin({ digest: this.run(["upstream"]).json.rules_digest, ...RULES, ...over }, "rules") }
   job(origin = "internal", motion = "bugs") { return this.t("job", "--motion", motion, "--origin", origin, "--what", "x") }
   branch(files: Record<string, string>, msg = "Fix the wrong answer", from = "refs/afg/parent/main") {
     this.git(this.repo, "checkout", "-q", "-b", `work${this.n++}`, from)
@@ -868,4 +868,49 @@ test("rules the parent changes during a run count at once", () => {
   w.git(w.repo, "push", "-q", "https://github.com/o/r.git", "main")
   expect(w.compose(j).reasons).toEqual(["rules-stale"])
   expect(w.job().json.reasons).toContain("rules-stale")
+})
+
+test("work the parent has since done, or that no longer applies, is not ready or confirmed", () => {
+  const push = (w: Fork, files: Record<string, string>) => {
+    for (const [p, t] of Object.entries(files)) w.write(p, t)
+    w.commit("theirs", Object.keys(files))
+    w.git(w.repo, "push", "-q", "https://github.com/o/r.git", "main")
+  }
+  const same = new Fork()
+  const a = same.prove()
+  push(same, FIX)
+  expect(same.compose(a).reasons).toEqual(["already-fixed"])
+  const own = new Fork()
+  const c = own.prove()
+  push(own, { "app.rb": FIX["app.rb"] })
+  expect(own.compose(c).reasons).toEqual(["already-fixed"])
+  const clash = new Fork()
+  const b = clash.prove()
+  const r = clash.compose(b)
+  push(clash, { "app.rb": "another\n" })
+  expect(clash.verdict(b, r.body_sha).reasons).toEqual(["parent-conflicts"])
+  expect(clash.run(["digest"]).json.prepared).toMatchObject([{ confirmed: false, parent: ["parent-conflicts"] }])
+  expect(clash.verdict(b, r.body_sha, { security: true }).reasons).toEqual(["verdict-no"])
+})
+
+test("rules that moved after they were read are not recorded", () => {
+  const w = new Fork().begin()
+  const { rules_digest: digest } = w.run(["upstream"]).json
+  w.write("other.rb", "x\n")
+  w.commit("unrelated", ["other.rb"])
+  w.git(w.repo, "push", "-q", "https://github.com/o/r.git", "main")
+  expect(w.tin({ digest, ...RULES }, "rules").json.recorded).toBe("o/r")
+  w.write("CONTRIBUTING.md", "No AI contributions.\n")
+  w.commit("ban", ["CONTRIBUTING.md"])
+  w.git(w.repo, "push", "-q", "https://github.com/o/r.git", "main")
+  expect(w.tin({ digest, ...RULES }, "rules").json.reasons).toEqual(["rules-moved"])
+})
+
+test("a name under refs/afg that points at the owner's branch does not move it", () => {
+  const w = new Fork().begin()
+  w.write("mine.rb", "x\n")
+  const mine = w.commit("mine", ["mine.rb"])
+  for (const n of ["parent", "live"]) w.git(w.repo, "symbolic-ref", `refs/afg/${n}/main`, "refs/heads/main")
+  expect(w.run(["upstream"]).code).toBe(0)
+  expect(w.git(w.repo, "rev-parse", "refs/heads/main")).toBe(mine)
 })

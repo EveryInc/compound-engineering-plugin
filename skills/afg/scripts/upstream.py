@@ -182,14 +182,43 @@ def kept_tip(core, repo):
     if not isinstance(tip, str) or not core.SHA.match(tip) or core.git("cat-file", "-e", f"{tip}^{{commit}}", check=False).returncode != 0:
         return None
     # Work starts from this name.
-    core.git("update-ref", f"refs/afg/parent/{repo.default}", tip)
+    ref = f"refs/afg/parent/{repo.default}"
+    plain(core, ref)
+    if core.git("rev-parse", "--verify", "--quiet", ref, check=False).stdout.strip() != tip:
+        core.git("update-ref", "--no-deref", ref, tip)
     return tip
+
+
+def plain(core, ref):
+    """A name that points at another name would move that one, such as the owner's branch."""
+    if core.git("symbolic-ref", "--quiet", ref, check=False).returncode == 0:
+        core.git("update-ref", "--no-deref", "-d", ref)
+
+
+def moved(core, repo, base, sha):
+    """What the parent did since makes this change empty or unable to apply."""
+    live = live_tip(core, repo)
+    if live == base:
+        return []
+    if core.git("merge-base", "--is-ancestor", base, live, check=False).returncode != 0:
+        return ["parent-rewritten"]
+    r = core.git("merge-tree", "--write-tree", live, sha, check=False)
+    if r.returncode not in (0, 1):
+        raise core.Failure(f"merge-tree: {r.stderr.strip()}")
+    if r.returncode == 1:
+        return ["parent-conflicts"]
+    tree = r.stdout.split("\n")[0].strip()
+    left = [n for n in core.git("diff", "--name-only", "--no-renames", "-z", live, tree).stdout.split("\0") if n]
+    # A fix always brings a test of its own, so one the parent made itself leaves only that.
+    tests_only = all(core.TEST_FILE.search(n) for n in changed_files(core, base, sha))
+    return ["already-fixed"] if not left or not tests_only and all(core.TEST_FILE.search(n) for n in left) else []
 
 
 def live_tip(core, repo):
     """The parent's tip now, where its rules are read from."""
     if getattr(repo, "live", None) is None:
         ref = f"refs/afg/live/{repo.default}"
+        plain(core, ref)
         core.git("fetch", "--quiet", "--no-tags", repo.upstream["parent_url"], f"+refs/heads/{repo.default}:{ref}")
         repo.live = core.git("rev-parse", ref).stdout.strip()
     return repo.live
@@ -288,7 +317,7 @@ def cmd_upstream(core, a, repo):
     rows, files = core.ledger(repo), rule_files(core, repo)
     mine = own_prs(core, repo)
     return core.emit({**{k: v for k, v in repo.upstream.items() if k != "parent_url"}, "tip": repo.tip(), "rule_files": [p for p, _ in files],
-                      "rules": recorded_rules(core, repo, rows)[1] or "recorded", "open": len(mine), "open_limit": policy["autonomous_upstream_open"],
+                      "rules_at": live_tip(core, repo), "rules_digest": digest_of(files), "rules": recorded_rules(core, repo, rows)[1] or "recorded", "open": len(mine), "open_limit": policy["autonomous_upstream_open"],
                       "prepared": waiting(core, repo, rows), "tend_only": tend_only(core, repo, policy, rows, mine)})
 
 
@@ -298,6 +327,9 @@ def cmd_rules(core, a, repo):
     if why or d is None:
         return core.deny(*(why or ["rules-unreadable"]))
     files = rule_files(core, repo)
+    if d.get("digest") != digest_of(files):
+        # What was read is not what would be recorded.
+        return core.deny("rules-moved")
     because = d.get("because") or {}
     if any(d.get(k) not in v for k, v in VALUES.items()) or not isinstance(because, dict) \
             or not all(isinstance(d.get(k), list) and all(isinstance(x, str) for x in d[k]) for k in ("gate", "read")) \
@@ -375,7 +407,8 @@ def waiting(core, repo, rows):
     fine = not recorded_rules(core, repo, rows)[1]
     out = prepared(core, rows, {p["headRefOid"] for p in own_prs(core, repo, "state=all", first)})
     base, tip = {r["sha"]: r.get("base") for r in rows if r["event"] == "upstream-ready"}, live_tip(core, repo)
-    return [{**p, "confirmed": p["confirmed"] and fine, "behind": base[p["sha"]] != tip} for p in out]
+    out = [{**p, "parent": moved(core, repo, base[p["sha"]], p["sha"])} for p in out]
+    return [{**p, "confirmed": p["confirmed"] and fine and not p["parent"], "behind": base[p["sha"]] != tip} for p in out]
 
 
 def tend_only(core, repo, policy, rows, mine=None):
@@ -648,6 +681,7 @@ def proof_reasons(core, repo, policy, rows, job_id, sha):
     if any(re.match(r"(?i)\.(context|compound-engineering)/|docs/(solutions|plans|brainstorms)/", n) for n in change["names"]):
         # What a run plans or learns is not the project's.
         out.append("private-text")
+    out += moved(core, repo, base, sha)
     out += core.receipt_reasons(policy, rows, f"direct:{sha}", sha, base)
     passed = passed_commands(core, policy, rows, sha, base)
     if rules and not all(any(proves(p, g) for p in passed) for g in rules["gate"]):
@@ -818,6 +852,10 @@ def cmd_verdict(core, a, repo):
     if d.get("head_sha") != ready["sha"] or d.get("body_sha") != ready["body"] or d.get("title") != ready["title"]:
         return core.deny("head-moved")
     no = [k for k, v in asked.items() if d[k] is not v]
+    # A no is kept whatever the parent did.
+    late = moved(core, repo, ready["base"], ready["sha"]) if ready["sha"] and not no else []
+    if late:
+        return core.deny(*late)
     with core.locked(repo):
         core.require_lease(repo, a.token)
         ok = not no and verdict_of(rows, ready) is not False
