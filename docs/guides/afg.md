@@ -63,6 +63,10 @@ host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-deb
 
 ---
 
+**Projects that are not yours.** In your own fork of a project you cannot push to, `autonomous_landing: upstream` works on the parent's behalf without acting as its maintainer. It tends your open PRs, then fixes bugs it can reproduce. It only prepares: a tested, reviewed branch on your machine, with a title and body in the project's template and no box ticked, after a duplicate search the script makes itself. You push it and open the PR. Nothing is pushed, opened, commented on or closed. With more than `autonomous_upstream_open` (default 3) of your PRs open there, or that many branches waiting for you, it only tends. A project that takes no AI work gets none.
+
+---
+
 ## Motions
 
 | Motion | Work | Today |
@@ -73,6 +77,7 @@ host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-deb
 | `stack` | Dependency and framework updates | Full; major versions wait for you |
 | `security` | Find and fix security problems | Private repositories; public ones get digest entries only |
 | `climb` | Improve a number with `/ce-optimize` | Full, for measured targets with behavior checks and caps |
+| `tend` | Upstream only: your open PRs' conflicts, failing checks and review questions | Prepared here; you push and answer |
 | `create` | Content, animation and polish with `/ce-ideate` and `/lfg` | Opens PRs; off by default |
 
 ---

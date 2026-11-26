@@ -337,3 +337,6 @@
 # autonomous_ci: required                     # required | if-running (skips CI GitHub refuses to start, hands-off default) | ignored (direct only)
 # autonomous_ignored_checks: [deploy/old-host]   # hosted checks that do not count, such as a retired service
 # ce-config-template-version: 7
+# ce-config-template-version: 8
+# autonomous_landing: pull-request            # pull-request | direct (one commit on the default branch, no PR) | upstream (local file only, your fork of a project you do not maintain)
+# autonomous_upstream_open: 3                 # with more of your PRs open there, upstream work only tends them

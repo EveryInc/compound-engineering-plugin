@@ -17,6 +17,7 @@ Store: <main checkout>/.context/compound-engineering/afg/, shared by every
 linked worktree; a bare repository uses <git common dir>/compound-engineering/afg/.
   state.json    the run lease
   ledger.jsonl  append-only events: run, job, job-end, worker, worker-end, adopt, receipt, rule,
+                upstream-rules, upstream-search, upstream-judge, upstream-ready, upstream-verdict,
                 park, answer, retire, land-intent, land, rejected, close, update
   allowance.json  optional, written by whatever shares this machine's capacity
                 across repositories: {"version": 1, "jobs": <at once>, "expires_at": <UTC>}.
@@ -43,6 +44,10 @@ try:
 except ImportError:
     fcntl = None
 
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import upstream  # noqa: E402  the file beside this one
+
 LEASE_TTL = timedelta(hours=3)
 EARN_AFTER = 5
 LEVELS = ["report", "pr", "babysit", "merge"]
@@ -59,16 +64,18 @@ TABLE = {
     "security": [("pr", "pr"), ("pr", "pr"), ("pr", "merge")],
     "climb": [("report", "report"), ("pr", "merge"), ("merge", "merge")],
     "create": [("report", "report"), ("pr", "pr"), ("pr", "merge")],
+    # Upstream only, where nothing lands.
+    "tend": [("pr", "pr")] * 3,
 }
 # The skill a job's work must have gone through. lfg is how work gets done; a measured search is the exception.
-CALLEES = {"climb": ["ce-optimize", "lfg"]}
+CALLEES = {"climb": ["ce-optimize", "lfg"], "tend": ["lfg"]}
 # A job that answers someone's request records who asked.
 ORIGIN_REQUIRED = {"bugs", "security", "backlog"}
 DEFAULTS = {"autonomous_motions": DEFAULT_MOTIONS, "autonomous_jobs_per_hour": None, "autonomous_open_pr_cap": 5,
             "autonomous_overrides": [], "autonomous_trusted_authors": [], "autonomous_babysit_authors": [],
             "autonomous_rules": [], "autonomous_landing_steps": [], "autonomous_judges": [], "autonomous_ignored_checks": [], "autonomous_checks": [],
             "autonomous_landing": "pull-request", "autonomous_ci": "required", "autonomous_merge_method": None}
-CHOICES = {"autonomous_landing": ["pull-request", "direct"], "autonomous_ci": ["required", "if-running", "ignored"],
+CHOICES = {"autonomous_landing": ["pull-request", "direct", "upstream"], "autonomous_ci": ["required", "if-running", "ignored"],
            "autonomous_merge_method": ["squash", "rebase", "merge"]}
 # How work lands is the repository's own rule; a local file may repeat it, never replace it.
 FIXED = ["autonomous_landing", "autonomous_ci", "autonomous_merge_method", "autonomous_checks", "autonomous_ignored_checks"]
@@ -94,6 +101,7 @@ KEYS = {
     "autonomous_landing_steps": "list",
     "autonomous_judges": "list",
     "autonomous_ignored_checks": "list",
+    "autonomous_upstream_open": "int",
 }
 OK_CONCLUSIONS = {"success", "neutral", "skipped"}
 NOT_CI = {"issues", "issue_comment", "schedule", "workflow_dispatch", "discussion", "discussion_comment", "label",
@@ -192,10 +200,15 @@ def git(*args, cwd=None, check=True):
 
 
 def gh(*args):
+    if gh.read_only and not upstream.readable(args):
+        raise Failure(f"gh {' '.join(args[:2])} could change a project this account does not maintain")
     r = run(["gh", *args])
     if r.returncode != 0:
         raise Failure(f"gh {' '.join(args[:4])}: {(r.stderr or r.stdout).strip()}")
     return r.stdout
+
+
+gh.read_only = False
 
 
 def gh_json(*args):
@@ -227,10 +240,21 @@ class Repo:
         self.common = os.path.realpath(common)
         first = git("worktree", "list", "--porcelain").stdout.strip().split("\n\n")[0].splitlines()
         self.main = None if "bare" in first else os.path.realpath(first[0][len("worktree "):])
-        self._gh = self._tip = self._login = None
+        self._gh = self._tip = self._login = self._up = None
+
+    @property
+    def upstream(self):
+        """In upstream mode, the fork and its parent. Every fact here is then about the parent."""
+        if self._up is None:
+            self._up = upstream.facts(sys.modules[__name__], self) if upstream.wanted(sys.modules[__name__], self) else False
+        return self._up
 
     @property
     def info(self):
+        if self._gh is None and self.upstream:
+            if "problem" in self.upstream:
+                raise Failure(f"{self.upstream['problem']}: {self.upstream['detail']}")
+            self._gh = (self.upstream["parent"], self.upstream["parent_default"])
         if self._gh is None:
             # Policy and code come from origin, so GitHub facts must be about origin too.
             url = git("config", "--get", "remote.origin.url", check=False).stdout.strip()
@@ -259,9 +283,9 @@ class Repo:
 
     def tip(self, fresh=False):
         if fresh or self._tip is None:
-            git("fetch", "--quiet", "--no-tags", "origin",
-                f"+refs/heads/{self.default}:refs/remotes/origin/{self.default}")
-            self._tip = git("rev-parse", f"refs/remotes/origin/{self.default}").stdout.strip()
+            ref = f"refs/afg/parent/{self.default}" if self.upstream else f"refs/remotes/origin/{self.default}"
+            git("fetch", "--quiet", "--no-tags", self.upstream["parent_url"] if self.upstream else "origin", f"+refs/heads/{self.default}:{ref}")
+            self._tip = git("rev-parse", ref).stdout.strip()
         return self._tip
 
     def fetch_pr(self, number, expected):
@@ -392,8 +416,11 @@ def parse_policy(text, label):
         globs(c.get("paths", ""), label)
     for g in values.get("autonomous_judges", []):
         globs(g, label)
+    here = values.get("autonomous_landing") == "upstream"
+    if not here and any(k.startswith("autonomous_upstream") for k in values):
+        raise ValueError(f"{label}: autonomous_upstream_open needs autonomous_landing: upstream")
     for m in values.get("autonomous_motions", []):
-        if m not in MOTIONS:
+        if m not in (upstream.MOTIONS if here else MOTIONS):
             raise ValueError(f"{label}: unknown motion {m}")
     for k in ("autonomous_trusted_authors", "autonomous_babysit_authors"):
         if k in values:
@@ -426,6 +453,8 @@ def pair(text, where):
 
 
 def load_policy(repo):
+    if repo.upstream:
+        return load_upstream(repo)
     tip = repo.tip()
     path = ".compound-engineering/config.yaml"
     listed = git("ls-tree", "--full-tree", "--name-only", tip, "--", path).stdout.strip()
@@ -439,8 +468,13 @@ def load_policy(repo):
     try:
         team = parse_policy(team_text, "config.yaml")
         mine = parse_policy(local_text, "config.local.yaml")
+        odd = upstream.unread(sys.modules[__name__], local_text)
+        if odd:
+            raise ValueError(f"config.local.yaml: a setting that cannot be read: {odd.strip()}")
     except ValueError as e:
         return {"active": False, "reason": "policy-malformed", "detail": str(e)}
+    if "upstream" in (team.get("autonomous_landing"), mine.get("autonomous_landing")):
+        return {"active": False, "reason": "policy-malformed", "detail": "autonomous_landing: upstream belongs in config.local.yaml, in plain form"}
     if "autonomous_profile" in team:
         p = {**DEFAULTS, **team}
         source = "default branch, tightened by config.local.yaml" if mine else "default branch"
@@ -472,6 +506,24 @@ def load_policy(repo):
     return {"active": True, "source": source, **p}
 
 
+def load_upstream(repo):
+    """The owner's local file is the whole policy. What the project commits is never policy here."""
+    if "problem" in repo.upstream:
+        return {"active": False, "reason": repo.upstream["problem"], "detail": repo.upstream["detail"]}
+    try:
+        text = upstream.local_text(repo)
+        odd = upstream.unread(sys.modules[__name__], text)
+        if odd:
+            raise ValueError(f"config.local.yaml: a setting that cannot be read: {odd.strip()}")
+        p = upstream.settings(sys.modules[__name__], parse_policy(text, "config.local.yaml"))
+    except ValueError as e:
+        return {"active": False, "reason": "policy-malformed", "detail": str(e)}
+    if "autonomous_profile" not in p:
+        return {"active": False, "reason": "no-profile"}
+    repo.policy = p
+    return {"active": True, "source": "config.local.yaml", **p}
+
+
 def rule_id(rule):
     return hashlib.sha256(rule.encode("utf-8")).hexdigest()[:12]
 
@@ -496,6 +548,8 @@ def applying_checks(policy, names):
 
 def level_for(policy, motion, author, landed):
     if not policy["active"] or motion not in policy["autonomous_motions"]:
+        return "report"
+    if policy["autonomous_landing"] == "upstream":
         return "report"
     start, ceiling = TABLE[motion][PROFILES.index(policy["autonomous_profile"])]
     level = ceiling if landed >= EARN_AFTER else start
@@ -966,7 +1020,7 @@ def is_guard(p):
 
 def stops(policy, facts, own):
     """Hard limits that still need a person. Hands-off settles a guard in its own work by a verdict and a probe."""
-    settles = own and policy["autonomous_profile"] == "hands-off"
+    settles = own and policy["autonomous_profile"] == "hands-off" and policy["autonomous_landing"] != "upstream"
     return [h for h in facts["hard"] if not (settles and h.startswith("guard:"))]
 
 
@@ -1464,6 +1518,8 @@ def cmd_begin(a, repo):
         return emit({"token": None, "mode": "report-only", "reason": policy.get("reason", "dry-run"),
                      "detail": policy.get("detail")})
     with locked(repo):
+        if repo.upstream:
+            upstream.mark(sys.modules[__name__], repo)
         state = read_state(repo)
         if state.get("corrupt"):
             return deny("state-corrupt")
@@ -1582,6 +1638,8 @@ def parked(rows):
 
 def cmd_observe(a, repo):
     policy, rows = load_policy(repo), ledger(repo)
+    if repo.upstream:
+        return upstream.observe(sys.modules[__name__], repo, policy, rows)
     state, failing, _ = checks_at(repo, repo.tip())
     prs = gh_json("pr", "list", "-R", repo.name, "--state", "open", "--limit", "200", "--json",
                   "number,title,author,isDraft,headRefOid,headRefName,headRepositoryOwner,maintainerCanModify,baseRefName,isCrossRepository,updatedAt,mergeStateStatus,labels")
@@ -1650,7 +1708,7 @@ def cmd_job(a, repo):
         return deny(policy["reason"])
     if a.motion not in policy["autonomous_motions"]:
         return deny("motion-off")
-    if a.motion in ORIGIN_REQUIRED and (not a.origin or a.motion == "bugs" and a.origin == "internal"):
+    if a.motion in ORIGIN_REQUIRED and (not a.origin or a.motion == "bugs" and a.origin == "internal" and not repo.upstream):
         return deny("origin-missing")
     origin = a.origin or "internal"
     trusted = origin_trusted(repo, policy, origin)
@@ -1665,6 +1723,9 @@ def cmd_job(a, repo):
             return deny("job-unfinished")
         if jobs_left(policy, rows) == 0:
             return deny("hourly-cap")
+        reasons = upstream.job_reasons(sys.modules[__name__], repo, policy, rows, a) if repo.upstream else []
+        if reasons:
+            return deny(*reasons)
         reasons = allowance_reasons(repo, rows)
         if reasons:
             return deny_allowance(repo, rows, reasons)
@@ -1722,17 +1783,22 @@ def cmd_worker_end(a, repo):
     return emit({"ended": a.worker})
 
 
-def local_commits_own(repo, sha):
+def local_commits_own(repo, sha, beside=()):
     """A local commit on top of the tip, made by this account and published by nobody."""
     base = repo.tip()
     if git("merge-base", "--is-ancestor", base, sha, check=False).returncode != 0 or sha == base:
         return False
     me = git("config", "user.email").stdout.strip().lower()
-    lines = git("log", "--format=%H %ae %ce", f"{base}..{sha}").stdout.lower().split("\n")
+    lines = git("log", "--format=%H %ae %ce", f"{base}..{sha}", *[f"^{x}" for x in beside]).stdout.lower().split("\n")
     commits = [x.split(" ") for x in lines if x]
-    if not me or any(c[1:] != [me, me] for c in commits):
+    if not me or not commits or any(c[1:] != [me, me] for c in commits):
         return False
     return all(unpublished(repo, c[0]) for c in commits)
+
+
+def tended(repo, sha, job):
+    """Published commits that work on an own PR may sit on. Only in upstream mode, where nothing is pushed to it."""
+    return upstream.beside(sys.modules[__name__], repo, sha) if repo.upstream and job and job["motion"] == "tend" else ()
 
 
 def unpublished(repo, sha):
@@ -1744,8 +1810,13 @@ def unpublished(repo, sha):
 def cmd_adopt(a, repo):
     """Record exactly what a worker produced for a job."""
     if a.sha:
-        if not SHA.match(a.sha) or not local_commits_own(repo, a.sha):
+        if not SHA.match(a.sha) or not local_commits_own(repo, a.sha, tended(repo, a.sha, job_of(ledger(repo), a.job))):
             return deny("author-not-trusted")
+        job = job_of(ledger(repo), a.job)
+        if repo.upstream and job and job["motion"] == "tend":
+            why = upstream.message_reasons(sys.modules[__name__], repo.tip(), a.sha, None, tended(repo, a.sha, job))
+            if why:
+                return deny(*why)
         # Nobody else can have a commit that was never published, so what holds it now is this job's.
         what = {"sha": a.sha, "head": a.sha, **holders(a.sha)}
     else:
@@ -1796,8 +1867,8 @@ def subject_of(a, repo, policy, rows):
         return f"pr:{a.pr}", pr["headRefOid"], [] if trust in ("own", "trusted") else ["author-not-trusted"]
     if not SHA.match(a.sha or ""):
         return None, None, ["sha-invalid"]
-    recorded = any(r["event"] == "adopt" and r.get("sha") == a.sha for r in rows)
-    if not recorded or not local_commits_own(repo, a.sha):
+    recorded = next((r for r in rows if r["event"] == "adopt" and r.get("sha") == a.sha), None)
+    if not recorded or not local_commits_own(repo, a.sha, tended(repo, a.sha, job_of(rows, recorded["job"]))):
         return None, None, ["author-not-trusted"]
     return f"direct:{a.sha}", a.sha, []
 
@@ -2386,6 +2457,7 @@ def cmd_digest(a, repo):
                  "skills": {r["job"]: r["via"] for r in rows if r["event"] == "adopt" and r.get("via")},
                  # Guards changed without a person, told afterward.
                  "guards": [r for r in rows if r["event"] == "receipt" and r.get("kind") == "guard" and r["ok"]],
+                 "prepared": upstream.waiting(sys.modules[__name__], repo, ledger(repo)) if repo.upstream and "problem" not in repo.upstream else [],
                  "parked": sorted(parked(rows).values(), key=lambda r: r["at"])})
 
 
@@ -2414,7 +2486,7 @@ def main():
     add("heartbeat", cmd_heartbeat)
     add("observe", cmd_observe, token=False)
     p = add("job", cmd_job)
-    p.add_argument("--motion", required=True, choices=MOTIONS)
+    p.add_argument("--motion", required=True, choices=MOTIONS + ["tend"])
     p.add_argument("--origin")
     p.add_argument("--what", required=True)
     p.add_argument("--opens-pr", action="store_true")
@@ -2486,9 +2558,18 @@ def main():
     add("decisions", cmd_decisions, token=False)
     add("digest", cmd_digest, token=False).add_argument("--hours", type=int, default=24)
 
+    upstream.add_commands(sys.modules[__name__], add)
+
     a = ap.parse_args()
     try:
-        return a.fn(a, Repo())
+        repo = Repo()
+        if upstream.wanted(sys.modules[__name__], repo):
+            gh.read_only = True
+            os.environ["GH_HOST"] = "github.com"
+            why = upstream.refuse(a)
+            if why:
+                return deny(*why)
+        return a.fn(a, repo)
     except (Failure, OSError, KeyError, TypeError, ValueError, AttributeError) as e:
         return emit({"allowed": False, "reasons": ["unreadable"], "error": f"{type(e).__name__}: {e}"}, 3)
 
