@@ -440,7 +440,7 @@ describe("merge gate", () => {
   })
 
   test("an npm update is judged by package, not by how many lines changed", () => {
-    const pkg = (v: string, more: any = {}) => ({ version: v, resolved: `https://registry.npmjs.org/x/-/x-${v}.tgz`, integrity: `sha512-${v}`, ...more })
+    const pkg = (v: string, more: any = {}, name = "left") => ({ version: v, resolved: `https://registry.npmjs.org/${name}/-/${name}-${v}.tgz`, integrity: `sha512-${v}`, ...more })
     const lock = (packages: any) => JSON.stringify({ lockfileVersion: 3, packages: { "": { dependencies: { left: "^1" } }, ...packages } }, null, 1) + "\n"
     const w = new World()
     w.write("package-lock.json", lock({ "node_modules/left": pkg("1.2.0") }))
@@ -452,10 +452,15 @@ describe("merge gate", () => {
       return [g.reasons.includes("major-update"), g.hard_limits]
     }
     const bad = ["unclassified:package-lock.json"]
-    expect(seen(1, { "node_modules/left": pkg("1.3.0"), "node_modules/new": pkg("1.0.0") })).toEqual([false, []])
+    expect(seen(1, { "node_modules/left": pkg("1.3.0"), "node_modules/new": pkg("1.0.0", {}, "new") })).toEqual([false, []])
     expect(seen(2, { "node_modules/left": pkg("2.0.0") })[0]).toBe(true)
     expect(seen(3, { "node_modules/left": pkg("1.2.0", { integrity: "sha512-other" }) })[1]).toEqual(bad)
     expect(seen(4, { "node_modules/left": pkg("1.3.0", { resolved: "https://evil.example/x.tgz" }) })[1]).toEqual(bad)
+    expect(seen(6, { "node_modules/left": pkg("1.3.0", {}, "evil") })[1]).toEqual(bad)
+    expect(seen(7, { "node_modules/left": pkg("1.3.0", { name: "evil" }) })[1]).toEqual(bad)
+    expect(seen(8, { "node_modules/left": null })[1]).toEqual(bad)
+    w.pr(9, { "package-lock.json": lock({ "node_modules/left": pkg("1.3.0") }).replace('"lockfileVersion": 3', '"lockfileVersion": 2') })
+    expect(w.gate(9).hard_limits).toEqual(bad)
     expect(seen(5, { "node_modules/left": pkg("1.3.0", { hasInstallScript: true }) })[1]).toEqual(bad)
   })
 

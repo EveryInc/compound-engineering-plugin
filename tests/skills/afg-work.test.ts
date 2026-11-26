@@ -352,6 +352,7 @@ describe("a review after a rebase", () => {
     w.git(w.repo, "checkout", "-q", "main")
     for (const [p, t] of Object.entries(files)) w.write(p, t)
     w.commit("other", Object.keys(files))
+    w.git(w.repo, "config", "log.showSignature", "true")
     if (back) w.git(w.repo, "revert", "--no-edit", "HEAD")
     w.git(w.repo, "push", "-q", "origin", "main")
     const second = commit(change)
@@ -364,6 +365,7 @@ describe("a review after a rebase", () => {
   test.each([
     ["the change differs", { "docs/a.md": "x\n" }, "three\n", {}, "review-missing", false],
     ["its neighbours moved", { "lib/b.rb": "x\n" }, "two\n", {}, "review-missing", false],
+    ["something below it moved", { "lib/app/b.rb": "x\n" }, "two\n", {}, "review-missing", false],
     ["its neighbours moved and came back", { "lib/b.rb": "x\n" }, "two\n", {}, "review-missing", true],
     ["it was not clean", { "docs/a.md": "x\n" }, "two\n", { verdict: "Not ready" }, "review-missing", false],
   ])("is asked again when %s", (_n, files, change, review, reason, back) => {

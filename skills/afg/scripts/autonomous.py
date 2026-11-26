@@ -973,8 +973,13 @@ def lock_major(lines):
 def npm_change(old, new):
     """By package name: a direct dependency that is new, or any that changed majorly, is major. Where it comes from may not change."""
     try:
-        a, b = (json.loads(x)["packages"] for x in (old, new))
-    except (ValueError, KeyError, TypeError):
+        docs = [json.loads(x) for x in (old, new)]
+        a, b = (d["packages"] for d in docs)
+    except (ValueError, KeyError, TypeError, RecursionError):
+        return "source"
+    # An older format lists every package twice, and only one copy is read here.
+    if any(d.get("lockfileVersion") != 3 or "dependencies" in d for d in docs) \
+            or any(not isinstance(p, dict) or not all(isinstance(v, dict) for v in p.values()) for p in (a, b)):
         return "source"
     host = "https://registry.npmjs.org/"
 
@@ -987,7 +992,12 @@ def npm_change(old, new):
         if not k:
             continue
         o = a.get(k)
-        if v.get("link") or not str(v.get("resolved", "")).startswith(host) or not v.get("integrity"):
+        name = k.split("node_modules/")[-1]
+        # The package at this path, from the public registry, under its own name.
+        here = "name" not in v and str(v.get("resolved", "")).startswith(f"{host}{name}/-/")
+        if o is not None and here and not str(o.get("resolved", "")).startswith(f"{host}{name}/-/"):
+            return "source"
+        if v.get("link") or not here or not v.get("integrity"):
             if o != v:
                 return "source"
             continue
@@ -1128,8 +1138,11 @@ def carried_review(rows, subject, head, base):
     mb = git("merge-base", base, head).stdout.strip()
     folders = {os.path.dirname(n) for n in git("diff", "--name-only", "--no-renames", "-z", mb, head).stdout.split("\0") if n}
     # Every commit between, so a change and its revert both count.
-    moved = git("log", "--format=", "--name-only", "--no-renames", "-m", "-z", f"{last['from']}..{base}").stdout.split("\0")
-    return None if any(n.strip() and os.path.dirname(n.strip()) in folders for n in moved) else last
+    moved = git("log", "--no-show-signature", "--format=", "--name-only", "--no-renames", "-m", "-z", f"{last['from']}..{base}").stdout.split("\0")
+    def near(n):
+        at = os.path.dirname(n)
+        return at in folders or any(f and at.startswith(f + "/") for f in folders)
+    return None if any(n.strip() and near(n.strip()) for n in moved) else last
 
 
 def receipt_reasons(policy, rows, subject, head, base, guards=()):
@@ -1349,9 +1362,9 @@ def parked(rows):
                     out.pop(f"commit:{x['sha']}", None)
         elif r["event"] == "close":
             out.pop(r["item"], None)
-        elif r["event"] == "job" and ":" in (r.get("origin") or ""):
-            # Work on it has started again.
-            out.pop(r["origin"], None)
+        elif r["event"] == "adopt":
+            # Work on it exists now; a job that only started may end with nothing.
+            out.pop((job_of(rows, r["job"]) or {}).get("origin"), None)
     return out
 
 
