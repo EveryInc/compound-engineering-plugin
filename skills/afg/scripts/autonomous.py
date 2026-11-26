@@ -75,6 +75,7 @@ FIXED = ["autonomous_landing", "autonomous_ci", "autonomous_merge_method", "auto
 PARK_DAYS = 7
 JOBS_AT_ONCE = 2
 BUSY_PER_CPU = 4
+LANES = 3
 MACHINE_WAIT = 2 * 3600
 KEYS = {
     "autonomous_profile": "str",
@@ -593,16 +594,17 @@ def ledger(repo):
 
 @contextmanager
 def machine_turn(repo, token, seconds):
-    """One check at a time on this machine, and a second while it has processors to spare. Waiting is not failing."""
+    """One check at a time on this machine, and up to two more while processors are idle. Waiting is not failing."""
     if fcntl is None or not hasattr(os, "getuid"):
         raise Failure("file locking is unavailable")
     path = os.path.join(os.environ.get("AFG_TURN_DIR") or "/tmp", f"afg-line-{os.getuid()}.lock")
-    second, fd, ticket = None, os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600), None
+    more, fd, ticket = [], os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600), None
     try:
         if os.fstat(fd).st_uid != os.getuid():
             raise Failure("the machine lock belongs to someone else")
         end, beat = now() + timedelta(seconds=seconds), now()
-        second = os.open(path + ".2", os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600)
+        more = [os.open(f"{path}.{n}", os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600)
+                for n in range(2, LANES + 1)]
         ticket = take_ticket(path + ".d")
         while True:
             try:
@@ -613,7 +615,14 @@ def machine_turn(repo, token, seconds):
                 except OSError:
                     if not machine_spare():
                         raise
-                    fcntl.flock(second, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    for extra in more:
+                        try:
+                            fcntl.flock(extra, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            break
+                        except OSError:
+                            continue
+                    else:
+                        raise
                 break
             except OSError:
                 if now() > end:
@@ -629,8 +638,8 @@ def machine_turn(repo, token, seconds):
         yield
     finally:
         os.close(fd)
-        if second is not None:
-            os.close(second)
+        for extra in more:
+            os.close(extra)
         if ticket:
             try:
                 os.unlink(ticket)
@@ -685,11 +694,17 @@ def machine_calm():
 
 
 def machine_spare():
-    """Processors are still free, so another check would not slow the one running."""
+    """Processors are idle now. The load average says what was wanted minutes ago."""
     limit = os.environ.get("AFG_SPARE_LIMIT")
+    if machine_busy():
+        return False
     try:
-        return os.getloadavg()[0] < (float(limit) if limit else 0.8 * (os.cpu_count() or 1)) and not machine_busy()
-    except (OSError, AttributeError, ValueError):
+        if limit:
+            return os.getloadavg()[0] < float(limit)
+        p = subprocess.run(["ps", "-Ao", "pcpu="], capture_output=True, text=True, timeout=5)
+        used = sum(float(x.replace(",", ".")) for x in p.stdout.split())
+        return p.returncode == 0 and used < 55 * (os.cpu_count() or 1)
+    except (OSError, AttributeError, ValueError, subprocess.SubprocessError):
         return False
 
 
