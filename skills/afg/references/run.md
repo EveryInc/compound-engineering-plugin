@@ -82,11 +82,12 @@ Nothing this run started outlives its use. As soon as an item is landed, closed,
 
 - `clean` removes worktrees and local branches of landed work, stale test folders and old logs, and lists what it may not remove. It never touches uncommitted work, a parked branch, or anything not recorded when its commit was adopted, so adopt while the worker's worktree still holds it.
 - Stop its servers and databases, and delete its scratch folder.
-- Settle or close its worker and review threads once their result is recorded, where the host has threads. Keep one open only while it holds work to resume or a question for the owner.
+- Settle or close each worker and review thread as soon as its result is recorded, where the host has threads, also one the host made for a delegate. Keep one open only while it works or holds work to resume; a question for the owner lives on the board and in the digest, not in an open thread.
+- Before `end`, list the unsettled threads of this run and settle every finished one. Then settle earlier threads of this repository's runs, schedule firings included, that are finished and hold no lease, after recording on the board what they still leave to anyone. Read the final report first when the thread did work. Never settle a person's own thread or one that another run uses.
 - Delete its pushed branch when the project's instructions say so and this run pushed it.
 
 ## End
 
-`clean`, `digest`, then `end --token`. Print, in this order: what needs the owner, each with its recommendation; what landed or closed, with links; what was decided on the owner's behalf and why, with every guard changed and the probe it still catches; what is in flight; main's health; what could not be cleaned. Say plainly when nothing changed. A scheduled run that did nothing settles its own thread where the host can, unless another run uses it.
+`clean`, `digest`, then `end --token`. Print, in this order: what needs the owner, each with its recommendation; what landed or closed, with links; what was decided on the owner's behalf and why, with every guard changed and the probe it still catches; what is in flight; main's health; what could not be cleaned. Say plainly when nothing changed. A run whose thread nothing else uses settles it as its last act, once the report is delivered where the owner reads it; one that did nothing does so at once.
 
 **A security finding that is not fixed yet is never written to an issue, PR, comment, commit, or pushed branch in a repository other people can read.** Put it in the digest only.
