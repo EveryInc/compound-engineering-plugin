@@ -1308,7 +1308,9 @@ def cmd_job(a, repo):
         reasons = allowance_reasons(repo, rows)
         if reasons:
             return deny_allowance(repo, rows, reasons)
-        if allowance(repo) is None and len(active_work(rows)) >= JOBS_AT_ONCE:
+        # A repair everything else waits for takes one place beyond the limit.
+        spare = a.motion == "main-red" and not any(r.get("motion") == "main-red" for r in active_work(rows))
+        if allowance(repo) is None and len(active_work(rows)) >= JOBS_AT_ONCE + spare:
             # Without an allocator nothing else shares this machine out.
             return deny("jobs-at-once", going=[{k: r[k] for k in ("job", "worker", "what", "at") if k in r} for r in active_work(rows)])
         # With CI ignored the checks here say whether main is broken, and a repair gets no exception from them.

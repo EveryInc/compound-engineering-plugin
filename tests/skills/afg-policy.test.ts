@@ -96,6 +96,10 @@ describe("lease and caps", () => {
     job()
     expect(job()).toMatchObject({ reasons: ["jobs-at-once"], going: [{ what: "x" }, { what: "x" }] })
     expect(w.run(["policy"]).json.jobs_left).toBeNull()
+    w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+    const repair = () => w.run(["job", "--token", w.token, "--motion", "main-red", "--what", "x"]).json
+    expect(repair().job).toBeTruthy()
+    expect(repair().reasons).toEqual(["jobs-at-once"])
   })
 
   test("a local file can add an hourly cap", () => {
