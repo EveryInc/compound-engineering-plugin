@@ -57,7 +57,7 @@ When a denial needs a person, `park --item pr:<n>|issue:<n>|commit:<sha>|main|id
 
 ## Keep going
 
-After each item, `observe` again and take the next, alternating in-flight work with a new job while `job` allows one. A parked item, a failed job, a slow test or a finished report is a reason to take another item, not to end. While a worker, test or review runs, start or advance something else; wait only when nothing else can move. Run `test` and `guard` in the background, because they wait in the machine's line.
+After each item, `observe` again and take the next, alternating in-flight work with a new job while `job` allows one. A parked item, a failed job, a slow test or a finished report is a reason to take another item, not to end. While a worker, test or review runs, start or advance something else; wait only when nothing else can move. Never end a turn with nothing set to wake it: a worker that reports back, or `room` in the background, which ends when a job could start (`machine-busy`, `jobs-at-once`) and keeps the lease meanwhile. Run `test` and `guard` in the background, because they wait in the machine's line.
 
 End only when one of these holds, and name it first in the digest:
 

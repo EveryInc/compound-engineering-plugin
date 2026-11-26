@@ -1918,6 +1918,26 @@ def cmd_test(a, repo):
     return emit({"ok": code == 0, "exit": code, "ran": ran, "log": log, "guards": guards_of(facts), "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail if code != 0 else ""}, 0 if code == 0 else 1)
 
 
+def cmd_room(a, repo):
+    """Wait until a job could start here. Run in the background, its end wakes whoever waits."""
+    policy = load_policy(repo)
+    if not policy["active"]:
+        return deny(policy["reason"])
+    end, beat = now() + timedelta(seconds=a.timeout), now()
+    while True:
+        going = len(active_work(ledger(repo)))
+        places = JOBS_WITH_ROOM if machine_spare() else JOBS_AT_ONCE
+        if not machine_busy() and going < places:
+            return emit({"room": places - going})
+        if now() > end:
+            return deny("no-room-yet", going=going)
+        time.sleep(min(15, max(1, a.timeout)))
+        if a.token and (now() - beat).total_seconds() > 300:
+            with locked(repo):
+                require_lease(repo, a.token)
+            beat = now()
+
+
 def cmd_turn(a, repo):
     """Run one heavy command here, in this machine's turn, without credentials. For a worker's own checks."""
     tmp, proc = tempfile.mkdtemp(prefix="afg-turn-"), None
@@ -2408,6 +2428,7 @@ def main():
     p = add("test", cmd_test, dry=True)
     subject(p)
     p.add_argument("--timeout", type=int, default=3600)
+    add("room", cmd_room).add_argument("--timeout", type=int, default=3600)
     p = add("turn", cmd_turn, token=False)
     p.add_argument("--run", required=True)
     p.add_argument("--timeout", type=int, default=1200)

@@ -279,6 +279,17 @@ test("clean removes what landed work left, and nothing else", () => {
   expect(readFileSync(path.join(open.tree, "c.rb"), "utf8")).toBe("two\n")
 })
 
+test("room ends when a job could start", () => {
+  const w = new World().begin()
+  const room = () => w.run(["room", "--token", w.token, "--timeout", "1"]).json
+  expect(room()).toEqual({ room: 2 })
+  w.env.AFG_LOAD_LIMIT = "0"
+  expect(room().reasons).toEqual(["no-room-yet"])
+  w.env.AFG_LOAD_LIMIT = "100000"
+  for (const _ of [1, 2]) w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"])
+  expect(room()).toMatchObject({ reasons: ["no-room-yet"], going: 2 })
+})
+
 test("setup can try a check on the tip, which leaves nothing behind", () => {
   const w = new World()
   const r = w.run(["check", "--run", "test -f app.rb", "--run", "echo no; false"])
