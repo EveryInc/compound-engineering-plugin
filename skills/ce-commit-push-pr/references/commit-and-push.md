@@ -10,11 +10,29 @@ Stage and commit each group. **Avoid `git add -A` and `git add .`** — they swe
 
 Add your commits on top of other people's commits on this branch; never rewrite theirs in a way that drops their author or trailers, such as squashing them into yours. When a commit you create carries someone else's work that will not otherwise land under their name (ported from their branch or PR, or applied from their patch), end its message with a `Co-authored-by: Name <email>` trailer for each person that work credits: its commit authors and anyone their `Co-authored-by` trailers name. Copy each identity exactly from those commits or the patch. Never guess an email: when none is recorded, name them in the message body instead.
 
+Stage and commit as two calls per commit group, the full message — subject line, blank line, optional body — on stdin:
+
 ```bash
-git add file1 file2 file3 && git commit -m "$(cat <<'EOF'
-commit message here
+git add file1 file2 file3
+```
+
+```bash
+git commit -F - -- file1 file2 file3 <<'EOF'
+type(scope): subject line
+
+Optional body.
 EOF
-)" -- file1 file2 file3
+```
+
+The quoted `'EOF'` keeps the message literal, `$` and backticks included.
+
+Under PowerShell:
+
+```powershell
+$OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::new()
+@'
+<message>
+'@ | git commit -F - -- file1 file2 file3
 ```
 
 The trailing path list on `git commit` matters. A bare `git commit` takes the whole index, so anything already staged before this run (a caller's `exclude:` paths, or work the user staged and did not name) would end up in the commit. Naming the paths commits exactly the group and leaves other index entries alone.
