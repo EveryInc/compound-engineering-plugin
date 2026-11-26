@@ -910,7 +910,7 @@ def diff_facts(repo, base, head, policy=None):
     for p in touched:
         # A test cleans up its own database. What ships does not.
         if not OWN_TEST.search(p.lower()):
-            hits += ["data-deletion:changed line" for _, text in changed_lines(mb, head, p)
+            hits += [f"data-deletion:changed line in {p}" for _, text in changed_lines(mb, head, p)
                      if any(n == "data-deletion" and re.search(pat, text, re.I) for n, pat in HARD_LINES)]
     hits += judge_hits(policy or {}, touched)
     if re.search(r"\[(skip ci|ci skip|no ci|skip actions|actions skip)\]|^(skip-checks|release-as):",

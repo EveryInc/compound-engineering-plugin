@@ -422,8 +422,8 @@ describe("merge gate", () => {
 
   test.each([
     ["a test that deletes its own rows", { "test/a.test.rb": "User.delete_all\n" }, []],
-    ["a production file named like a test", { "app/ab_test.rb": "User.delete_all\n" }, ["data-deletion:changed line"]],
-    ["a test folder something ships from", { "terraform/test/a.rb": "User.delete_all\n" }, ["data-deletion:changed line", "release:terraform/test/a.rb"]],
+    ["a production file named like a test", { "app/ab_test.rb": "User.delete_all\n" }, ["data-deletion:changed line in app/ab_test.rb"]],
+    ["a test folder something ships from", { "terraform/test/a.rb": "User.delete_all\n" }, ["data-deletion:changed line in terraform/test/a.rb", "release:terraform/test/a.rb"]],
     ["a new test of sign-in", { "test/session_test.rb": "x\n" }, ["permissions:test/session_test.rb"]],
     ["a changelog line", { "CHANGELOG.md": "old\nnew\n" }, []],
     ["a rewritten changelog", { "CHANGELOG.md": "new\n" }, ["release:CHANGELOG.md"]],
