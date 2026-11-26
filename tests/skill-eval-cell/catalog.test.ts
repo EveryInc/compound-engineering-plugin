@@ -337,6 +337,8 @@ describe("skill-eval-cell catalog", () => {
     ["BODY: - Correct widget limit", "git commit -F - -- widget.ts <<'EOF'", true],
     ["BODY: - Correct widget limit", "'@ | git commit -F - -- widget.ts", true],
     ["BODY: - Correct widget limit", "git commit -F /tmp/message.txt -- widget.ts", false],
+    ["BODY: - Correct widget limit", "git commit -F - -- widget.ts", false],
+    ["BODY: - Correct widget limit", "printf '%s\\n' 'Correct widget limit' '' '- Correct widget limit' | git commit -F - -- widget.ts", true],
     ["", "git commit -F - -- widget.ts <<'EOF'", false],
     ["BODY: none", "git commit -F - -- widget.ts <<'EOF'", false],
     ["BODY: - Correct widget limit", 'git commit -m "Correct widget limit" -- widget.ts', false],

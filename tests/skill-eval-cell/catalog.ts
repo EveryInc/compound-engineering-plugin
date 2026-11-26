@@ -7118,6 +7118,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
       declared: { SUBJECT: subject, BODY: fixture === "project" ? "- Correct widget limit" : "none", FOOTER: footer },
       must_include_field: "COMMAND",
       must_include: ["git commit -F - -- widget.ts"],
+      must_include_any: [["<<", "| git commit -F -"]],
       actions: "none",
       delegates: "none",
     },
