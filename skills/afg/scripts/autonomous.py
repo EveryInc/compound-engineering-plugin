@@ -596,7 +596,7 @@ def machine_turn(repo, token, seconds):
     """One check at a time on this machine, and a second while it has processors to spare. Waiting is not failing."""
     if fcntl is None or not hasattr(os, "getuid"):
         raise Failure("file locking is unavailable")
-    path = os.path.join(os.environ.get("AFG_TURN_DIR") or "/tmp", f"afg-turn-{os.getuid()}.lock")
+    path = os.path.join(os.environ.get("AFG_TURN_DIR") or "/tmp", f"afg-line-{os.getuid()}.lock")
     second, fd, ticket = None, os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600), None
     try:
         if os.fstat(fd).st_uid != os.getuid():
@@ -676,10 +676,10 @@ def load_now():
 
 
 def machine_spare():
-    """Less than half the processors are wanted, so another check would not slow the one running."""
+    """Processors are still free, so another check would not slow the one running."""
     limit = os.environ.get("AFG_SPARE_LIMIT")
     try:
-        return os.getloadavg()[0] < (float(limit) if limit else 0.5 * (os.cpu_count() or 1)) and not machine_busy()
+        return os.getloadavg()[0] < (float(limit) if limit else 0.8 * (os.cpu_count() or 1)) and not machine_busy()
     except (OSError, AttributeError, ValueError):
         return False
 

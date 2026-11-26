@@ -49,7 +49,7 @@ Landing is judged on the exact head, after the last push to it. A review made be
 6. For each file `test` lists in `guards`, see Guards below.
 7. `land --pr <n> --head <sha>`. After a landing, observe again before trying the next; it is denied until main is green.
 
-A commit for direct landing takes `test`, `review`, `rule` and `guard` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit under the same job, and repeat. One job lands one commit, after which its worktrees, databases and branches are removed. Base independent commits on the tip, not on each other: their reviews run at once and carry over as the others land. Stack only a commit that needs the one below, because a fix below voids every review above. With `autonomous_merge_method: merge`, that commit sits on the tip and the adopted `<sha>` is the `--no-ff` merge of it. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
+A commit for direct landing takes `test`, `review`, `rule` and `guard` with `--sha` in place of `--pr`, then `direct --sha <sha> --job <id>`. When the tip moves first, have the worker rebase, adopt the new commit under the same job, and repeat. One job lands one commit, after which its worktrees, databases and branches are removed. Base independent commits on the tip, not on each other: their reviews run at once and carry over as the others land. Run `test --dry-run` on a commit before building on it, because a limit found below changes every commit above. Stack only a commit that needs the one below, because a fix below voids every review above. With `autonomous_merge_method: merge`, that commit sits on the tip and the adopted `<sha>` is the `--no-ff` merge of it. Below level `merge`, keep the branch unpublished and `park --item commit:<sha>`, naming the branch, for the owner to land.
 
 On the pull-request route, when main moves while it is red, `update` the repair PR, start a new `main-red` job for the new tip without `--opens-pr`, and adopt the updated head under it.
 
@@ -86,7 +86,7 @@ End only when one of these holds, and name it first in the digest:
 
 Where the host shows remaining usage, read it before each new job and name it in the digest; a model with no reported limit has none, so keep going. Never end to save quota the owner did not ask to save.
 
-`machine-busy` is not an end while something is going: start nothing new, let it finish, and ask again. With nothing going, end and let the schedule resume. `test` and `guard` wait their turn on this machine across repositories, so run them in the background; a worker runs the tests its change needs rather than whole suites, which `test` runs anyway, and takes a place in the same line for anything heavy, such as browser checks, with `turn --run "<command>"`.
+`machine-busy` is not an end while something is going: start nothing new, let it finish, and ask again. With nothing going, end and let the schedule resume. `test` and `guard` wait their turn on this machine across repositories, so run them in the background; a worker runs the tests its change needs rather than whole suites, which `test` runs anyway, and takes a place in the same line for anything heavy, such as browser checks, with `turn --run "<command>"`. Nothing else takes that lock.
 
 `jobs-at-once` is not an end: advance or finish what is going. `job-end` an entry only when its worker is gone.
 

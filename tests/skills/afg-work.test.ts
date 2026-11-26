@@ -232,7 +232,7 @@ test("checks take turns on one machine, and a swamped machine starts no job", as
 
 test("the line is first come first served, and a place left by a dead process is skipped", () => {
   const w = new World()
-  const line = path.join(w.env.AFG_TURN_DIR!, `afg-turn-${process.getuid!()}.lock.d`)
+  const line = path.join(w.env.AFG_TURN_DIR!, `afg-line-${process.getuid!()}.lock.d`)
   mkdirSync(line)
   writeFileSync(path.join(line, "00000000000000000001-999999"), "")
   expect(w.run(["turn", "--run", "test -f app.rb"]).json).toEqual({ ok: true, exit: 0 })

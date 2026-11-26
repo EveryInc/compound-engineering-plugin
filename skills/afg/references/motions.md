@@ -28,7 +28,7 @@ Every open PR and issue ends landed, fixed, closed with evidence, or parked with
 
 ## stack
 
-Sources: dependency bot PRs first, then outdated direct dependencies and the framework itself. Group patch and minor updates of the same lockfile into one job, because each job costs a whole test run; split out whichever breaks the group. An update that needs code changes is its own job. Landing a bot's PR needs no job. For an update with no PR, the callee is `lfg`. Read the changelog between the two versions. An update that moves what users' stored content is read or written with is landed only after a check that opens existing content passes. A major update is worked and babysat, and a person lands it.
+Sources: dependency bot PRs first, then outdated direct dependencies and the framework itself. Group patch and minor updates of the same lockfile into one job, because each job costs a whole test run; split out whichever breaks the group. An update that needs code changes is its own job. Landing a bot's PR needs no job. For an update with no PR, the callee is `lfg`. Take a version published at least seven days ago unless it fixes an advisory this project is exposed to. Read the changelog between the two versions. An update that moves what users' stored content is read or written with is landed only after a check that opens existing content passes. A major update is worked and babysat, and a person lands it.
 
 ## climb
 
