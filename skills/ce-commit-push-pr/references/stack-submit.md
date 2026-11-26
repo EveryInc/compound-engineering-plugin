@@ -41,11 +41,35 @@ Choose the bottom-layer path from the branch checked out when retrospective cons
 
 For uncommitted whole-file groups on an existing feature branch, save all tracked and untracked working changes before switching branches, then restore them only on the planned layer whose parent contains their prerequisites. Keep the saved work until the constructed top is verified complete. Initialize or adopt the bottom layer at the resolved `<base>` tip or its planned commit tip, commit only its files, then add and commit each next layer in order. Files named by an `exclude:<paths>` token on the invocation belong to no layer. Never save, move, or restore them — they stay in the working tree exactly as found. Name the paths on every layer commit so a pre-staged excluded file cannot get in, and treat the "complete original change set" as the change set minus those files. If a branch switch during construction would overwrite an excluded file, stop with a residual rather than proceeding. Compose `<bottom-message>` and `<next-message>` with the same subject rule as Step 3: when a plan Implementation Unit ID is already in hand for that layer's commit, append that unit's U-ID in parentheses — `(U3)` means unit 3. Do not hunt for a plan. Omit when the commit spans units, the unit is unclear, or no plan is in hand.
 
+Each layer's full message goes on stdin, as in Step 3:
+
 ```bash
 gh stack init --base "<base>" "<bottom-branch>"
-git add <bottom-files> && git commit -m "<bottom-message>" -- <bottom-files>
+git add <bottom-files>
+git commit -F - -- <bottom-files> <<'CE_COMMIT_MESSAGE_END'
+<bottom-message>
+CE_COMMIT_MESSAGE_END
 gh stack add "<next-branch>"
-git add <next-files> && git commit -m "<next-message>" -- <next-files>
+git add <next-files>
+git commit -F - -- <next-files> <<'CE_COMMIT_MESSAGE_END'
+<next-message>
+CE_COMMIT_MESSAGE_END
+```
+
+Under PowerShell:
+
+```powershell
+$OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::new()
+gh stack init --base "<base>" "<bottom-branch>"
+git add <bottom-files>
+@'
+<bottom-message>
+'@ | git commit -F - -- <bottom-files>
+gh stack add "<next-branch>"
+git add <next-files>
+@'
+<next-message>
+'@ | git commit -F - -- <next-files>
 ```
 
 For committed work whose existing commit boundaries already match the plan, create or reuse one branch at each planned commit tip and adopt them bottom-to-top with `gh stack init --base "<base>" "<bottom-branch>" "<next-branch>" ...`. Reuse the original feature branch only when its unchanged tip is one of those planned tips. If unpublished commits need rearrangement, keep a recovery branch at the original tip before rewriting. After construction, run `gh stack view --json`; verify the reported order matches the plan and the top layer contains the complete original change set before submit.

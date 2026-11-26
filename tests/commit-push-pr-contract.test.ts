@@ -303,6 +303,13 @@ describe("ce-commit-push-pr contract", () => {
     expect(commitRef).toContain("Omit when the commit spans units")
   })
 
+  test("passes the commit message on stdin, with a PowerShell route", async () => {
+    const commitRef = await readRepoFile("skills/ce-commit-push-pr/references/commit-and-push.md")
+    expect(commitRef).toContain("git commit -F - -- file1 file2 file3 <<'CE_COMMIT_MESSAGE_END'")
+    expect(commitRef).toContain("'@ | git commit -F - -- file1 file2 file3")
+    expect(commitRef).not.toContain("git commit -m")
+  })
+
   test("adds generic Compound Engineering branding only on an explicit signal", async () => {
     const reference = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",

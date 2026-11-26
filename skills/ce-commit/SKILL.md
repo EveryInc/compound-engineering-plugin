@@ -43,17 +43,30 @@ Treat this as a snapshot. Re-read branch and staged set immediately before commi
    - Good: `Fix double-submit on checkout`
    - Good: `Add per-subscription mute (U3)`
 
-6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Honor `exclude:<paths>` when the invocation carries it: those files stay uncommitted no matter what else changed; say in the report that they were left out. Write the full message — subject line, blank line, optional body — to a file outside the repo with your file-write tool, then stage and commit as two calls per commit group:
+6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Honor `exclude:<paths>` when the invocation carries it: those files stay uncommitted no matter what else changed; say in the report that they were left out. Stage and commit as two calls per commit group, the full message — subject line, blank line, optional body — on stdin:
 
 ```bash
 git add file1 file2 file3
 ```
 
 ```bash
-git commit -F <message-file> -- file1 file2 file3
+git commit -F - -- file1 file2 file3 <<'CE_COMMIT_MESSAGE_END'
+type(scope): subject line
+
+Optional body.
+CE_COMMIT_MESSAGE_END
 ```
 
-No shell parses the message with `-F`: a `$`, quotes, backticks, or a multi-line body pass through literally under any shell, with no quoting rules to satisfy. Git's normal whitespace cleanup still applies (trailing spaces trimmed, blank-line runs collapsed), which is fine for a commit message.
+The quoted delimiter keeps the message literal, `$` and backticks included.
+
+Under PowerShell:
+
+```powershell
+$OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::new()
+@'
+<message>
+'@ | git commit -F - -- file1 file2 file3
+```
 
 The trailing path list on `git commit` is required: a bare `git commit` takes the whole index, so anything already staged before this run (a caller's `exclude:` paths, or work the user staged and did not name) would ride into the commit. Naming the paths commits exactly the group and leaves other index entries alone.
 

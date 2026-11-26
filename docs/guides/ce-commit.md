@@ -59,7 +59,7 @@ A rushed commit often does one of these:
 - **Unsafe HEAD gets a branch.** On detached HEAD or the default branch, it creates a feature branch from the change content and continues there, without asking. It does not leave the only copy of the work somewhere it can be lost.
 - **The subject names the outcome.** Imperative, states what is now possible or fixed. A body appears only when the why is not obvious. When a plan unit ID is already in hand for the commit, it is appended in parentheses (`(U3)` for unit 3).
 
-The message goes to git via a file (`git commit -F`), so quotes, backticks, and multi-line bodies pass through literally with no shell quoting to get wrong.
+The message goes to git on stdin (`git commit -F -`), from a quoted heredoc in bash or a single-quoted here-string in PowerShell, so quotes, backticks, and multi-line bodies pass through literally with no shell quoting to get wrong.
 
 ---
 

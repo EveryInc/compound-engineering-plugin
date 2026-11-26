@@ -93,8 +93,8 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-work/incremental-message-recent-log` | Without project conventions, incremental commits follow the recent log |
 | `ce-work/incremental-message-fallback` | Without conventions or history, incremental commits use conventional commits |
 | `ce-work/incremental-message-user-override` | An explicit user format overrides the project convention |
-| `ce-work/incremental-message-literal-message` | A literal user-specified subject and required body use file-based commit transport |
-| `ce-work/incremental-message-required-attribution` | Required attribution survives plugin-branding omission and uses outside-repo message transport |
+| `ce-work/incremental-message-literal-message` | A literal user-specified subject and required body pass the message to git on stdin |
+| `ce-work/incremental-message-required-attribution` | Required attribution survives plugin-branding omission and passes the message to git on stdin |
 | `ce-prototype/batch-conflict-asks` | Conflicting annotation notes stay in chat instead of guessing an edit |
 | `ce-prototype/clear-batch-applies-in-place` | A clear annotation batch iterates in place; conversation does not swallow it |
 | `ce-prototype/question-stays-in-chat` | A question pin is answered in chat, not treated as an edit or a next variant |

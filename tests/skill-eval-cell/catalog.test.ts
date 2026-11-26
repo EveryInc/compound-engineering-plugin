@@ -334,12 +334,15 @@ describe("skill-eval-cell catalog", () => {
   })
 
   test.each([
-    ["BODY: - Correct widget limit", "git commit -F /tmp/message.txt -- widget.ts", true],
-    ["BODY: - Correct widget limit", 'git commit -F "/tmp/message.txt" -- widget.ts', true],
-    ["BODY: - Correct widget limit", "git commit -F '/tmp/message.txt' -- widget.ts", true],
-    ["BODY: - Correct widget limit", "git commit -F message.txt -- widget.ts", false],
-    ["", "git commit -F /tmp/message.txt -- widget.ts", false],
-    ["BODY: none", "git commit -F /tmp/message.txt -- widget.ts", false],
+    ["BODY: - Correct widget limit", "git commit -F - -- widget.ts <<'CE_COMMIT_MESSAGE_END'", true],
+    ["BODY: - Correct widget limit", 'git commit -F - -- widget.ts <<"EOF"', true],
+    ["BODY: - Correct widget limit", "git commit -F - -- widget.ts <<EOF", false],
+    ["BODY: - Correct widget limit", "'@ | git commit -F - -- widget.ts", true],
+    ["BODY: - Correct widget limit", "git commit -F /tmp/message.txt -- widget.ts", false],
+    ["BODY: - Correct widget limit", "git commit -F - -- widget.ts", false],
+    ["BODY: - Correct widget limit", "printf '%s\\n' 'Correct widget limit' '' '- Correct widget limit' | git commit -F - -- widget.ts", true],
+    ["", "git commit -F - -- widget.ts <<'EOF'", false],
+    ["BODY: none", "git commit -F - -- widget.ts <<'EOF'", false],
     ["BODY: - Correct widget limit", 'git commit -m "Correct widget limit" -- widget.ts', false],
   ])("incremental project message grades body %s and transport %s", (body, command, accepted) => {
     const scenario = scenarioById("ce-work/incremental-message-project")!
