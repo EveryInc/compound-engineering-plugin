@@ -279,6 +279,46 @@ test("clean removes what landed work left, and nothing else", () => {
   expect(readFileSync(path.join(open.tree, "c.rb"), "utf8")).toBe("two\n")
 })
 
+test("clean removes the branch a landed merge joined, and nobody's work on the tip", () => {
+  const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\nautonomous_merge_method: merge\n").begin()
+  const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+  const work = path.join(w.root, "work")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "work", work, "origin/main")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "theirs", path.join(w.root, "theirs"), "origin/main")
+  writeFileSync(path.join(work, "a.rb"), "two\n")
+  w.git(work, "add", "-A")
+  w.git(work, "commit", "-q", "-m", "work")
+  const join = path.join(w.root, "join")
+  w.git(w.repo, "worktree", "add", "-q", "--detach", join, "origin/main")
+  w.git(join, "merge", "-q", "--no-ff", "-m", "Merge work", "work")
+  const sha = w.git(join, "rev-parse", "HEAD")
+  w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+  w.run(["test", "--token", w.token, "--sha", sha])
+  w.run(["review", "--token", w.token, "--sha", sha], w.reviewJson(sha))
+  expect(w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]).json.landed).toBe(sha)
+  expect(w.run(["clean", "--token", w.token]).json.removed.sort()).toEqual([join, work, "refs/heads/work"].sort())
+  expect(w.git(w.repo, "branch", "--format=%(refname:short)").split("\n").sort()).toEqual(["main", "theirs"])
+})
+
+test("a merge that joins the default branch's tip does not claim what sits on it", () => {
+  const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
+  const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+  const work = path.join(w.root, "work")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "work", work, "origin/main")
+  writeFileSync(path.join(work, "a.rb"), "two\n")
+  w.git(work, "add", "-A")
+  w.git(work, "commit", "-q", "-m", "work")
+  w.write("b.rb", "x\n")
+  w.commit("tip", ["b.rb"])
+  w.git(w.repo, "push", "-q", "origin", "main")
+  w.git(w.repo, "fetch", "-q", "origin")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "theirs", path.join(w.root, "theirs"), "origin/main")
+  w.git(work, "merge", "-q", "--no-ff", "-m", "Merge tip", "origin/main")
+  w.run(["adopt", "--token", w.token, "--job", job, "--sha", w.git(work, "rev-parse", "HEAD")])
+  const adopt = readFileSync(path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((r) => r.event === "adopt").at(-1)
+  expect(adopt.joined).toEqual({})
+})
+
 test("room ends when a job could start", () => {
   const w = new World().begin()
   const room = () => w.run(["room", "--token", w.token, "--timeout", "1"]).json

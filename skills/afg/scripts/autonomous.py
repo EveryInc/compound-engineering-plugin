@@ -1551,7 +1551,15 @@ def worktrees():
         yield dict(x.partition(" ")[::2] for x in block.splitlines())
 
 
-def holders(sha):
+def holders(sha, base):
+    """What holds this commit now. For a merge, also what holds the branch it joins, which is where the work was done."""
+    # Anyone's new worktree sits on what the default branch already has.
+    joined = [p for p in git("rev-list", "--parents", "-n", "1", sha).stdout.split()[2:]
+              if git("merge-base", "--is-ancestor", p, base, check=False).returncode == 1]
+    return {**held_by(sha), "joined": {p: held_by(p) for p in joined}}
+
+
+def held_by(sha):
     refs = [x.split(" ")[0] for x in git("for-each-ref", "--format=%(refname) %(objectname)", "refs/heads").stdout.splitlines()
             if x.endswith(" " + sha)]
     return {"trees": [w["worktree"] for w in worktrees() if w.get("HEAD") == sha], "refs": refs}
@@ -1566,6 +1574,7 @@ def cmd_clean(a, repo):
     kept = {k.partition(":")[2] for k in parked(rows) if k.startswith("commit:")}
     mine = [r for r in rows if r["event"] == "adopt" and r.get("sha") and r["job"] in done and r["sha"] not in kept]
     ours = {(p, r["sha"]) for r in mine for p in r.get("trees", []) + r.get("refs", [])}
+    ours |= {(p, sha) for r in mine for sha, h in r.get("joined", {}).items() if sha not in kept for p in h["trees"] + h["refs"]}
     removed, left, here = [], [], os.path.realpath(os.getcwd())
     in_use = set()
     for lines in list(worktrees()):
@@ -1825,7 +1834,7 @@ def cmd_adopt(a, repo):
             if why:
                 return deny(*why)
         # Nobody else can have a commit that was never published, so what holds it now is this job's.
-        what = {"sha": a.sha, "head": a.sha, **holders(a.sha)}
+        what = {"sha": a.sha, "head": a.sha, **holders(a.sha, repo.tip())}
     else:
         pr = pr_view(repo, a.pr)
         for _ in range(5):
