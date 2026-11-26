@@ -93,6 +93,17 @@ def wanted(core, repo):
 def mark(core, repo):
     """In git's own settings, which no pull, clean or commit of the project can change."""
     core.git("config", "--local", MARK, repo.upstream["parent"])
+    # What this keeps in the checkout must never reach one of the project's commits.
+    path = os.path.join(repo.common, "info", "exclude")
+    text = ""
+    if os.path.exists(path):
+        with open(path, encoding="utf-8", errors="surrogateescape") as f:
+            text = f.read()
+    missing = [x for x in (f"/{STORE}/", f"/{LOCAL}") if x not in text.splitlines()]
+    if missing:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(("\n" if text and not text.endswith("\n") else "") + "\n".join(missing) + "\n")
 
 
 def facts(core, repo):

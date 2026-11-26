@@ -832,3 +832,12 @@ describe("tending", () => {
     expect(w.job().code).toBe(0)
   })
 })
+
+test("nothing this keeps in the checkout shows up for the project to commit, and the owner's own ignores stay", () => {
+  const w = new Fork()
+  writeFileSync(path.join(w.repo, ".git/info/exclude"), "mine")
+  w.begin()
+  w.begin()
+  expect(w.git(w.repo, "status", "--porcelain")).toBe("")
+  expect(readFileSync(path.join(w.repo, ".git/info/exclude"), "utf8")).toBe("mine\n/.context/compound-engineering/afg/\n/.compound-engineering/config.local.yaml\n")
+})
