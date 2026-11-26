@@ -230,7 +230,7 @@ test("checks take turns on one machine, and a swamped machine starts no job", as
   expect(w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.reasons).toEqual(["machine-busy"])
 })
 
-test("the line is first come first served, and a place left by a dead process is skipped", () => {
+test("the line is first come first served, and a place left by a dead process is skipped", async () => {
   const w = new World()
   const line = path.join(w.env.AFG_TURN_DIR!, `afg-line-${process.getuid!()}.lock.d`)
   mkdirSync(line)
@@ -239,9 +239,11 @@ test("the line is first come first served, and a place left by a dead process is
   expect(readdirSync(line)).toEqual([])
   writeFileSync(path.join(line, `00000000000000000001-${process.pid}`), "")
   const waiting = Bun.spawn(["python3", SCRIPT, "turn", "--run", "true"], { cwd: w.repo, env: w.env as any, stdout: "ignore", stderr: "ignore" })
-  Bun.sleepSync(2500)
+  await Bun.sleep(2500)
   expect(waiting.exitCode).toBeNull()
   waiting.kill()
+  // An unawaited child stays a zombie, which the test runner reads as a lost exit.
+  await waiting.exited
 })
 
 test("clean removes what landed work left, and nothing else", () => {
