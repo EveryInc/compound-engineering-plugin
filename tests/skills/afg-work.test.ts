@@ -244,6 +244,39 @@ test("the line is first come first served, and a place left by a dead process is
   waiting.kill()
 })
 
+test("clean removes what landed work left, and nothing else", () => {
+  const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
+  const make = (name: string, file: string) => {
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.git(w.repo, "fetch", "-q", "origin")
+    const tree = path.join(w.root, name)
+    w.git(w.repo, "worktree", "add", "-q", "-b", name, tree, "origin/main")
+    writeFileSync(path.join(tree, file), "two\n")
+    w.git(tree, "add", "-A")
+    w.git(tree, "commit", "-q", "-m", name)
+    const sha = w.git(tree, "rev-parse", "HEAD")
+    w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+    return { job, sha, tree }
+  }
+  const land = (x: { job: string; sha: string }) => {
+    w.run(["test", "--token", w.token, "--sha", x.sha])
+    w.run(["review", "--token", w.token, "--sha", x.sha], w.reviewJson(x.sha))
+    expect(w.run(["direct", "--token", w.token, "--sha", x.sha, "--job", x.job]).json.landed).toBe(x.sha)
+  }
+  const landed = make("landed", "a.rb")
+  land(landed)
+  const dirty = make("dirty", "b.rb")
+  land(dirty)
+  writeFileSync(path.join(dirty.tree, "notes.txt"), "mine")
+  const open = make("open", "c.rb")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "theirs", path.join(w.root, "theirs"), "origin/main~1")
+  const r = w.run(["clean", "--token", w.token]).json
+  expect(r.removed).toEqual([landed.tree, "refs/heads/landed"])
+  expect(r.left).toEqual([{ worktree: dirty.tree, head: dirty.sha }])
+  expect(w.git(w.repo, "branch", "--format=%(refname:short)").split("\n").sort()).toEqual(["dirty", "main", "open", "theirs"])
+  expect(readFileSync(path.join(open.tree, "c.rb"), "utf8")).toBe("two\n")
+})
+
 test("setup can try a check on the tip, which leaves nothing behind", () => {
   const w = new World()
   const r = w.run(["check", "--run", "test -f app.rb", "--run", "echo no; false"])

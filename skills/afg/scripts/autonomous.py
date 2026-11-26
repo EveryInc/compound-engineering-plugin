@@ -1413,6 +1413,68 @@ def cmd_begin(a, repo):
     return emit({"token": token, "mode": "act", "reclaimed": reclaimed, "jobs_left": jobs_left(policy, ledger(repo))})
 
 
+def worktrees():
+    for block in git("worktree", "list", "--porcelain").stdout.strip().split("\n\n")[1:]:
+        yield dict(x.partition(" ")[::2] for x in block.splitlines())
+
+
+def holders(sha):
+    refs = [x.split(" ")[0] for x in git("for-each-ref", "--format=%(refname) %(objectname)", "refs/heads").stdout.splitlines()
+            if x.endswith(" " + sha)]
+    return {"trees": [w["worktree"] for w in worktrees() if w.get("HEAD") == sha], "refs": refs}
+
+
+def cmd_clean(a, repo):
+    """Remove what landed work left behind here. Uncommitted work, parked branches and other people's worktrees stay."""
+    with locked(repo):
+        require_lease(repo, a.token)
+    rows, tip = ledger(repo), repo.tip()
+    done = {r["job"] for r in rows if r["event"] == "adopt" and job_landed(rows, r["job"])}
+    kept = {k.partition(":")[2] for k in parked(rows) if k.startswith("commit:")}
+    mine = [r for r in rows if r["event"] == "adopt" and r.get("sha") and r["job"] in done and r["sha"] not in kept]
+    ours = {(p, r["sha"]) for r in mine for p in r.get("trees", []) + r.get("refs", [])}
+    removed, left, here = [], [], os.path.realpath(os.getcwd())
+    in_use = set()
+    for lines in list(worktrees()):
+        tree, head = lines["worktree"], lines.get("HEAD", "")
+        stray = re.match(r"afg-(test|check|guard)-", os.path.basename(os.path.dirname(tree)))
+        if stray:
+            # One may be running now. A run ends well within this.
+            if os.path.isdir(tree) and now().timestamp() - os.path.getmtime(os.path.dirname(tree)) < 6 * 3600:
+                continue
+            if not a.dry_run:
+                git("worktree", "remove", "--force", tree, check=False)
+            removed.append(tree)
+            continue
+        if (tree, head) in ours and "locked" not in lines and not (here + os.sep).startswith(os.path.realpath(tree) + os.sep):
+            # Without --force, git itself refuses a tree with changed or untracked files.
+            if not a.dry_run and git("worktree", "remove", tree, check=False).returncode != 0:
+                left.append({"worktree": tree, "head": head})
+                in_use.add(lines.get("branch"))
+                continue
+            removed.append(tree)
+        else:
+            in_use.add(lines.get("branch"))
+    for row in git("for-each-ref", "--format=%(refname) %(objectname)", "refs/heads").stdout.splitlines():
+        ref, sha = row.split(" ")
+        if (ref, sha) not in ours or ref in in_use or ref == f"refs/heads/{repo.default}":
+            continue
+        if not a.dry_run and git("update-ref", "-d", ref, sha, check=False).returncode != 0:
+            left.append({"branch": ref, "head": sha})
+            continue
+        removed.append(ref)
+    store = store_dir(repo)
+    for name in os.listdir(store):
+        path = os.path.join(store, name)
+        if re.fullmatch(r"test-[0-9a-f]{12}\.log", name) and now().timestamp() - os.path.getmtime(path) > 7 * 86400:
+            if not a.dry_run:
+                os.unlink(path)
+            removed.append(path)
+    if not a.dry_run:
+        git("worktree", "prune", check=False)
+    return emit({"removed": removed, "left": left, "tip": tip})
+
+
 def cmd_end(a, repo):
     with locked(repo):
         require_lease(repo, a.token)
@@ -1614,7 +1676,8 @@ def cmd_adopt(a, repo):
     if a.sha:
         if not SHA.match(a.sha) or not local_commits_own(repo, a.sha):
             return deny("author-not-trusted")
-        what = {"sha": a.sha, "head": a.sha}
+        # Nobody else can have a commit that was never published, so what holds it now is this job's.
+        what = {"sha": a.sha, "head": a.sha, **holders(a.sha)}
     else:
         pr = pr_view(repo, a.pr)
         for _ in range(5):
@@ -2257,6 +2320,7 @@ def main():
     add("policy", cmd_policy, token=False)
     add("begin", cmd_begin, token=False, dry=True)
     add("end", cmd_end)
+    add("clean", cmd_clean, dry=True)
     add("heartbeat", cmd_heartbeat)
     add("observe", cmd_observe, token=False)
     p = add("job", cmd_job)
