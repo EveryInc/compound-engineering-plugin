@@ -627,8 +627,15 @@ def load_now():
 
 
 def machine_busy():
-    """Far more is waiting for a processor than this machine can run."""
+    """Far more is waiting for a processor than this machine can run, or the system says memory is critical."""
     limit = os.environ.get("AFG_LOAD_LIMIT")
+    if sys.platform == "darwin" and not limit:
+        try:
+            p = subprocess.run(["/usr/sbin/sysctl", "-n", "kern.memorystatus_vm_pressure_level"], capture_output=True, text=True, timeout=5)
+            if p.stdout.strip() == "4":
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
     try:
         return os.getloadavg()[0] > (float(limit) if limit else BUSY_PER_CPU * (os.cpu_count() or 1))
     except (OSError, AttributeError, ValueError):
@@ -997,7 +1004,13 @@ def npm_change(old, new):
         here = "name" not in v and str(v.get("resolved", "")).startswith(f"{host}{name}/-/")
         if v.get("inBundle") and "resolved" not in v and not v.get("link"):
             # Shipped inside the package above it, whose own entry is checked.
-            if k.rsplit("/node_modules/", 1)[0] in b and (o is None or o.get("inBundle") or o == v):
+            up = k
+            while up in b and b[up].get("inBundle"):
+                up = up.rsplit("/node_modules/", 1)[0] if "/node_modules/" in up else ""
+            holder = b.get(up) or {}
+            own_name = up.split("node_modules/")[-1]
+            held = up and str(holder.get("resolved", "")).startswith(f"{host}{own_name}/-/") and holder.get("integrity")
+            if o == v or held and holder != a.get(up) and (o is None or o.get("inBundle")):
                 continue
             return "source"
         if o is not None and here and not str(o.get("resolved", "")).startswith(f"{host}{name}/-/"):

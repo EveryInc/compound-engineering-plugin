@@ -459,6 +459,7 @@ describe("merge gate", () => {
     const bundled = (v: string) => ({ "node_modules/left/node_modules/in": { version: v, inBundle: true, license: "MIT" } })
     w.git(w.repo, "checkout", "-q", "main")
     expect(seen(10, { "node_modules/left": pkg("1.3.0"), ...bundled("3.0.0") })).toEqual([false, []])
+    expect(seen(14, { "node_modules/left": pkg("1.2.0"), ...bundled("3.0.0") })[1]).toEqual(bad)
     expect(seen(11, { "node_modules/left": pkg("1.2.0"), "node_modules/loose": { version: "1.0.0", resolved: "https://evil.example/x.tgz", integrity: "sha512-x", inBundle: true } })[1]).toEqual(bad)
     w.write("package-lock.json", lock({ "node_modules/left": pkg("1.2.0"), "node_modules/types": pkg("0.137.0", {}, "types") }))
     w.commit("transitive", ["package-lock.json"])
