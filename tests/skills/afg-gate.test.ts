@@ -418,6 +418,45 @@ describe("merge gate", () => {
     expect(w.gate().hard_limits.filter((h: string) => !h.startsWith("guard:"))).not.toEqual([])
   })
 
+  test.each([
+    ["a test that deletes its own rows", { "test/a.test.rb": "User.delete_all\n" }, []],
+    ["a production file named like a test", { "app/ab_test.rb": "User.delete_all\n" }, ["data-deletion:changed line"]],
+    ["a test folder something ships from", { "terraform/test/a.rb": "User.delete_all\n" }, ["data-deletion:changed line", "release:terraform/test/a.rb"]],
+    ["a new test of sign-in", { "test/session_test.rb": "x\n" }, ["permissions:test/session_test.rb"]],
+    ["a changelog line", { "CHANGELOG.md": "old\nnew\n" }, []],
+    ["a rewritten changelog", { "CHANGELOG.md": "new\n" }, ["release:CHANGELOG.md"]],
+    ["sign-in itself", { "app/session.rb": "x\n" }, ["permissions:app/session.rb"]],
+    ["a changed test of sign-in", { "test/login_test.rb": "y\n" }, ["permissions:test/login_test.rb"]],
+  ])("%s", (_n, files, hits) => {
+    const w = new World()
+    w.write("CHANGELOG.md", "old\n")
+    w.write("test/login_test.rb", "x\n")
+    w.commit("files", ["CHANGELOG.md", "test"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    w.pr(7, files as Record<string, string>)
+    expect(w.gate().hard_limits).toEqual(hits)
+  })
+
+  test("an npm update is judged by package, not by how many lines changed", () => {
+    const pkg = (v: string, more: any = {}) => ({ version: v, resolved: `https://registry.npmjs.org/x/-/x-${v}.tgz`, integrity: `sha512-${v}`, ...more })
+    const lock = (packages: any) => JSON.stringify({ lockfileVersion: 3, packages: { "": { dependencies: { left: "^1" } }, ...packages } }, null, 1) + "\n"
+    const w = new World()
+    w.write("package-lock.json", lock({ "node_modules/left": pkg("1.2.0") }))
+    w.commit("lock", ["package-lock.json"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    const seen = (n: number, packages: any) => {
+      w.pr(n, { "package-lock.json": lock(packages) })
+      const g = w.gate(n)
+      return [g.reasons.includes("major-update"), g.hard_limits]
+    }
+    const bad = ["unclassified:package-lock.json"]
+    expect(seen(1, { "node_modules/left": pkg("1.3.0"), "node_modules/new": pkg("1.0.0") })).toEqual([false, []])
+    expect(seen(2, { "node_modules/left": pkg("2.0.0") })[0]).toBe(true)
+    expect(seen(3, { "node_modules/left": pkg("1.2.0", { integrity: "sha512-other" }) })[1]).toEqual(bad)
+    expect(seen(4, { "node_modules/left": pkg("1.3.0", { resolved: "https://evil.example/x.tgz" }) })[1]).toEqual(bad)
+    expect(seen(5, { "node_modules/left": pkg("1.3.0", { hasInstallScript: true }) })[1]).toEqual(bad)
+  })
+
   test("what a gem asks of another gem is not an update of it", () => {
     const lock = (v: string, need: string) => `GEM\n  specs:\n    rails (${v})\n      sanitizer (${need})\n    sanitizer (1.7.1)\n`
     const w = new World()

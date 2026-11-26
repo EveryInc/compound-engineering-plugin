@@ -10,7 +10,7 @@ On the `direct` route, every "PR" below is one local commit: call `lfg mode:loca
 
 Start only when `observe` reports main red, or, with `autonomous_ci: ignored`, when a saved check fails on the tip in a clean worktree. One repair job at a time, covering as many causes as it takes: a repair that fixes its own cause but fails only on another is unfinished, so fix the next cause on top of it and land them together as one commit or PR. Callee: `lfg <failing checks and log tails>` from a worktree on a branch off the default branch tip, which diagnoses through `ce-debug`. Start with the cause that hides the most. When all checks cannot pass within this run, park the branch and continue from it next time instead of starting another. Otherwise unknown main is not red: wait.
 
-A repair that edits CI itself always parks for a person. On `direct`, hosted checks stay red until a person fixes CI, so do not let that motion hold up the others: once its CI repair is parked, move on.
+A repair that edits CI itself always parks for a person. On `direct`, hosted checks stay red until a person fixes CI, so do not let that motion hold up the others: once its CI repair is parked, move on. On the pull-request route nothing else can land until the owner merges that repair, so tell the owner at once through whatever this run may use, finish its PR completely, end its job, and build other work up to the PR cap without reviewing it yet: main will move when the repair lands.
 
 ## bugs
 

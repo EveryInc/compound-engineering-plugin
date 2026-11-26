@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { cleanup, HANDS_OFF, ME, World } from "../helpers/afg-world"
+import { cleanup, HANDS_OFF, ME, SCRIPT, World } from "../helpers/afg-world"
 
 setDefaultTimeout(60_000)
 afterAll(cleanup)
@@ -206,6 +206,31 @@ describe("own work", () => {
   })
 })
 
+test("checks take turns on one machine, and a swamped machine starts no job", async () => {
+  const w = new World(HANDS_OFF.replace("run: true", "run: date +%s >> $HOME/turns; sleep 3; date +%s >> $HOME/turns"))
+  const u = new World(HANDS_OFF.replace("run: true", "run: date +%s >> $HOME/turns; sleep 3; date +%s >> $HOME/turns"))
+  u.env.AFG_TURN_DIR = w.env.AFG_TURN_DIR
+  u.env.HOME = w.env.HOME
+  for (const x of [w, u]) {
+    x.begin()
+    x.pr(7, { "app.rb": "two\n" })
+  }
+  const go = (x: World) => Bun.spawn(["python3", SCRIPT, "test", "--token", x.token, "--pr", "7"], { cwd: x.repo, env: x.env as any, stdout: "ignore", stderr: "ignore" }).exited
+  expect(await Promise.all([go(w), go(u)])).toEqual([0, 0])
+  const t = readFileSync(path.join(w.env.HOME!, "turns"), "utf8").trim().split("\n").map(Number)
+  expect(t).toHaveLength(4)
+  expect(t[2]!).toBeGreaterThanOrEqual(t[1]!)
+  w.env.AFG_LOAD_LIMIT = "0"
+  expect(w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.reasons).toEqual(["machine-busy"])
+})
+
+test("setup can try a check on the tip, which leaves nothing behind", () => {
+  const w = new World()
+  const r = w.run(["check", "--run", "test -f app.rb", "--run", "echo no; false"])
+  expect(r.json).toMatchObject({ ok: false, ran: [{ exit: 0 }, { exit: 1, tail: "no\n" }] })
+  expect(w.git(w.repo, "worktree", "list").split("\n")).toHaveLength(1)
+})
+
 test("a check cannot be pointed at a service in use by the shell it runs from", () => {
   const w = new World(HANDS_OFF.replace("run: true", "run: env > ../seen; cat ../seen; false"))
   Object.assign(w.env, { DATABASE_URL: "leak", BENCH_DB: "leak", PGHOST: "leak", REDIS_URL: "leak", RAILS_ENV: "leak", AUTH_TOKEN: "leak", KEPT: "kept" })
@@ -308,6 +333,42 @@ test.each([
     expect(adopt([]).job).toBe(job)
     expect(w.run(["digest"]).json.skills[job]).toBeDefined()
   }
+})
+
+describe("a review after a rebase", () => {
+  function moved(files: Record<string, string>, change = "two\n", review: any = {}, back = false) {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    const commit = (text: string) => {
+      w.git(w.repo, "checkout", "-q", "--detach", "origin/main")
+      w.write("lib/app.rb", text)
+      const sha = w.commit("work", ["lib/app.rb"])
+      w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+      w.run(["test", "--token", w.token, "--sha", sha])
+      return sha
+    }
+    const first = commit("two\n")
+    w.run(["review", "--token", w.token, "--sha", first], w.reviewJson(first, review))
+    w.git(w.repo, "checkout", "-q", "main")
+    for (const [p, t] of Object.entries(files)) w.write(p, t)
+    w.commit("other", Object.keys(files))
+    if (back) w.git(w.repo, "revert", "--no-edit", "HEAD")
+    w.git(w.repo, "push", "-q", "origin", "main")
+    const second = commit(change)
+    return w.run(["direct", "--token", w.token, "--sha", second, "--job", job]).json
+  }
+
+  test("still counts for the same change beside unrelated work", () => {
+    expect(moved({ "docs/a.md": "x\n" }).landed).toBeTruthy()
+  })
+  test.each([
+    ["the change differs", { "docs/a.md": "x\n" }, "three\n", {}, "review-missing", false],
+    ["its neighbours moved", { "lib/b.rb": "x\n" }, "two\n", {}, "review-missing", false],
+    ["its neighbours moved and came back", { "lib/b.rb": "x\n" }, "two\n", {}, "review-missing", true],
+    ["it was not clean", { "docs/a.md": "x\n" }, "two\n", { verdict: "Not ready" }, "review-missing", false],
+  ])("is asked again when %s", (_n, files, change, review, reason, back) => {
+    expect(moved(files as Record<string, string>, change as string, review, !!back).reasons).toEqual([reason])
+  })
 })
 
 test("parking says what was tried", () => {

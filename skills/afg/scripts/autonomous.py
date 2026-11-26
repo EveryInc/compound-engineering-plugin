@@ -34,6 +34,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -73,6 +74,8 @@ CHOICES = {"autonomous_landing": ["pull-request", "direct"], "autonomous_ci": ["
 FIXED = ["autonomous_landing", "autonomous_ci", "autonomous_merge_method", "autonomous_checks"]
 PARK_DAYS = 7
 JOBS_AT_ONCE = 2
+BUSY_PER_CPU = 4
+MACHINE_WAIT = 2 * 3600
 KEYS = {
     "autonomous_profile": "str",
     "autonomous_motions": "list",
@@ -125,6 +128,8 @@ GUARD = re.compile(
     r"(^|/)(\.rubocop[^/]*\.ya?ml|\.eslintrc(\.json|\.ya?ml)?|\.eslintignore|\.prettierrc(\.json|\.ya?ml)?|\.prettierignore|"
     r"\.stylelintrc(\.json|\.ya?ml)?|\.stylelintignore|\.oxlintrc\.json|biome\.jsonc?|\.markdownlint(\.json|\.ya?ml)?|\.golangci\.ya?ml|\.flake8|\.pylintrc|"
     r"\.?ruff\.toml|\.erb[-_]lint\.ya?ml|\.reek\.ya?ml|\.standard\.ya?ml|\.editorconfig|brakeman\.ignore)$")
+# The project's own test folder, which nothing ships from.
+OWN_TEST = re.compile(r"^((desktop|demo|frontend|sync|bridge|live|web)/)?(test|tests|spec)/")
 # Dependency manifests pass only when nothing but version numbers changed.
 MANIFEST = re.compile(r"(^|/)(package\.json|gemfile|cargo\.toml|pyproject\.toml|go\.mod|requirements[^/]*\.txt|composer\.json)$")
 LOCKFILE = re.compile(r"(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|gemfile\.lock|cargo\.lock|poetry\.lock|uv\.lock|go\.sum|composer\.lock)$")
@@ -586,6 +591,43 @@ def ledger(repo):
     return rows
 
 
+@contextmanager
+def machine_turn(repo, token, seconds):
+    """One check at a time on this machine, whichever repository asks. Waiting is not failing."""
+    if fcntl is None or not hasattr(os, "getuid"):
+        raise Failure("file locking is unavailable")
+    path = os.path.join(os.environ.get("AFG_TURN_DIR") or "/tmp", f"afg-turn-{os.getuid()}.lock")
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600)
+    try:
+        if os.fstat(fd).st_uid != os.getuid():
+            raise Failure("the machine lock belongs to someone else")
+        end, beat = now() + timedelta(seconds=seconds), now()
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if now() > end:
+                    raise Failure("other checks held this machine too long; try again later")
+                time.sleep(2)
+                if token and (now() - beat).total_seconds() > 300:
+                    with locked(repo):
+                        require_lease(repo, token)
+                    beat = now()
+        yield
+    finally:
+        os.close(fd)
+
+
+def machine_busy():
+    """Far more is waiting for a processor than this machine can run."""
+    limit = os.environ.get("AFG_LOAD_LIMIT")
+    try:
+        return os.getloadavg()[0] > (float(limit) if limit else BUSY_PER_CPU * (os.cpu_count() or 1))
+    except (OSError, AttributeError, ValueError):
+        return False
+
+
 def require_lease(repo, token):
     """Inside locked(): the caller still holds the run, and its lease is renewed."""
     state = read_state(repo)
@@ -647,7 +689,7 @@ def allowance_reasons(repo, rows):
     given = allowance(repo)
     if given is None:
         begun = next((r for r in reversed(rows) if r["event"] == "run"), {})
-        return ["allowance-missing"] if begun.get("allowed") else []
+        return ["allowance-missing"] if begun.get("under_allowance", begun.get("allowed")) else []
     if given["state"] != "current":
         return [f"allowance-{given['state']}"]
     return ["allowance-spent"] if len(active_work(rows)) >= given["jobs"] else []
@@ -818,6 +860,9 @@ def diff_facts(repo, base, head, policy=None):
                 # userAuth and UserAuth read as user_auth.
                 spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "_", p).lower()
                 mine = [name for name, pat in HARD_PATHS if re.search(pat, low) or re.search(pat, spaced)]
+                # A changelog line releases nothing.
+                if low.rsplit("/", 1)[-1] == "changelog.md" and only_grows(mb, head, p):
+                    mine = [n for n in mine if n != "release"]
                 if is_guard(p):
                     mine.append("guard")
                 if GUARD.search(low):
@@ -847,6 +892,13 @@ def diff_facts(repo, base, head, policy=None):
             lines = changed_lines(mb, head, p)
             if p.lower().endswith("gemfile.lock"):
                 major = major or gem_major(git("show", f"{mb}:{p}", check=False).stdout, git("show", f"{head}:{p}", check=False).stdout)
+            elif p.lower().endswith("package-lock.json"):
+                was, will = (git("show", f"{x}:{p}", check=False).stdout for x in (mb, head))
+                verdict = npm_change(was, will)
+                major = major or verdict == "major"
+                if verdict == "source":
+                    hits.append(f"unclassified:{p}")
+                continue
             else:
                 major = major or lock_major(lines)
             if lock_source_changed(lines):
@@ -854,7 +906,12 @@ def diff_facts(repo, base, head, policy=None):
     for _, text in changed_lines(mb, head):
         if "\r" in text.rstrip("\r"):
             hits.append("unclassified:carriage return")
-        hits += [f"{name}:changed line" for name, pat in HARD_LINES if re.search(pat, text, re.I)]
+        hits += [f"{name}:changed line" for name, pat in HARD_LINES if name != "data-deletion" and re.search(pat, text, re.I)]
+    for p in touched:
+        # A test cleans up its own database. What ships does not.
+        if not OWN_TEST.search(p.lower()):
+            hits += ["data-deletion:changed line" for _, text in changed_lines(mb, head, p)
+                     if any(n == "data-deletion" and re.search(pat, text, re.I) for n, pat in HARD_LINES)]
     hits += judge_hits(policy or {}, touched)
     if re.search(r"\[(skip ci|ci skip|no ci|skip actions|actions skip)\]|^(skip-checks|release-as):",
                  git("log", "--format=%B", f"{mb}..{head}").stdout, re.I | re.M):
@@ -862,6 +919,10 @@ def diff_facts(repo, base, head, policy=None):
     dependencies = bool(files) and all(MANIFEST.search(f.lower()) or LOCKFILE.search(f.lower()) for f in files)
     return {"merge_base": mb, "files": len(files), "hard": sorted(set(hits)), "major": major,
             "only_dependencies": dependencies, "names": sorted(touched)}
+
+
+def only_grows(base, head, path):
+    return not any(s == "-" for s, _ in changed_lines(base, head, path))
 
 
 def changed_lines(base, head, path=None):
@@ -900,6 +961,41 @@ def lock_major(lines):
     old = [v for sign, t in lines if sign == "-" for v in VERSION.findall(t)]
     new = [v for sign, t in lines if sign == "+" for v in VERSION.findall(t)]
     return not old or len(old) != len(new) or any(major_pair(x, y) for x, y in zip(old, new))
+
+
+def npm_change(old, new):
+    """By package name: a direct dependency that is new, or any that changed majorly, is major. Where it comes from may not change."""
+    try:
+        a, b = (json.loads(x)["packages"] for x in (old, new))
+    except (ValueError, KeyError, TypeError):
+        return "source"
+    host = "https://registry.npmjs.org/"
+
+    def own(p):
+        return {k for f in ("dependencies", "devDependencies", "optionalDependencies") for k in (p.get("", {}).get(f) or {})}
+    if own(b) - own(a):
+        return "major"
+    verdict = "same"
+    for k, v in b.items():
+        if not k:
+            continue
+        o = a.get(k)
+        if v.get("link") or not str(v.get("resolved", "")).startswith(host) or not v.get("integrity"):
+            if o != v:
+                return "source"
+            continue
+        if o is None:
+            if v.get("hasInstallScript"):
+                return "source"
+            continue
+        if o.get("version") == v.get("version"):
+            if o.get("integrity") != v.get("integrity") or o.get("resolved") != v.get("resolved"):
+                return "source"
+        elif v.get("hasInstallScript") and not o.get("hasInstallScript"):
+            return "source"
+        elif major_pair(str(o.get("version", "0.0")) + ".0", str(v.get("version", "0.0")) + ".0"):
+            verdict = "major"
+    return verdict
 
 
 def gem_major(old, new):
@@ -1005,6 +1101,30 @@ def receipt(rows, subject, head, base, kind, **match):
     return None
 
 
+def change_of(base, head):
+    """The exact change: each path with the content it had and has. The same only on files nobody else touched."""
+    mb = git("merge-base", base, head).stdout.strip()
+    raw = git("diff", "--raw", "--no-abbrev", "--no-renames", "-z", mb, head).stdout
+    return hashlib.sha256(raw.encode("utf-8", "surrogateescape")).hexdigest() if raw else None
+
+
+def carried_review(rows, subject, head, base):
+    """A review of this exact change on an earlier base, when nothing in the folders it touches has moved since."""
+    jobs = {r["job"] for r in rows if r["event"] == "adopt" and (r.get("sha") == head or f"pr:{r.get('pr')}" == subject)}
+    mine = {f"direct:{r['sha']}" if r.get("sha") else f"pr:{r.get('pr')}" for r in rows if r["event"] == "adopt" and r["job"] in jobs}
+    # The latest word on this job's work, whatever it was about.
+    last = next((r for r in reversed(rows) if r["event"] == "receipt" and r.get("kind") == "review" and r.get("subject") in mine), None)
+    if not last or not last.get("ok") or not last.get("change") or last["change"] != change_of(base, head):
+        return None
+    if git("merge-base", "--is-ancestor", last["from"], base, check=False).returncode != 0:
+        return None
+    mb = git("merge-base", base, head).stdout.strip()
+    folders = {os.path.dirname(n) for n in git("diff", "--name-only", "--no-renames", "-z", mb, head).stdout.split("\0") if n}
+    # Every commit between, so a change and its revert both count.
+    moved = git("log", "--format=", "--name-only", "--no-renames", "-m", "-z", f"{last['from']}..{base}").stdout.split("\0")
+    return None if any(n.strip() and os.path.dirname(n.strip()) in folders for n in moved) else last
+
+
 def receipt_reasons(policy, rows, subject, head, base, guards=()):
     out = []
     for g in guards:
@@ -1017,6 +1137,8 @@ def receipt_reasons(policy, rows, subject, head, base, guards=()):
         # A test under different checks is not a test under these.
         match = {"checks": checks_id(policy)} if kind == "test" else {}
         r = receipt(rows, subject, head, base, kind, **match)
+        if r is None and kind == "review":
+            r = carried_review(rows, subject, head, base)
         if r is None:
             out.append(f"{kind}-missing")
         elif not r.get("ok"):
@@ -1178,11 +1300,11 @@ def cmd_begin(a, repo):
         reclaimed = False
         if state.get("token"):
             if parse_iso(state["at"]) + LEASE_TTL >= now():
-                return deny("locked", since=state["at"])
+                return deny("locked", last_renewed=state["at"])
             reclaimed = True
         token = secrets.token_hex(8)
         settle(repo, ledger(repo))
-        append(repo, "run", token=token, reclaimed=reclaimed, allowed=allowance(repo) is not None)
+        append(repo, "run", token=token, reclaimed=reclaimed, under_allowance=allowance(repo) is not None)
         write_state(repo, {"token": token, "at": iso(now())})
     for block in git("worktree", "list", "--porcelain").stdout.split("\n\n"):
         tree = block.split("\n")[0][len("worktree "):]
@@ -1220,6 +1342,9 @@ def parked(rows):
                     out.pop(f"commit:{x['sha']}", None)
         elif r["event"] == "close":
             out.pop(r["item"], None)
+        elif r["event"] == "job" and ":" in (r.get("origin") or ""):
+            # Work on it has started again.
+            out.pop(r["origin"], None)
     return out
 
 
@@ -1298,6 +1423,9 @@ def cmd_job(a, repo):
     origin = a.origin or "internal"
     trusted = origin_trusted(repo, policy, origin)
     state, _, _ = checks_at(repo, repo.tip())
+    if machine_busy() and a.motion != "main-red":
+        # Asked before the lease, so waiting here does not keep it.
+        return deny("machine-busy")
     with locked(repo):
         require_lease(repo, a.token)
         rows = ledger(repo)
@@ -1389,6 +1517,12 @@ def cmd_adopt(a, repo):
         what = {"sha": a.sha, "head": a.sha}
     else:
         pr = pr_view(repo, a.pr)
+        for _ in range(5):
+            if pr["headRefOid"] == a.head or os.environ.get("AFG_NO_WAIT"):
+                break
+            # GitHub can lag a push by a few seconds.
+            time.sleep(3)
+            pr = pr_view(repo, a.pr)
         if pr["headRefOid"] != a.head:
             return deny("head-moved")
         if canonical(pr["author"]) != repo.login or pr["isCrossRepository"]:
@@ -1491,55 +1625,94 @@ def cmd_test(a, repo):
         return emit({"would_run": commands, "head": head, "base": base})
     with locked(repo):
         require_lease(repo, a.token)
-    tmp = tempfile.mkdtemp(prefix="afg-test-")
-    tree, log, proc, code = os.path.join(tmp, "tree"), os.path.join(tmp, "log"), None, "interrupted"
-    ran = []
-    for sig in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(sig, interrupted)
-    try:
-        env = scrubbed_env(tmp)
-        add = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", tree, head],
-                             cwd=repo.main or repo.common, env=env, capture_output=True, text=True)
-        if add.returncode != 0:
-            raise Failure(f"worktree: {add.stderr.strip()}")
-        with open(log, "wb") as out:
-            deadline = now() + timedelta(seconds=a.timeout)
-            code = 0
-            for command in commands:
-                # Every check runs, so one failure never hides another. A failure is tried once more and recorded.
-                for attempt in (1, 2):
-                    for clean in (["reset", "--quiet", "--hard", head], ["clean", "-ffdxq"]) if attempt == 2 else ():
-                        subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *clean], cwd=tree, env=env, capture_output=True)
-                    out.write(f"\n$ {command}  (attempt {attempt})\n".encode())
-                    out.flush()
-                    proc = subprocess.Popen(command, shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
-                                            stderr=subprocess.STDOUT, start_new_session=True)
-                    try:
-                        one = proc.wait(timeout=max(1, (deadline - now()).total_seconds()))
-                    except subprocess.TimeoutExpired:
-                        one = "timeout"
-                    kill_group(proc)
-                    if one == 0 and not still_at(tree, head):
-                        one = "changed-the-tree"
-                    if one in (0, "timeout", "changed-the-tree"):
-                        break
-                ran.append({"run": command, "exit": one, "attempts": attempt})
-                if one != 0 and code == 0:
-                    code = one
-        kept = os.path.join(store_dir(repo), f"test-{head[:12]}.log")
-        shutil.copyfile(log, kept)
-        with open(log, encoding="utf-8", errors="replace") as f:
-            tail = f.read()[-3000:]
-    finally:
-        if proc is not None:
-            kill_group(proc)
-        git("worktree", "remove", "--force", tree, cwd=repo.main or repo.common, check=False)
-        shutil.rmtree(tmp, ignore_errors=True)
+    with machine_turn(repo, a.token, MACHINE_WAIT):
+        if repo.tip(fresh=True) != base:
+            # Nothing tested on the old tip could land.
+            return deny("base-moved", base=base)
+        tmp = tempfile.mkdtemp(prefix="afg-test-")
+        tree, log, proc, code = os.path.join(tmp, "tree"), os.path.join(tmp, "log"), None, "interrupted"
+        ran = []
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            signal.signal(sig, interrupted)
+        try:
+            env = scrubbed_env(tmp)
+            add = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", tree, head],
+                                 cwd=repo.main or repo.common, env=env, capture_output=True, text=True)
+            if add.returncode != 0:
+                raise Failure(f"worktree: {add.stderr.strip()}")
+            with open(log, "wb") as out:
+                deadline = now() + timedelta(seconds=a.timeout)
+                code = 0
+                for command in commands:
+                    # Every check runs, so one failure never hides another. A failure is tried once more and recorded.
+                    for attempt in (1, 2):
+                        for clean in (["reset", "--quiet", "--hard", head], ["clean", "-ffdxq"]) if attempt == 2 else ():
+                            subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *clean], cwd=tree, env=env, capture_output=True)
+                        out.write(f"\n$ {command}  (attempt {attempt})\n".encode())
+                        out.flush()
+                        proc = subprocess.Popen(command, shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
+                                                stderr=subprocess.STDOUT, start_new_session=True)
+                        try:
+                            one = proc.wait(timeout=max(1, (deadline - now()).total_seconds()))
+                        except subprocess.TimeoutExpired:
+                            one = "timeout"
+                        kill_group(proc)
+                        if one == 0 and not still_at(tree, head):
+                            one = "changed-the-tree"
+                        if one in (0, "timeout", "changed-the-tree"):
+                            break
+                    ran.append({"run": command, "exit": one, "attempts": attempt})
+                    if one != 0 and code == 0:
+                        code = one
+            kept = os.path.join(store_dir(repo), f"test-{head[:12]}.log")
+            shutil.copyfile(log, kept)
+            with open(log, encoding="utf-8", errors="replace") as f:
+                tail = f.read()[-3000:]
+        finally:
+            if proc is not None:
+                kill_group(proc)
+            git("worktree", "remove", "--force", tree, cwd=repo.main or repo.common, check=False)
+            shutil.rmtree(tmp, ignore_errors=True)
     with locked(repo):
         require_lease(repo, a.token)
         append(repo, "receipt", kind="test", subject=subject, head=head, base=base, ok=code == 0, exit=code,
                checks=checks_id(policy), ran=ran)
     return emit({"ok": code == 0, "exit": code, "ran": ran, "log": kept, "guards": guards_of(facts), "flaky": [x["run"] for x in ran if x["exit"] == 0 and x["attempts"] > 1], "head": head, "base": base, "tail": tail if code != 0 else ""}, 0 if code == 0 else 1)
+
+
+def cmd_check(a, repo):
+    """Run candidate checks on the default branch tip exactly as `test` would. Records nothing."""
+    head, tmp, proc, ran = repo.tip(), tempfile.mkdtemp(prefix="afg-check-"), None, []
+    tree, log = os.path.join(tmp, "tree"), os.path.join(tmp, "log")
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, interrupted)
+    try:
+        with machine_turn(repo, None, MACHINE_WAIT):
+            env = scrubbed_env(tmp)
+            add = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "worktree", "add", "--quiet", "--detach", tree, head],
+                                 cwd=repo.main or repo.common, env=env, capture_output=True, text=True)
+            if add.returncode != 0:
+                raise Failure(f"worktree: {add.stderr.strip()}")
+            for command in a.run:
+                with open(log, "wb") as out:
+                    proc = subprocess.Popen(command, shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
+                                            stderr=subprocess.STDOUT, start_new_session=True)
+                    try:
+                        code = proc.wait(timeout=a.timeout)
+                    except subprocess.TimeoutExpired:
+                        code = "timeout"
+                    kill_group(proc)
+                if code == 0 and not still_at(tree, head):
+                    code = "changed-the-tree"
+                with open(log, encoding="utf-8", errors="replace") as f:
+                    ran.append({"run": command, "exit": code, "tail": "" if code == 0 else f.read()[-1500:]})
+    finally:
+        if proc is not None:
+            kill_group(proc)
+        git("worktree", "remove", "--force", tree, cwd=repo.main or repo.common, check=False)
+        shutil.rmtree(tmp, ignore_errors=True)
+    ok = all(x["exit"] == 0 for x in ran)
+    return emit({"ok": ok, "head": head, "ran": ran}, 0 if ok else 1)
 
 
 def cmd_review(a, repo):
@@ -1571,6 +1744,7 @@ def cmd_review(a, repo):
         with locked(repo):
             require_lease(repo, a.token)
             append(repo, "receipt", kind="review", subject=subject, head=head, base=base, ok=not why,
+                   change=change_of(base, head), **{"from": facts["merge_base"]},
                    run_id=str(review.get("run_id")))
     return deny(*why) if why else emit({"ok": True, "head": head, "base": base})
 
@@ -1651,7 +1825,7 @@ def cmd_guard(a, repo):
         if bad:
             # The violation goes where work goes. Editing a check to fail proves nothing about it.
             return record("probe-touches-a-judge", files=bad)
-        with open(out_path, "wb") as out:
+        with machine_turn(repo, a.token, MACHINE_WAIT), open(out_path, "wb") as out:
             proc = subprocess.Popen(v["check"], shell=True, cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=out,
                                     stderr=subprocess.STDOUT, start_new_session=True)
             try:
@@ -1679,7 +1853,7 @@ def cmd_rule(a, repo):
     policy = load_policy(repo)
     if not policy["active"]:
         return deny(policy["reason"])
-    if a.rule not in [rule_id(r) for r in judged(policy)]:
+    if not set(a.rule) <= {rule_id(r) for r in judged(policy)}:
         return deny("rule-unknown")
     rows, base = ledger(repo), repo.tip()
     subject, head, why = subject_of(a, repo, policy, rows)
@@ -1689,8 +1863,9 @@ def cmd_rule(a, repo):
         return deny("head-moved")
     with locked(repo):
         require_lease(repo, a.token)
-        append(repo, "receipt", kind="rule", subject=subject, head=head, base=base, rule=a.rule,
-               ok=a.verdict == "pass", why=a.why)
+        for rule in a.rule:
+            append(repo, "receipt", kind="rule", subject=subject, head=head, base=base, rule=rule,
+                   ok=a.verdict == "pass", why=a.why)
     return emit({"recorded": a.verdict, "head": head})
 
 
@@ -1872,7 +2047,7 @@ def cmd_park(a, repo):
     if not a.tried.strip():
         return deny("nothing-tried")
     kind, _, number = a.item.partition(":")
-    if kind not in ("pr", "issue", "main", "idea", "security", "commit"):
+    if kind not in ("pr", "issue", "main", "idea", "security", "commit", "sweep", "setting"):
         return deny("item-invalid")
     updated = None
     if kind in ("pr", "issue"):
@@ -1974,6 +2149,9 @@ def main():
     p = add("test", cmd_test, dry=True)
     subject(p)
     p.add_argument("--timeout", type=int, default=3600)
+    p = add("check", cmd_check, token=False)
+    p.add_argument("--run", action="append", required=True)
+    p.add_argument("--timeout", type=int, default=3600)
     subject(add("review", cmd_review, dry=True))
     p = add("guard", cmd_guard)
     subject(p)
@@ -1981,7 +2159,7 @@ def main():
     p.add_argument("--timeout", type=int, default=3600)
     p = add("rule", cmd_rule)
     subject(p)
-    p.add_argument("--rule", required=True)
+    p.add_argument("--rule", required=True, action="append", help="repeat for rules that one reason covers")
     p.add_argument("--head", required=True)
     p.add_argument("--verdict", required=True, choices=["pass", "fail"])
     p.add_argument("--why", required=True)
