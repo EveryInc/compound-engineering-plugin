@@ -23,8 +23,8 @@ Map each changed file to the route(s) that render it, then build the list of URL
 The goal is a short list, per affected route or flow, of the expectations the project's automated tests prove for real and the ones they leave open. The live run spends its checks on the open ones.
 
 - **Find the tests from the project itself.** Its test configuration, scripts, and directory layout show where tests live and which runners they use. Look at every kind that can exercise these pages: unit, component, request or integration, and end-to-end specs. Tests that import the changed files, render the affected components, or request the affected routes are the starting set.
-- **Read what each test asserts.** A test named for a page may assert only that it renders. A covered expectation names the input and the outcome the test checks.
-- **A mock marks where coverage stops.** A test that replaces the network, the backend, the database, auth, or a third-party service with a mock, stub, fake, or fixture proves the code up to that boundary. Whether the real call across it works is still open, and a live check is often the only thing that reaches it.
+- **Read what each test asserts.** A test named for a page may assert only that it renders. Count an expectation as covered only when you can name the input the test gives and the outcome it checks.
+- **A mock marks where coverage stops.** A test that replaces a real dependency, such as the network, the backend, the database, auth, or a third-party service, with a mock, stub, or fake proves the code up to that boundary. Seeded test data is not a mock. Whether the real call across it works is still open, and a live check is often the only thing that reaches it.
 - **Open by default.** An expectation no test asserts is open. In a project with no tests for these pages, every expectation is open, and the run proceeds as it would have without this step.
 
 ## Determine the port and verify the dev server is running
@@ -111,7 +111,7 @@ Did it work correctly?
 
 ## Recommend regression tests
 
-A live finding needs a regression test when no automated test would catch it breaking. That includes a failure, and an open expectation that passed live but would break unnoticed. For each one, the summary names where the test belongs in the project's existing suite, at the cheapest level that exercises the real behavior, and what it would assert. When an existing test passed while the real behavior failed, usually because a mock hid the break, also recommend `ce-compound`: the tests encoded a wrong belief, and `ce-compound` can hold that lesson as a test. These are recommendations. This skill does not write them.
+Recommend a regression test for each live finding about behavior this change added or altered that no automated test would catch breaking. A finding can be a live failure. It can also be an open expectation that passed live, since nothing would notice if it broke later. For each one, the summary names where the test belongs in the project's existing suite, at the cheapest level that exercises the real behavior, and what it would assert. When an existing test asserts the behavior that failed live, usually because a mock hid the break, also recommend `ce-compound`. The tests encoded a wrong belief, and `ce-compound` can hold that lesson as a test. These recommendations are text in the summary. This skill does not write the tests.
 
 ## Test summary
 
@@ -146,7 +146,7 @@ A live finding needs a regression test when no automated test would catch it bre
 
 ### Recommended Regression Tests: [count]
 - `/dashboard` - [where it belongs in the suite] - [what it would assert]
-- `/checkout` - [what the mock hid]; recommend `ce-compound`
+- `/checkout` - [where it belongs in the suite] - [what it would assert]; the mocked test hid [what broke], so recommend `ce-compound`
 
 ### Result: [PASS / FAIL / PARTIAL]
 ```

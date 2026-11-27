@@ -6,7 +6,7 @@ argument-hint: "[PR number, branch name, 'current', or --port PORT]"
 
 # Browser Test Skill
 
-Run end-to-end browser tests on pages affected by a PR or branch using the best approved browser driver available in the active harness. Live checks go to what the project's automated tests leave unproven.
+Run end-to-end browser tests on pages affected by a PR or branch using the best approved browser driver available in the active harness. Every affected route gets a render check, and the live interactions are spent on what the project's automated tests leave unproven.
 
 **Done:** the run ends by reporting what it found — either the summary, with every affected route marked Pass, Fail, or Skip and each Skip carrying its reason, or, when a preflight blocker stops testing before any route can be exercised, the blocker and what would clear it. Reaching neither, or dropping a route from the summary because nobody could reach it, is the failure this done condition exists to prevent.
 
@@ -40,10 +40,10 @@ Read `references/route-and-report.md` from this skill's directory before step 3 
    - **`agent-browser` fallback, manual mode:** ask the user whether to run headed or headless using the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to presenting options on the host's user-visible chat surface only when no such tool is in the list or a real question call errors. Never silently skip the question.
 
    Then navigate to `http://localhost:<port>`, capture its rendered or interactive state, and confirm the root is served before iterating.
-7. **Test each affected page.** Confirm each route renders, then spend the interactions on the expectations step 3 left open. Re-driving an expectation a test already asserts for real adds no evidence, so do it only when the page contradicts that test. Capture evidence for each check.
+7. **Test each affected page.** Navigate, inspect fresh state, and confirm the route renders. Then spend the interactions on the expectations step 3 left open. Re-driving an expectation that a test already exercises for real adds no evidence, so skip it unless what the page shows contradicts that test. Capture evidence for each check.
 8. **Human verification** where a flow needs external interaction (OAuth, email, payments, SMS, third-party APIs): pause and ask. **Pipeline mode does not pause** — log each such flow as Skip with the reason and continue.
 9. **Handle failures** by capturing the error state and the exact repro, then asking whether to fix now or skip. **Pipeline mode does not ask** — log the failure and continue.
-10. **Report the summary** in the format the reference gives. It names what existing tests already covered, and it recommends a regression test for each live finding that no automated test would catch. This skill writes neither those tests nor product code.
+10. **Report the summary** in the format the reference gives. It names what existing tests already covered, and it recommends a regression test for each live finding that no automated test would catch. The recommendations are text in the summary; this skill does not write those tests.
 
 ## Driver Reference
 

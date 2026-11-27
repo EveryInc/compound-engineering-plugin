@@ -4,7 +4,7 @@
 
 `ce-test-browser` is on-demand browser testing. It maps changed files to routes, reads what the project's automated tests already assert about them, checks (or, in pipeline mode, starts) the dev server, drives each affected page with live checks aimed at what those tests leave open, captures rendered state and screenshots, pauses for human checks on external flows, and prints a structured summary that recommends a regression test for each gap it found.
 
-It tests and reports. It writes no tests and no product code. It is not `ce-dogfood` (autonomous QA that fixes small breakages and writes a durable report), not `ce-polish` (you sit with a working feature and talk about feel), and not `ce-test-xcode` (iOS simulator).
+It tests and reports, and it does not write tests. It is not `ce-dogfood` (autonomous QA that fixes small breakages and writes a durable report), not `ce-polish` (you sit with a working feature and talk about feel), and not `ce-test-xcode` (iOS simulator).
 
 Default is manual: you own the server. `mode:pipeline` is for `lfg` and other unattended runners.
 
@@ -107,7 +107,7 @@ Starting patterns, not a closed list. The skill still uses judgment for the real
 
 Before opening the browser, the skill reads the project's own tests for the affected pages, whatever framework they use, and checks what each one actually asserts. An expectation counts as covered only when a test exercises the real behavior. A test that mocks the network, the backend, the database, or a third-party service proves the code up to that boundary, so the real call past it stays open. Every route still gets a render check. The interactions go to the open expectations, and the skill re-drives a covered one only when the page contradicts its test. With no tests for those pages, everything is open.
 
-When a live check finds something no automated test would catch, either a failure or open behavior that works today but would break unnoticed, the summary recommends a regression test: where it belongs in the project's suite and what it would assert. When an existing test passed while the real behavior failed, the summary also recommends `/ce-compound` to hold that lesson as a test. The skill writes none of these itself.
+When a live check finds something no automated test would catch, either a failure or open behavior that works today but would break unnoticed, the summary recommends a regression test: where it belongs in the project's suite and what it would assert. When an existing test asserts behavior that failed live, the summary also recommends `/ce-compound` to hold that lesson as a test. The skill writes none of these itself.
 
 ### Two modes
 
