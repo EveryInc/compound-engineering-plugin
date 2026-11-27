@@ -57,6 +57,8 @@ host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-deb
 
 **Some changes always wait for you.** Permissions, data deletion and migrations, secrets, billing, releases, major updates, fewer tests, and the CI, scripts and instructions that judge a change. Linter settings and guard tests wait too, except in hands-off. There, its own change to one lands when an independent reviewer finds it narrow and the script sees the check still catch a planted violation; the digest tells you afterward. A file listed in `autonomous_judges` always waits.
 
+**Saying "act on your recommendations".** In a session with you, those words let that session land, after its own read and an independent review, changes a run would leave for you. It still asks about data, migrations, secrets, billing, releases, settings, CI permissions, files in `autonomous_judges`, changes that make a check accept more, security fixes that may not be published yet, and messages to other people.
+
 **Nothing is forgotten.** `~/.compound-engineering/afg/board.md` lists everything in flight in every repository it runs in on this machine, rebuilt from GitHub and the ledgers: open pull requests, unlanded commits and parked items, each with a next step and who takes it. A pull request it opened is its own to finish.
 
 **It decides before it parks.** Parking records what only you can supply and what the run tried first. Parking a pull request for your approval is refused when nothing but its own unfinished steps holds it back.
