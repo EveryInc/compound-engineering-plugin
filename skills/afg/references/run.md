@@ -38,7 +38,7 @@ Babysit only a PR that needs it: failing checks, unanswered review feedback, or 
    - the Authority section of SKILL.md, and what always waits for a person (`references/setup.md`, question 2), so it reports a need for one before building on it;
    - the repository for every `gh` command (`-R <origin owner/name>`), because in a fork `gh` picks the upstream;
    - the Shared machine section below, word for word;
-   - where to send its result, because a wait that times out says nothing about the work.
+   - where to send its result, because a wait that times out says nothing about the work. A worker stopped at a question from its host still shows as running: where the host lists pending questions, read them at every wake while a worker is out. Answer one that the owner's word or a recorded decision settles; bring any other to the owner at once, and give the rest of the job to a worker that can continue. When a safety check stopped it, never reword the task to get past the check: settle what is needed another way, or park it with `--needs access`.
 3. When a worker stops because a provider reported a usage limit, hand the job to another provider the host offers and the owner allows. When none is available, park it with `--needs later` and end the run.
 4. Do not trust a worker's account of where things stand. Read the result back, check that its head is the one reported, then `adopt --job <id> --pr <n> --head <sha>`, or `--sha <sha>` for direct landing, with `--via <skill>` for each skill the worker ran. A job's first adoption needs its motion's callee. A job that produces neither ends with `job-end`.
 
