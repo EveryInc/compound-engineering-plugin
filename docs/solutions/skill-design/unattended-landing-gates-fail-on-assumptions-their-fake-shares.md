@@ -2,7 +2,7 @@
 title: "An unattended landing gate fails on the assumptions its fake GitHub shares"
 category: skill-design
 date: 2026-11-25
-last_updated: 2026-11-26
+last_updated: 2026-11-27
 module: skills/afg
 problem_type: design_pattern
 component: tooling
@@ -51,6 +51,8 @@ Review such a gate adversarially with read-only calls to real public repositorie
 ### Source text does not prove a change safe
 
 An unpublished extension tried to let more changes land without a person by reading them: which shell, JavaScript, Python and Ruby calls act outside the tree, which YAML permissions a workflow has, and which path words are harmless. In five adversarial review rounds every round found a change that landed and should have waited, such as a deletion through a variable, a role widened in a file with a harmless name, and a reusable workflow that took its caller's write token. Adding the missed pattern did not converge, because the languages have more ways to say a thing than the list. The extension was not shipped.
+
+A narrower attempt failed the same way. An owner setting would have let a sign-in change land after an independent worker tried to get past it and failed. Which refused files counted as application code was read from their paths, and two adversarial reviews landed infrastructure grants and settings written as code, such as an access policy in a camel-cased TypeScript file. A failed verdict also washed out when main touched the same file, because its key was a hash of whole files. It was not shipped either.
 
 A pattern may add a refusal, because the checks and the review still stand behind what it misses. A rule that lifts a refusal needs a fact the script fetches or computes itself from git or GitHub, such as a tree comparison or a job's `runner_id`. When a second review round finds another way past the same allowing rule, drop the class of change instead of extending the pattern.
 

@@ -38,7 +38,7 @@ Babysit only a PR that needs it: failing checks, unanswered review feedback, or 
    - the Authority section of SKILL.md, and what always waits for a person (`references/setup.md`, question 2), so it reports a need for one before building on it;
    - the repository for every `gh` command (`-R <origin owner/name>`), because in a fork `gh` picks the upstream;
    - the Shared machine section below, word for word;
-   - where to send its result, because a wait that times out says nothing about the work. A worker stopped at a question from its host still shows as running: where the host lists pending questions, read them at every wake while a worker is out. Answer one that the owner's word or a recorded decision settles; bring any other to the owner at once, and give the rest of the job to a worker that can continue. When a safety check stopped it, never reword the task to get past the check: settle what is needed another way, or park it with `--needs access`.
+   - where to send its result, because a wait that times out says nothing about the work. A worker or reviewer stopped at a question from its host still shows as running: where the host lists pending questions, read them at every wake while one is out. Answer one that the owner's word or a recorded decision settles. Park any other with `--needs access`, naming the thread, and take other work. When a safety check stopped it, do not reword or restart the same task to get past the check: use the evidence there already is when it meets the steps, or park it.
 3. When a worker stops because a provider reported a usage limit, hand the job to another provider the host offers and the owner allows. When none is available, park it with `--needs later` and end the run.
 4. Do not trust a worker's account of where things stand. Read the result back, check that its head is the one reported, then `adopt --job <id> --pr <n> --head <sha>`, or `--sha <sha>` for direct landing, with `--via <skill>` for each skill the worker ran. A job's first adoption needs its motion's callee. A job that produces neither ends with `job-end`.
 
@@ -68,7 +68,7 @@ After each item, `observe` again and take the next, alternating in-flight work w
 End only when one of these holds, and name it first in the digest:
 
 - The quota is used: the provider reports a usage limit, and no provider the host offers and the owner allows can continue.
-- A limit the owner set refuses new jobs (`hourly-cap`, `open-pr-cap`, an `allowance-*` denial other than `allowance-spent`), and nothing in flight can move. With a schedule, the next run resumes.
+- A limit the owner set refuses new jobs (`hourly-cap`, `open-pr-cap`, which leaves out PRs parked for a person up to as many again, an `allowance-*` denial other than `allowance-spent`), and nothing in flight can move. With a schedule, the next run resumes.
 - Every enabled motion has been looked at since the last landing and none has an actionable item. `climb` has none once its measured targets and its untested or hard-to-follow areas are exhausted; do not invent work to continue.
 - The lease is lost, the owner says stop, the machine cannot run the checks, or `machine-busy` with nothing going.
 
@@ -90,4 +90,4 @@ Nothing this run started outlives its use. As soon as an item is landed, closed,
 
 `clean`, `digest`, then `end --token`. Print, in this order: what needs the owner, each with its recommendation; what landed or closed, with links; what was decided on the owner's behalf and why, with every guard changed and the probe it still catches; what is in flight; main's health; what could not be cleaned. Say plainly when nothing changed. A run whose thread nothing else uses settles it as its last act, once the report is delivered where the owner reads it; one that did nothing does so at once.
 
-**A security finding that is not fixed yet is never written to an issue, PR, comment, commit, or pushed branch in a repository other people can read.** Put it in the digest only.
+**A security finding that is not fixed yet is never written to an issue, PR, comment, commit, or pushed branch in a repository other people can read.** Put it in the digest only. Its fix is published only as Security in `references/motions.md` says.

@@ -129,6 +129,27 @@ describe("lease and caps", () => {
     expect(next("main-red").code).toBe(0)
   })
 
+  test("a PR that waits for a person leaves its place to other work, up to as many again", () => {
+    const w = new World(HANDS_OFF + "autonomous_open_pr_cap: 1\nautonomous_jobs_per_hour: 9\n").begin()
+    const job = () => w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x", "--opens-pr"]).json
+    const open = (n: number, id: string) => {
+      w.pr(n, { [`app${n}.rb`]: "two\n" }, { login: ME })
+      w.run(["adopt", "--token", w.token, "--job", id, "--pr", `${n}`, "--head", w.w.prs[n].headRefOid])
+      w.w.issues[`${n}`] = { number: n, updated_at: "2026-01-01T00:00:00Z" }
+      w.save()
+    }
+    const park = (n: number, needs: string) =>
+      w.run(["park", "--token", w.token, "--item", `pr:${n}`, "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", needs, "--tried", "z"])
+    open(7, job().job)
+    expect(job().reasons).toEqual(["open-pr-cap"])
+    park(7, "later")
+    expect(job().reasons).toEqual(["open-pr-cap"])
+    park(7, "fact")
+    open(8, job().job)
+    park(8, "fact")
+    expect(job().reasons).toEqual(["open-pr-cap"])
+  })
+
   describe("an outside allowance", () => {
     const soon = () => new Date(Date.now() + 3_600_000).toISOString()
     const world = (allowance?: unknown) => {

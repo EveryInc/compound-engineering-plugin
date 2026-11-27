@@ -20,7 +20,7 @@ Sources: open issues that report wrong behavior, and the rolling `feedback-sweep
 
 ## security
 
-Sources: the host's dependency and code-scanning alerts where readable, and a bounded look at recently changed code that handles untrusted input. Reproduce before fixing. Callee: `lfg`. Follow the disclosure rule in `references/run.md`: in a repository other people can read, do not push a fix or describe the finding; park it as `security:<slug>`.
+Sources: the host's dependency and code-scanning alerts where readable, and a bounded look at recently changed code that handles untrusted input. Reproduce before fixing, never against a running service. Callee: `lfg`, and in a repository other people can read always `lfg mode:local-only`. Follow the disclosure rule in `references/run.md`: in a repository other people can read, do not push a fix or describe the finding. When the code at fault is this repository's own, build the fix as a local commit first: the smallest that closes it, which no reviewer has to trust for more than that, with the text, test names and comments saying what it does and not how to reach the fault. Have it reviewed and tested unpublished. On the pull-request route the review and the checks run from that worktree and are repeated on the PR. Then park `security:<slug>` with the sha in the recommendation. The session with the owner publishes it when both passed: it opens the PR in those neutral words, lands it by the usual steps as soon as they pass, and tells the owner that it is out and needs deploying. No hard limit means no question. When the fault is another project's, name that project's private channel and park it.
 
 ## backlog
 

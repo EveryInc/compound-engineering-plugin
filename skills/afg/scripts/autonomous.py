@@ -1758,7 +1758,11 @@ def cmd_job(a, repo):
             if level_for(policy, a.motion, repo.login, landed_count(repo, rows, a.motion)) == "report":
                 return deny("level-report")
             live = open_own_prs(repo, rows)
-            if len(live) + len(unfinished(rows)) >= policy["autonomous_open_pr_cap"]:
+            # What waits for a person cannot be finished here, so it leaves its place to other work, up to as many again.
+            waiting = {i for i, r in parked(rows).items() if r.get("needs") != "later"}
+            movable = [n for n in live if f"pr:{n}" not in waiting]
+            cap, begun = policy["autonomous_open_pr_cap"], len(unfinished(rows))
+            if len(movable) + begun >= cap or len(live) + begun >= 2 * cap:
                 repairs = [r for r in rows if r["event"] == "adopt" and r.get("pr") in live
                            and (job_of(rows, r["job"]) or {}).get("motion") == "main-red"]
                 repairs += [r for r in unfinished(rows) if r["motion"] == "main-red"]
