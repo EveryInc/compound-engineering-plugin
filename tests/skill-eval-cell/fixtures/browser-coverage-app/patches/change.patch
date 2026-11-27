@@ -1,15 +1,15 @@
 diff --git a/src/pages/checkout.js b/src/pages/checkout.js
-index 80ec1aa..fcc956b 100644
+index 7fe4fab..a75419d 100644
 --- a/src/pages/checkout.js
 +++ b/src/pages/checkout.js
-@@ -10,7 +10,7 @@ export function checkoutPage(_req, res) {
+@@ -9,7 +9,7 @@ export function checkoutPage(_req, res) {
  }
  
  export async function submitCheckout(req, res) {
--  const result = await charge({ card: req.body.card, amount: req.body.total })
-+  const result = await charge({ card: req.body.card, amount_cents: Math.round(Number(req.body.total) * 100) })
-   if (!result.ok) return res.status(402).send(`<p class="error">Payment failed: ${result.error}</p>`)
-   res.send("<h1>Order placed</h1>")
+-  const result = await quote({ postcode: req.body.postcode, weight_grams: 500 })
++  const result = await quote({ postal_code: req.body.postcode.trim(), weight_grams: 500 })
+   if (!result.ok) return res.status(502).send(`<p class="error">Shipping unavailable: ${result.error}</p>`)
+   res.send(`<h1>Checkout</h1><p>Shipping: ${result.price} USD</p>`)
  }
 diff --git a/src/pages/profile.js b/src/pages/profile.js
 index cfaba70..96e2aaa 100644
