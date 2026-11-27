@@ -245,6 +245,8 @@ export type Scenario = {
   env?: Record<string, string>
 }
 
+/** main before ce-test-browser read existing test coverage and recommended regression tests. */
+const BROWSER_COVERAGE_BASE_REF = "ee3695a24ae1ccb205e4334b79799cb25c060247"
 /** main before ce-babysit-pr stated how to read an incomplete review lookup (#1618). */
 const REVIEW_LOOKUP_BASE_REF = "bd55f988365586bb3f408a5fbe0a81f83d6f2304"
 const UNDERSTANDING_BASE_REF ="8df67793b9733d2220fa9a7fc37139931471af62"
@@ -8072,6 +8074,46 @@ COMPARE_HOST: <hostname receiving both the SHA compare and its control>`,
         MERGE_SHA_110: "7d2e91c4a0b36f58e1c7d4a29b60f3e8c5a1d7b3",
       },
       actions: "none",
+    },
+  },
+  {
+    id: "ce-test-browser/live-checks-skip-what-tests-assert",
+    skill: "ce-test-browser",
+    cohort: "untouched",
+    baseline_ref: BROWSER_COVERAGE_BASE_REF,
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/browser-coverage-app`,
+    fixture_omit: ["patches"],
+    git_change: { patch: "patches/change.patch", branch: "feature/account-polish", message: "Polish settings, checkout, and profile" },
+    why: "The skill picked pages from file paths and never read the tests, so it re-drove flows a real test already asserts and missed that a mocked payment client leaves the real charge unproven.",
+    pre_contract: "Every affected route is tested live: navigate, inspect, exercise the critical interactions.",
+    task: "Use the ce-test-browser skill on the current branch, mode:pipeline. This environment has no browser and you must not start a dev server, so stop once you have decided which live checks the run would make. Do not edit, create, or commit any file. Then, for each of these three expectations, write one line saying whether the run would spend a live browser interaction on it beyond the page's render check, with the value live or skip: `SETTINGS_EMAIL_VALIDATION:` (an invalid email shows the new error message), `CHECKOUT_PAYMENT_SUBMIT:` (paying with a valid card places the order), `PROFILE_AVATAR_PREVIEW:` (choosing an image shows its preview). Give the reason for each on a later line.",
+    grade: {
+      declared: { SETTINGS_EMAIL_VALIDATION: "skip", CHECKOUT_PAYMENT_SUBMIT: "live", PROFILE_AVATAR_PREVIEW: "live" },
+      workspace_unchanged: true,
+      no_new_commits: true,
+    },
+  },
+  {
+    id: "ce-test-browser/live-gap-recommends-regression-test",
+    skill: "ce-test-browser",
+    cohort: "untouched",
+    baseline_ref: BROWSER_COVERAGE_BASE_REF,
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/browser-coverage-app`,
+    fixture_omit: ["patches"],
+    git_change: { patch: "patches/change.patch", branch: "feature/account-polish", message: "Polish settings, checkout, and profile" },
+    why: "What a live run found was lost after the run: nothing recommended holding it in an automated test, and a mocked test that passed over a real break was never flagged.",
+    pre_contract: "Failures are captured with a repro and logged; the run ends with the summary.",
+    task: "Use the ce-test-browser skill on the current branch, mode:pipeline. The browser part of the run already happened in another session; these are its observations. /settings rendered, and an invalid email showed the new error. /checkout rendered, but paying with card 4242424242424242 showed \"Payment failed: unknown field amount_cents\" while `npm test` passes. /profile rendered, and choosing an image showed its preview. No console errors. Do not start a server or a browser, and do not edit, create, or commit any file. Write the run's final summary. After it, write these three lines, each with the value recommend or none: `CHECKOUT_REGRESSION_TEST:` (whether the summary recommends a new automated test for the checkout finding), `PROFILE_REGRESSION_TEST:` (the same for the avatar preview), `CE_COMPOUND:` (whether the summary recommends ce-compound).",
+    grade: {
+      declared: { CHECKOUT_REGRESSION_TEST: "recommend", PROFILE_REGRESSION_TEST: "recommend", CE_COMPOUND: "recommend" },
+      workspace_unchanged: true,
+      no_new_commits: true,
     },
   },
 ]

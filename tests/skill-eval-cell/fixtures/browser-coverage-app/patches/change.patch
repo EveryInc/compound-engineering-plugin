@@ -1,0 +1,61 @@
+diff --git a/src/pages/checkout.js b/src/pages/checkout.js
+index 80ec1aa..fcc956b 100644
+--- a/src/pages/checkout.js
++++ b/src/pages/checkout.js
+@@ -10,7 +10,7 @@ export function checkoutPage(_req, res) {
+ }
+ 
+ export async function submitCheckout(req, res) {
+-  const result = await charge({ card: req.body.card, amount: req.body.total })
++  const result = await charge({ card: req.body.card, amount_cents: Math.round(Number(req.body.total) * 100) })
+   if (!result.ok) return res.status(402).send(`<p class="error">Payment failed: ${result.error}</p>`)
+   res.send("<h1>Order placed</h1>")
+ }
+diff --git a/src/pages/profile.js b/src/pages/profile.js
+index cfaba70..96e2aaa 100644
+--- a/src/pages/profile.js
++++ b/src/pages/profile.js
+@@ -1,4 +1,16 @@
+ export function profilePage(_req, res) {
+   res.send(`<h1>Profile</h1>
+-<p>Display name: <span id="name">Guest</span></p>`)
++<p>Display name: <span id="name">Guest</span></p>
++<form method="post" action="/profile/avatar" enctype="multipart/form-data">
++  <label>Avatar <input name="avatar" type="file" accept="image/*"></label>
++  <img id="avatar-preview" hidden alt="">
++  <button>Upload</button>
++</form>
++<script>
++  document.querySelector('[name=avatar]').addEventListener('change', (e) => {
++    const img = document.getElementById('avatar-preview')
++    img.src = URL.createObjectURL(e.target.files[0])
++    img.hidden = false
++  })
++</script>`)
+ }
+diff --git a/src/pages/settings.js b/src/pages/settings.js
+index 1a2b341..920305a 100644
+--- a/src/pages/settings.js
++++ b/src/pages/settings.js
+@@ -11,7 +11,7 @@ export function settingsPage(_req, res) {
+ 
+ export function saveSettings(req, res) {
+   if (!/^[^@\s]+@[^@\s]+$/.test(req.body.email ?? "")) {
+-    return res.status(422).send(form("Email is invalid"))
++    return res.status(422).send(form("Enter a valid email address"))
+   }
+   res.send("<h1>Settings</h1><p>Saved</p>")
+ }
+diff --git a/tests/settings.test.js b/tests/settings.test.js
+index 6a5030a..4e10d3b 100644
+--- a/tests/settings.test.js
++++ b/tests/settings.test.js
+@@ -6,7 +6,7 @@ describe("settings", () => {
+   test("rejects an invalid email and keeps the form", async () => {
+     const res = await request(app).post("/settings").type("form").send({ email: "not-an-email" })
+     expect(res.status).toBe(422)
+-    expect(res.text).toContain("Email is invalid")
++    expect(res.text).toContain("Enter a valid email address")
+     expect(res.text).toContain('name="email"')
+   })
+ 
