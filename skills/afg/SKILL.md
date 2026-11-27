@@ -8,7 +8,7 @@ argument-hint: "[setup | status | dry-run | answer <item>; blank keeps working u
 
 **Outcome:** a run takes this repository's highest-priority enabled work, one item after another, as far as its saved tolerances allow, and keeps going until a limit stops it or nothing is left. It leaves a digest a person can read in a minute.
 
-**Done:** the run's lease is released, every item it touched is landed, in flight, closed or parked with a recommendation, and the digest is printed. Landing something is not the end of a run: look again and take the next item. Nothing to do, or a limit in `references/run.md`, is.
+**Done:** the run's lease is released, every item it touched is landed, in flight, closed or parked with a recommendation, and the digest is printed; a run that never got the lease only says who holds it. Landing something is not the end of a run: look again and take the next item. Nothing to do, or a limit in `references/run.md`, is.
 
 **Safe direction:** decide what the settings let you decide. When a fact, receipt or permission is missing and this run cannot supply it, park the item and continue with the next one. Nobody is waiting to answer, so a parked item is work that stopped.
 

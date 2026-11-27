@@ -70,7 +70,14 @@ describe("policy", () => {
 describe("lease and caps", () => {
   test("a second run is locked out and an old token is refused after takeover", () => {
     const w = new World().begin()
-    expect(w.run(["begin"]).json.reasons).toEqual(["locked"])
+    const refused = w.run(["begin"])
+    expect(refused.json.reasons).toEqual(["locked"])
+    // A locked-out run can name the holder, and is not handed what would let it act as that run.
+    expect(refused.json.holder.worktree).toBe(w.git(w.repo, "rev-parse", "--show-toplevel"))
+    expect(Date.parse(refused.json.expires) - Date.parse(refused.json.last_renewed)).toBe(3 * 3600_000)
+    w.run(["heartbeat", "--token", w.token])
+    expect(w.run(["begin"]).json.holder).toEqual(refused.json.holder)
+    for (const r of [refused, w.run(["digest"])]) expect(JSON.stringify(r.json)).not.toContain(w.token)
     const state = path.join(w.repo, ".context/compound-engineering/afg/state.json")
     writeFileSync(state, JSON.stringify({ token: w.token, at: "2020-01-01T00:00:00Z" }))
     expect(w.run(["heartbeat", "--token", w.token]).code).toBe(3)

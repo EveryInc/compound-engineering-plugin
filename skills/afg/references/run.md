@@ -4,15 +4,15 @@ Every command below is `"$PY" "$SKILL_DIR/scripts/autonomous.py" <subcommand>`, 
 
 ## Begin
 
-`begin` before making a branch or worktree, so a run that finds the lock leaves nothing behind. It returns a `token`; pass it as `--token` to every later command that takes one (`answer` does not). `locked` means another run is active: report that and stop. Settle or close this thread only when it is this run's alone: a schedule may reuse one thread, and settling it ends the run that holds the lock. `report-only` means observe, report, and stop.
+`begin` before making a branch or worktree, so a run that finds the lock leaves nothing behind. It returns a `token`; pass it as `--token` to every later command that takes one (`answer` does not). `locked` means another run is active: report its `holder` and when the lease `expires`, and stop, without a digest or a board; what the board shows in flight is that run's. Settle or close this thread only when it is this run's alone: a schedule may reuse one thread, and settling it ends the run that holds the lock. `report-only` means observe, report, and stop.
 
-Whatever happens after a token is issued, finish with `end --token`. `heartbeat` when a wait is long: the lease expires after three hours without a write, and a run that loses it stops at once.
+Whatever happens after a token is issued, finish with `end --token`. `heartbeat` when a wait is long: the lease expires after three hours without a write, and a run that loses it stops at once. `--help` shows which take one; `turn`, `check`, `gate`, `observe` and `digest` do not. No report, brief or log repeats a token.
 
 ## The board
 
 `"$PY" "$SKILL_DIR/scripts/board.py"` right after `begin` and before `end` (`--all` for every repository). It lists everything in flight, derived from GitHub and the ledgers, so nothing depends on memory: every open pull request of this account, every commit and job not landed or ended, every parked item, each with one next step and who takes it, in `~/.compound-engineering/afg/board.md`.
 
-A pull request this mode opened is its own to finish: landed, or closed with a reason. Before starting a job, take the next step of each item the board gives to the run, oldest first; `job-end` what is gone or superseded, and answer or re-park what no longer holds. A run does not end while one of them can move.
+A pull request this mode opened is its own to finish: landed, or closed with a reason. Before starting a job, take the next step of each item the board gives to the run, oldest first; `job-end` what is gone or superseded, and re-park what no longer holds, or `drop` the idea a later landing finished. A run does not end while one of them can move.
 
 ## Observe
 
@@ -69,8 +69,8 @@ End only when one of these holds, and name it first in the digest:
 
 - The quota is used: the provider reports a usage limit, and no provider the host offers and the owner allows can continue.
 - A limit the owner set refuses new jobs (`hourly-cap`, `open-pr-cap`, which leaves out PRs parked for a person up to as many again, an `allowance-*` denial other than `allowance-spent`), and nothing in flight can move. With a schedule, the next run resumes.
-- Every enabled motion has been looked at since the last landing and none has an actionable item. `climb` has none once its measured targets and its untested or hard-to-follow areas are exhausted; do not invent work to continue.
-- The lease is lost, the owner says stop, the machine cannot run the checks, or `machine-busy` with nothing going.
+- Every enabled motion has been looked at since the last landing and none has an actionable item. Say it of `stack` only after comparing each locked version with its registry, since a tool that lists outdated direct packages misses the rest. `climb` has none once its measured targets and its untested or hard-to-follow areas are exhausted; do not invent work to continue.
+- The lease is lost, the owner says stop, the machine cannot run the checks, or nothing is going and `room` answered `no-room-yet`.
 
 `jobs-at-once`, `allowance-spent` and `machine-busy` with work going are not ends: advance or finish what is going. `job-end` or `worker-end` an entry in `going` only when its worker is gone. Never write the allowance file.
 
@@ -84,6 +84,7 @@ Nothing this run started outlives its use. As soon as an item is landed, closed,
 - Stop its servers and databases, and delete its scratch folder.
 - Settle or close each worker and review thread as soon as its result is recorded, where the host has threads, also one the host made for a delegate. Keep one open only while it works or holds work to resume; a question for the owner lives on the board and in the digest, not in an open thread.
 - Before `end`, list the unsettled threads of this run and settle every finished one. Then settle earlier threads of this repository's runs, schedule firings included, that are finished and hold no lease, after recording on the board what they still leave to anyone. Read the final report first when the thread did work. Never settle a person's own thread or one that another run uses.
+- `drop --item <idea:slug> --landed <sha> --why "<how it finished it>"` clears an idea this repository's runs parked for themselves (`--needs later`) with a landing made since it was last parked. It refuses what was ever a question for the owner.
 - Delete its pushed branch when the project's instructions say so and this run pushed it.
 
 ## End

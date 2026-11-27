@@ -2,7 +2,7 @@
 
 Landing is judged on the exact head, after the last push to it. Commands and denials work as in `references/run.md`. A missing receipt is a step not taken yet, not a final denial.
 
-Before building on a commit, run `test --dry-run` on it: a limit found low in a stack changes every commit above.
+Before building on a commit, adopt it and run `test --dry-run` on it: a limit found low in a stack changes every commit above. It also names the guards it needs judged and, under `landing`, a shape `direct` would refuse.
 
 ## The steps
 

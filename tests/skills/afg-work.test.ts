@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { cleanup, HANDS_OFF, ME, SCRIPT, World } from "../helpers/afg-world"
 
@@ -586,6 +586,18 @@ describe("direct landing", () => {
     expect(w.run(["direct", "--token", w.token, "--sha", head, "--job", job]).json.reasons).toEqual(["author-not-trusted"])
   })
 
+  test("a dry run says what would refuse the commit later, and an own commit that is not adopted is called that", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    expect(w.run(["test", "--token", w.token, "--sha", d.sha, "--dry-run"]).json).toMatchObject({ head: d.sha, landing: [], guards: [] })
+    w.write("again.rb", "x\n")
+    const two = w.commit("again", ["again.rb"])
+    expect(w.run(["test", "--token", w.token, "--sha", two, "--dry-run"]).json.reasons).toEqual(["not-adopted"])
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "y"]).json.job
+    w.run(["adopt", "--token", w.token, "--job", job, "--sha", two])
+    expect(w.run(["test", "--token", w.token, "--sha", two, "--dry-run"]).json.landing).toEqual(["not-one-commit"])
+  })
+
   test("a tested commit lands on a main whose hosted checks are red, and an untested one does not", () => {
     const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
     const d = direct(w)
@@ -738,6 +750,126 @@ test("a parked item stays parked until it changes", () => {
   w.save()
   expect(w.run(["observe"]).json.prs[0].parked).toBe(false)
   expect(w.run(["digest"]).json.parked).toHaveLength(1)
+})
+
+test("a main whose checks have not finished does not bring a parked item back, and a settled change does", () => {
+  const w = new World().begin()
+  w.pr(7, { "app.rb": "two\n" })
+  const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+  const parkedUnder = (main: string) => {
+    const at = new Date().toISOString().slice(0, 19) + "Z"
+    appendFileSync(file, JSON.stringify({ event: "park", at, item: "pr:7", updated: w.w.prs[7].updatedAt, main, needs: "fact", why: "x", recommend: "y", tried: "z" }) + "\n")
+    return w.run(["observe"]).json
+  }
+  expect(parkedUnder("green")).toMatchObject({ main: "green", prs: [{ parked: true }] })
+  expect(parkedUnder("red").prs[0].parked).toBe(false)
+  w.w.checks[w.git(w.repo, "rev-parse", "origin/main")] = [{ name: "ci", status: "in_progress" }]
+  w.save()
+  expect(parkedUnder("red")).toMatchObject({ main: "unknown", prs: [{ parked: true }] })
+  delete w.w.checks[w.git(w.repo, "rev-parse", "origin/main")]
+  w.save()
+  // Recorded before the checks finished: green is no news, red is.
+  expect(parkedUnder("unknown")).toMatchObject({ main: "green", prs: [{ parked: true }] })
+  // Checks that could not start, and now do, may be what it waited for.
+  expect(parkedUnder("not-run").prs[0].parked).toBe(false)
+  w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+  for (const before of ["unknown", "not-run", "green"]) expect(parkedUnder(before)).toMatchObject({ main: "red", prs: [{ parked: false }] })
+})
+
+test("park and observe read main under the same settings", () => {
+  const w = new World(HANDS_OFF + "autonomous_ignored_checks: [preview]\n").begin()
+  w.pr(7, { "app.rb": "two\n" })
+  w.w.issues["7"] = { number: 7, updated_at: w.w.prs[7].updatedAt }
+  w.w.checks[w.git(w.repo, "rev-parse", "origin/main")] = [
+    { name: "ci", status: "completed", conclusion: "success" }, { name: "preview", status: "completed", conclusion: "failure" }]
+  w.save()
+  w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", w.w.prs[7].updatedAt, "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", "z"])
+  expect(w.run(["observe"]).json).toMatchObject({ main: "green", prs: [{ parked: true }] })
+})
+
+describe("a finished parked item", () => {
+  const park = (w: World, item: string, needs: string) =>
+    w.run(["park", "--token", w.token, "--item", item, "--why", "x", "--recommend", "y", "--needs", needs, "--tried", "z"])
+  const drop = (w: World, item: string, sha: string) => w.run(["drop", "--token", w.token, "--item", item, "--landed", sha, "--why", "done there"]).json
+  const landed = (w: World) => {
+    const sha = w.git(w.repo, "rev-parse", "origin/main")
+    appendFileSync(path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl"),
+      JSON.stringify({ event: "land", at: new Date(Date.now() + 2000).toISOString().slice(0, 19) + "Z", sha, motion: "stack", by: "run" }) + "\n")
+    return sha
+  }
+
+  test("is dropped by a landing this repository recorded, and the digest shows it", () => {
+    const w = new World().begin()
+    park(w, "idea:x", "later")
+    const sha = landed(w)
+    expect(drop(w, "idea:x", sha).dropped).toBe("idea:x")
+    const d = w.run(["digest"]).json
+    expect(d.parked).toEqual([])
+    expect(d.drop).toMatchObject([{ item: "idea:x", landed: sha }])
+    expect(drop(w, "idea:x", sha).reasons).toEqual(["not-parked"])
+    // Parked again, the same landing no longer speaks for it.
+    park(w, "idea:x", "later")
+    expect(drop(w, "idea:x", sha).reasons).toEqual(["landing-unrecorded"])
+  })
+
+  test("is dropped by a merged PR, and only by what is on main and by the run that holds the lease", () => {
+    const w = new World().begin()
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    const land = (merge_sha: string) => appendFileSync(file, JSON.stringify({ event: "land", at: new Date().toISOString().slice(0, 19) + "Z", pr: 7, head: "h", motion: "stack", by: "script", merge_sha }) + "\n")
+    w.git(w.repo, "checkout", "-q", "-b", "off", "origin/main")
+    w.write("off.rb", "x\n")
+    const off = w.commit("off", ["off.rb"])
+    const sha = w.git(w.repo, "rev-parse", "origin/main")
+    park(w, "idea:x", "later")
+    land(off)
+    land(sha)
+    expect(drop(w, "idea:x", off).reasons).toEqual(["landing-unrecorded"])
+    expect(w.run(["drop", "--token", "other", "--item", "idea:x", "--landed", sha, "--why", "y"]).json.error).toContain("lease-lost")
+    expect(drop(w, "idea:x", sha).dropped).toBe("idea:x")
+  })
+
+  test("an answer does not make the owner's question the run's", () => {
+    const w = new World().begin()
+    park(w, "idea:x", "authority")
+    w.run(["answer", "--item", "idea:x", "--situation", "s", "--choice", "do it", "--reason-from", "none", "--scope", "once"])
+    park(w, "idea:x", "later")
+    expect(drop(w, "idea:x", landed(w)).reasons).toEqual(["owner-decides"])
+  })
+
+  test("is not dropped without one, or when it was ever the owner's question", () => {
+    const w = new World().begin()
+    park(w, "idea:x", "later")
+    expect(drop(w, "idea:x", w.git(w.repo, "rev-parse", "origin/main")).reasons).toEqual(["landing-unrecorded"])
+    const sha = landed(w)
+    for (const needs of ["authority", "access", "fact"]) {
+      park(w, `idea:${needs}`, needs)
+      park(w, `idea:${needs}`, "later")
+      landed(w)
+      expect(drop(w, `idea:${needs}`, sha).reasons).toEqual(["owner-decides"])
+    }
+    // A commit's job is ended instead, so the board does not offer it for landing again.
+    for (const item of ["security:x", `commit:${sha}`]) {
+      park(w, item, "later")
+      landed(w)
+      expect(drop(w, item, sha).reasons).toEqual(["item-invalid"])
+    }
+    expect(w.run(["digest"]).json.parked.map((r: any) => r.item)).toContain("security:x")
+  })
+
+  test("is not dropped by a landing from before it was parked", () => {
+    const w = new World().begin()
+    const sha = w.git(w.repo, "rev-parse", "origin/main")
+    appendFileSync(path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl"),
+      JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", sha, motion: "stack", by: "run" }) + "\n")
+    park(w, "idea:x", "later")
+    expect(drop(w, "idea:x", sha).reasons).toEqual(["landing-unrecorded"])
+  })
+})
+
+test("a digest leaves out what a reader does not need", () => {
+  const w = new World().begin()
+  w.run(["park", "--token", w.token, "--item", "idea:x", "--why", "x", "--recommend", "y", "--needs", "later", "--tried", "a long account"])
+  expect(Object.keys(w.run(["digest"]).json.parked[0]).sort()).toEqual(["at", "item", "needs", "recommend", "why"])
 })
 
 describe("recorded decisions", () => {

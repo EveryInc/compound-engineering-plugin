@@ -1533,12 +1533,15 @@ def cmd_begin(a, repo):
         reclaimed = False
         if state.get("token"):
             if parse_iso(state["at"]) + LEASE_TTL >= now():
-                return deny("locked", last_renewed=state["at"])
+                # Never the token: whoever has it can act as that run.
+                return deny("locked", last_renewed=state["at"], expires=iso(parse_iso(state["at"]) + LEASE_TTL),
+                            holder={"began": state.get("began"), "worktree": state.get("worktree")})
             reclaimed = True
         token = secrets.token_hex(8)
         settle(repo, ledger(repo))
         append(repo, "run", token=token, reclaimed=reclaimed, under_allowance=allowance(repo) is not None)
-        write_state(repo, {"token": token, "at": iso(now()), **(upstream.keep(repo) if repo.upstream else {})})
+        write_state(repo, {"token": token, "at": iso(now()), "began": iso(now()),
+                           "worktree": git("rev-parse", "--show-toplevel", check=False).stdout.strip(), **(upstream.keep(repo) if repo.upstream else {})})
     for block in git("worktree", "list", "--porcelain").stdout.split("\n\n"):
         tree = block.split("\n")[0][len("worktree "):]
         if os.path.basename(os.path.dirname(tree)).startswith("afg-test-"):
@@ -1644,7 +1647,7 @@ def parked(rows):
             for x in rows:
                 if x["event"] == "adopt" and x.get("sha") and (x["job"] in jobs or x["sha"] == r.get("sha")):
                     out.pop(f"commit:{x['sha']}", None)
-        elif r["event"] == "close":
+        elif r["event"] in ("close", "drop"):
             out.pop(r["item"], None)
         elif r["event"] == "adopt":
             # Work on it exists now; a job that only started may end with nothing.
@@ -1665,7 +1668,11 @@ def cmd_observe(a, repo):
 
     def is_parked(item, updated):
         p = park.get(item)
-        return bool(p and p.get("needs") != "later" and p.get("updated") == updated and p.get("main") == state
+        # Checks that have not finished, or never started, show nothing about whether main changed, and
+        # finishing green is no news. Red is, and so is green where checks could not start.
+        same = p and (p.get("main") == state or state in ("unknown", "not-run")
+                      or p.get("main") == "unknown" and state == "green")
+        return bool(p and p.get("needs") != "later" and p.get("updated") == updated and same
                     and parse_iso(p["at"]) > now() - timedelta(days=PARK_DAYS))
 
     for p in prs:
@@ -1888,6 +1895,8 @@ def subject_of(a, repo, policy, rows):
     if not SHA.match(a.sha or ""):
         return None, None, ["sha-invalid"]
     recorded = next((r for r in rows if r["event"] == "adopt" and r.get("sha") == a.sha), None)
+    if not recorded and local_commits_own(repo, a.sha):
+        return None, None, ["not-adopted"]
     if not recorded or not local_commits_own(repo, a.sha, tended(repo, a.sha, job_of(rows, recorded["job"]))):
         return None, None, ["author-not-trusted"]
     return f"direct:{a.sha}", a.sha, []
@@ -1946,7 +1955,9 @@ def cmd_test(a, repo):
     if not commands:
         return deny("no-check-applies")
     if a.dry_run:
-        return emit({"would_run": commands, "head": head, "base": base})
+        shape = [shape_reason(policy, base, head)] if a.sha and policy["autonomous_landing"] == "direct" else []
+        return emit({"would_run": commands, "head": head, "base": base, "guards": guards_of(facts),
+                     "landing": [r for r in shape if r]})
     with locked(repo):
         require_lease(repo, a.token)
     with machine_turn(repo, a.token, MACHINE_WAIT):
@@ -2301,6 +2312,21 @@ def cmd_land(a, repo):
     return emit({"landed": a.pr, "merge_sha": done[-1]["merge_sha"]})
 
 
+def shape_reason(policy, base, head):
+    """Why these commits cannot be fast-forwarded onto the tip as one, or None."""
+    if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0 or head == base:
+        return "not-fast-forward"
+    if policy["autonomous_merge_method"] == "merge":
+        # One commit, joined by a merge that adds nothing of its own.
+        parents = git("log", "-1", "--format=%P", head).stdout.split()
+        if len(parents) != 2 or parents[0] != base or git("log", "-1", "--format=%P", parents[1]).stdout.split() != [base] \
+                or git("rev-parse", f"{head}^{{tree}}").stdout != git("rev-parse", f"{parents[1]}^{{tree}}").stdout:
+            return "not-one-merged-commit"
+    elif git("rev-list", "--count", f"{base}..{head}").stdout.strip() != "1":
+        return "not-one-commit"
+    return None
+
+
 def cmd_direct(a, repo):
     """Fast-forward the default branch to one tested, reviewed commit of its own."""
     policy, rows = load_policy(repo), ledger(repo)
@@ -2327,16 +2353,9 @@ def cmd_direct(a, repo):
     branch = gh_json("api", f"repos/{repo.name}/branches/{repo.default}")
     if branch.get("protected") is not False or rules_on_default(repo) != []:
         reasons.append("default-branch-protected")
-    if git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0 or head == base:
-        reasons.append("not-fast-forward")
-    elif policy["autonomous_merge_method"] == "merge":
-        # One commit, joined by a merge that adds nothing of its own.
-        parents = git("log", "-1", "--format=%P", head).stdout.split()
-        if len(parents) != 2 or parents[0] != base or git("log", "-1", "--format=%P", parents[1]).stdout.split() != [base] \
-                or git("rev-parse", f"{head}^{{tree}}").stdout != git("rev-parse", f"{parents[1]}^{{tree}}").stdout:
-            reasons.append("not-one-merged-commit")
-    elif git("rev-list", "--count", f"{base}..{head}").stdout.strip() != "1":
-        reasons.append("not-one-commit")
+    shape = shape_reason(policy, base, head)
+    if shape:
+        reasons.append(shape)
     facts = diff_facts(repo, base, head, policy)
     stopped = stops(policy, facts, True)
     if stopped:
@@ -2443,12 +2462,36 @@ def cmd_park(a, repo):
             refused = None
         if refused is not None and all(RUN_SUPPLIES.match(r) for r in refused):
             return deny("nothing-refuses", gate=refused)
+    # Read under the same settings as observe, or the two name one main differently.
+    load_policy(repo)
     state, _, _ = checks_at(repo, repo.tip())
     with locked(repo):
         require_lease(repo, a.token)
         append(repo, "park", item=a.item, updated=updated, main=state, why=a.why, recommend=a.recommend,
                needs=a.needs, tried=a.tried, instruction=a.instruction)
     return emit({"parked": a.item})
+
+
+def cmd_drop(a, repo):
+    """Clear an idea a run parked for itself once a recorded landing finished it. The owner's questions stay."""
+    if not a.item.startswith("idea:"):
+        return deny("item-invalid")
+    with locked(repo):
+        require_lease(repo, a.token)
+        rows = ledger(repo)
+        if a.item not in parked(rows):
+            return deny("not-parked")
+        parks = [(n, r) for n, r in enumerate(rows) if r["event"] == "park" and r["item"] == a.item]
+        # Neither an answer nor parking it again as unfinished work makes it the run's to settle.
+        if any(r.get("needs") != "later" for _, r in parks):
+            return deny("owner-decides")
+        # Parked after a landing means that landing did not finish it.
+        if not any(r["event"] == "land" and a.landed in (r.get("sha"), r.get("merge_sha")) and n > parks[-1][0]
+                   for n, r in enumerate(rows)) \
+                or git("merge-base", "--is-ancestor", a.landed, repo.tip(), check=False).returncode != 0:
+            return deny("landing-unrecorded")
+        append(repo, "drop", item=a.item, landed=a.landed, why=a.why)
+    return emit({"dropped": a.item})
 
 
 def decisions(rows):
@@ -2489,13 +2532,21 @@ def cmd_decisions(a, repo):
 def cmd_digest(a, repo):
     cutoff = now() - timedelta(hours=a.hours)
     rows = [r for r in ledger(repo) if parse_iso(r["at"]) > cutoff]
+
+    def brief(r, *names):
+        return {k: r[k] for k in names if k in r}
+
     return emit({"since": iso(cutoff),
-                 **{k: [r for r in rows if r["event"] == k] for k in ("run", "job", "land", "rejected", "close", "update", "answer")},
+                 **{k: [r for r in rows if r["event"] == k] for k in ("land", "rejected", "close", "update", "answer", "drop")},
+                 # A run's token lets whoever reads it act as that run.
+                 "run": [brief(r, "at", "reclaimed", "under_allowance") for r in rows if r["event"] == "run"],
+                 "job": [brief(r, "at", "job", "motion", "what", "origin") for r in rows if r["event"] == "job"],
                  "skills": {r["job"]: r["via"] for r in rows if r["event"] == "adopt" and r.get("via")},
                  # Guards changed without a person, told afterward.
                  "guards": [r for r in rows if r["event"] == "receipt" and r.get("kind") == "guard" and r["ok"]],
                  "prepared": upstream.waiting(sys.modules[__name__], repo, ledger(repo)) if repo.upstream and "problem" not in repo.upstream else [],
-                 "parked": sorted(parked(rows).values(), key=lambda r: r["at"])})
+                 "parked": [brief(r, "at", "item", "needs", "why", "recommend")
+                            for r in sorted(parked(rows).values(), key=lambda r: r["at"])]})
 
 
 def main():
@@ -2594,6 +2645,10 @@ def main():
     p.add_argument("--id", required=True)
     p.add_argument("--why", required=True)
     add("decisions", cmd_decisions, token=False)
+    p = add("drop", cmd_drop)
+    p.add_argument("--item", required=True)
+    p.add_argument("--landed", required=True, help="the recorded landing that finished or replaced it")
+    p.add_argument("--why", required=True)
     add("digest", cmd_digest, token=False).add_argument("--hours", type=int, default=24)
 
     upstream.add_commands(sys.modules[__name__], add)

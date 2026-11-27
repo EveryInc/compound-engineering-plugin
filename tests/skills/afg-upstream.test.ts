@@ -340,7 +340,7 @@ describe("what can never happen", () => {
     const list = [...src.match(/ALLOWED = \{([^}]+)\}/)![1]!.matchAll(/"([\w-]+)"/g)].map((m) => m[1]!)
     expect(list.filter((c) => !all.includes(c))).toEqual([])
     // A new one is refused until someone decides it belongs here.
-    expect(all.filter((c) => !list.includes(c)).sort()).toEqual(["close", "direct", "gate", "guard", "land", "update"])
+    expect(all.filter((c) => !list.includes(c)).sort()).toEqual(["close", "direct", "drop", "gate", "guard", "land", "update"])
   })
 
   test("a job cannot open a PR, and the upstream commands need the mode", () => {
