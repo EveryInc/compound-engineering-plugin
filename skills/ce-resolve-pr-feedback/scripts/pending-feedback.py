@@ -207,7 +207,7 @@ def write_record(path: Path, raw: bytes, *, checkpoint: bool) -> None:
 def github_json(host: str, endpoint: str) -> dict:
     result = subprocess.run(
         ["gh", "api", "--hostname", host, "--method", "GET", endpoint],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, encoding="utf-8", check=False,
     )
     require(result.returncode == 0, result.stderr.strip() or f"GitHub GET failed: {endpoint}")
     return object_value(json.loads(result.stdout), "GitHub response")
@@ -276,7 +276,8 @@ def main() -> None:
     output = {"handoff": str(path), "record": record}
     if args.command == "inspect-publication":
         output["publication"] = inspect_publication(record)
-    print(json.dumps(output, ensure_ascii=False))
+    # The record holds reply text, so write UTF-8 instead of the locale codec (cp1252 on Windows).
+    sys.stdout.buffer.write((json.dumps(output, ensure_ascii=False) + "\n").encode("utf-8"))
 
 
 if __name__ == "__main__":
