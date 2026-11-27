@@ -492,6 +492,30 @@ test("parking says what was tried", () => {
   expect(r.json.reasons).toEqual(["nothing-tried"])
 })
 
+test("a PR is parked for authority only when something a person must supply refuses it", () => {
+  const park = (w: World, ...more: string[]) => {
+    w.w.issues["7"] = { number: 7, updated_at: "2026-01-01T00:00:00Z" }
+    w.save()
+    return w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "authority", "--tried", "z", ...more]).json
+  }
+  const ready = new World()
+  ready.ready()
+  expect(park(ready).reasons).toEqual(["nothing-refuses"])
+  ready.fail(ready.git(ready.repo, "rev-parse", "origin/main"))
+  expect(park(ready)).toMatchObject({ reasons: ["nothing-refuses"], gate: ["main-not-green"] })
+  expect(park(ready, "--instruction", "short").reasons).toEqual(["instruction-missing"])
+  expect(park(ready, "--instruction", "The owner merges every change to pricing.").parked).toBe("pr:7")
+  const theirs = new World()
+  theirs.ready()
+  theirs.w.prs[7].mergeable = "CONFLICTING"
+  theirs.save()
+  expect(park(theirs).parked).toBe("pr:7")
+  const limited = new World()
+  limited.begin().pr(7, { "app/policies/user_policy.rb": "x\n" })
+  expect(limited.gate().reasons).toContain("hard-limit")
+  expect(park(limited).parked).toBe("pr:7")
+})
+
 describe("direct landing", () => {
   function direct(w: World, motion = "stack") {
     w.begin()
@@ -708,7 +732,7 @@ test("a parked item stays parked until it changes", () => {
   w.pr(7, { "app.rb": "two\n" })
   w.w.issues["7"] = { number: 7, updated_at: "2026-01-01T00:00:00Z" }
   w.save()
-  w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "authority", "--tried", "z"])
+  w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", "z"])
   expect(w.run(["observe"]).json.prs[0].parked).toBe(true)
   w.w.prs[7].updatedAt = "2026-01-02T00:00:00Z"
   w.save()
@@ -726,7 +750,7 @@ describe("recorded decisions", () => {
     w.pr(7, { "app.rb": "two\n" })
     w.w.issues["7"] = { number: 7, updated_at: "2026-01-01T00:00:00Z" }
     w.save()
-    w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "authority", "--tried", "z"])
+    w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", "z"])
     const id = answer(w, ...stated).json.id
     expect(w.run(["observe"]).json.prs[0].parked).toBe(false)
     expect(w.run(["decisions"]).json.decisions).toMatchObject([{ id, choice: "wait", reason: "overlapping gates slow both" }])

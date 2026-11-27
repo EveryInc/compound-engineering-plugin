@@ -59,7 +59,7 @@ host schedule -> /afg -> look -> pick by motion order -> delegate to lfg, ce-deb
 
 **Nothing is forgotten.** `~/.compound-engineering/afg/board.md` lists everything in flight in every repository it runs in on this machine, rebuilt from GitHub and the ledgers: open pull requests, unlanded commits and parked items, each with a next step and who takes it. A pull request it opened is its own to finish.
 
-**It decides before it parks.** Parking records what only you can supply and what the run tried first.
+**It decides before it parks.** Parking records what only you can supply and what the run tried first. Parking a pull request for your approval is refused when nothing but its own unfinished steps holds it back.
 
 ---
 

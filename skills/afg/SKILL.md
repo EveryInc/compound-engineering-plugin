@@ -50,7 +50,7 @@ On `direct`, no worker opens a PR and no PR is merged. Work ends as one commit o
 
 ## Answer questions here
 
-A question from a worker is answered from the code, docs, strategy, learnings and the owner's recorded decisions first (`decisions`; cite the id in the digest when one settles it). When that does not settle it, use the skill that answers it: `ce-explain` for how or why something works, `ce-pov` with an oracle panel for a judgment, `ce-bakeoff` when competing designs must be developed, `ce-debug` for a cause. Decide when the choice is reversible and within the item's level, and record the reason. A recommendation you would act on is a decision: act on it and report it. Park only what no answer can authorize, or what needs a fact or access only a person has.
+A question from a worker is answered from the code, docs, strategy, learnings and the owner's recorded decisions first (`decisions`; cite the id in the digest when one settles it). When that does not settle it, use the skill that answers it: `ce-explain` for how or why something works, `ce-pov` with an oracle panel for a judgment, `ce-bakeoff` when competing designs must be developed, `ce-debug` for a cause. Decide when the choice is reversible and within the item's level, and record the reason. A recommendation you would act on is a decision: act on it and report it. Leaving a finished landing to a person or another thread needs the same grounds as parking it. Park only what no answer can authorize, or what needs a fact or access only a person has.
 
 ## Motions
 

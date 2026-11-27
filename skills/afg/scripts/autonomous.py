@@ -2411,9 +2411,16 @@ def cmd_close(a, repo):
     return emit({"closed": f"{a.kind}:{a.number}"})
 
 
+# What a run supplies itself, by testing, reviewing, judging, fixing, updating or waiting. Only its own PR is its to fix.
+RUN_FIXES = re.compile(r"-failed$|^(not-mergeable|checks-red|merge-state-dirty)$")
+RUN_SUPPLIES = re.compile(r"^((test|review|guard)-(missing|failed)|rule-unjudged|behind|not-mergeable|main-not-green|checks-(red|unknown)|merge-state-(unknown|unstable|dirty))$")
+
+
 def cmd_park(a, repo):
     if not a.tried.strip():
         return deny("nothing-tried")
+    if a.instruction is not None and len(a.instruction.strip()) < 20:
+        return deny("instruction-missing")
     kind, _, number = a.item.partition(":")
     if kind not in ("pr", "issue", "main", "idea", "security", "commit", "sweep", "setting"):
         return deny("item-invalid")
@@ -2422,11 +2429,21 @@ def cmd_park(a, repo):
         updated = gh_json("api", f"repos/{repo.name}/issues/{number}")["updated_at"]
     if updated is not None and a.updated != updated:
         return deny("item-moved", updated=updated)
+    if a.needs == "authority" and kind == "pr" and not a.instruction:
+        try:
+            refused, facts = gate(repo, load_policy(repo), ledger(repo), int(number))
+            if facts.get("trust") != "own" and any(RUN_FIXES.search(r) for r in refused):
+                refused = None
+        except (Failure, OSError, KeyError, TypeError, ValueError, AttributeError):
+            # A gate that cannot be read shows nothing about who must decide.
+            refused = None
+        if refused is not None and all(RUN_SUPPLIES.match(r) for r in refused):
+            return deny("nothing-refuses", gate=refused)
     state, _, _ = checks_at(repo, repo.tip())
     with locked(repo):
         require_lease(repo, a.token)
         append(repo, "park", item=a.item, updated=updated, main=state, why=a.why, recommend=a.recommend,
-               needs=a.needs, tried=a.tried)
+               needs=a.needs, tried=a.tried, instruction=a.instruction)
     return emit({"parked": a.item})
 
 
@@ -2559,6 +2576,7 @@ def main():
     p.add_argument("--needs", required=True, choices=["authority", "access", "fact", "later"],
                    help="what only a person can supply; later: unfinished work the next run continues")
     p.add_argument("--tried", required=True, help="how this run tried to settle it, and what that showed")
+    p.add_argument("--instruction", help="with authority: the project instruction, quoted, that reserves this for a person")
     p = add("answer", cmd_answer, token=False)
     p.add_argument("--item", required=True)
     p.add_argument("--situation", required=True)
