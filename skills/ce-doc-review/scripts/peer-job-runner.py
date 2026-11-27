@@ -810,14 +810,41 @@ if IS_WINDOWS:
                 root_pid, children_map, _predates_reuse, self_pid)
         else:
             kill_set = None
+        _diag = os.environ.get("CE_DIAG_REAP_LOG")
+        _diag_ok = {"python.exe", "bash.exe", "sh.exe", "env.exe", "sleep.exe",
+                    "timeout.exe", "cmd.exe"}
+
+        def _diag_terminate(pid, role):
+            if not _diag:
+                return _win_terminate_pid(pid)
+            ident = _win_process_identity(pid) or ""
+            image = ident.split(" ", 1)[1] if " " in ident else ""
+            name = os.path.basename(image).lower()
+            spare = name not in _diag_ok
+            line = json.dumps({
+                "action": "SPARED" if spare else "kill", "role": role,
+                "root_pid": root_pid, "pid": pid, "identity": ident,
+                "expected_identity": expected_identity, "root_alive": alive,
+                "recorded_leader": recorded_leader,
+                "reuse_branch": kill_set is not None, "self_pid": self_pid,
+            })
+            try:
+                with open(_diag, "a", encoding="utf-8") as fh:
+                    fh.write(line + "\n")
+            except OSError:
+                pass
+            if spare:
+                return False
+            return _win_terminate_pid(pid)
+
         for pid in _win_descendants_deepest_first(root_pid, children_map):
             if pid == self_pid:
                 continue
             if kill_set is not None and pid not in kill_set:
                 continue
-            _win_terminate_pid(pid)
+            _diag_terminate(pid, "descendant")
         if recorded_leader:
-            _win_terminate_pid(root_pid)
+            _diag_terminate(root_pid, "leader")
         return recorded_leader
 
 

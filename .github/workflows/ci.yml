@@ -226,7 +226,7 @@ jobs:
     # so the babysit loop can see it and rerun. The smoke step's own 6-minute
     # deadline must fire before this cap kills the job and loses the log, so the
     # cap leaves room for the setup steps ahead of it as well.
-    timeout-minutes: 15
+    timeout-minutes: 40
 
     steps:
       # Keep LF in the working tree so newline-anchored parity regexes match.
@@ -255,6 +255,42 @@ jobs:
         # Use `python`, never `python3` — on Windows the latter is often the
         # Microsoft Store stub (see docs/solutions/conventions/resolve-python-interpreter-not-python3.md).
         run: python tests/fixtures/peer-job-runner-unit.py
+
+      - name: DIAG reap victims (smoke x8, sweep logged, non-smoke images spared)
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "reap-diag.jsonl"
+          $env:CE_DIAG_REAP_LOG = $log
+          New-Item -ItemType File -Force -Path $log | Out-Null
+          Write-Host "Runner-side processes at start:"
+          Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(Runner\.|pwsh|powershell|conhost)' } |
+            Format-Table ProcessId, ParentProcessId, CreationDate, Name -AutoSize | Out-String -Width 300 | Write-Host
+          for ($i = 1; $i -le 8; $i++) {
+            $out = Join-Path $env:RUNNER_TEMP "diag-$i.out.log"
+            $err = Join-Path $env:RUNNER_TEMP "diag-$i.err.log"
+            $env:PEER_SMOKE_DEADLINE_SECS = 150
+            $p = Start-Process python -ArgumentList 'tests/fixtures/peer-job-runner-windows-smoke.py' `
+              -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+            $null = $p.Handle
+            $done = $p.WaitForExit(180000)
+            Write-Host "attempt $i finished=$done exit=$($p.ExitCode)"
+            if (-not $done) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          }
+          Write-Host "==== sweep log ===="
+          Get-Content $log | Write-Host
+          $spared = @(Get-Content $log | Where-Object { $_ -match '"action": "SPARED"' })
+          Write-Host "==== $($spared.Count) SPARED entries ===="
+          $spared | ForEach-Object { Write-Host "::warning::$_" }
+          if ($spared.Count -gt 0) { exit 1 }
+
+      - name: Upload reap diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reap-diag
+          path: |
+            ${{ runner.temp }}/reap-diag.jsonl
+            ${{ runner.temp }}/diag-*.log
 
       - name: Peer-job-runner Windows smoke
         # Hosted windows-latest Python intermittently fails `import ctypes`
