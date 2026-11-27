@@ -245,8 +245,6 @@ export type Scenario = {
   env?: Record<string, string>
 }
 
-/** main before ce-test-browser read existing test coverage and recommended regression tests. */
-const BROWSER_COVERAGE_BASE_REF = "ee3695a24ae1ccb205e4334b79799cb25c060247"
 /** main before ce-babysit-pr stated how to read an incomplete review lookup (#1618). */
 const REVIEW_LOOKUP_BASE_REF = "bd55f988365586bb3f408a5fbe0a81f83d6f2304"
 const UNDERSTANDING_BASE_REF ="8df67793b9733d2220fa9a7fc37139931471af62"
@@ -8080,7 +8078,7 @@ COMPARE_HOST: <hostname receiving both the SHA compare and its control>`,
     id: "ce-test-browser/live-checks-skip-what-tests-assert",
     skill: "ce-test-browser",
     cohort: "untouched",
-    baseline_ref: BROWSER_COVERAGE_BASE_REF,
+    post_only: true,
     key_behavior: "judgment",
     read_only: false,
     git_init: true,
@@ -8100,7 +8098,7 @@ COMPARE_HOST: <hostname receiving both the SHA compare and its control>`,
     id: "ce-test-browser/live-gap-recommends-regression-test",
     skill: "ce-test-browser",
     cohort: "untouched",
-    baseline_ref: BROWSER_COVERAGE_BASE_REF,
+    post_only: true,
     key_behavior: "judgment",
     read_only: false,
     git_init: true,

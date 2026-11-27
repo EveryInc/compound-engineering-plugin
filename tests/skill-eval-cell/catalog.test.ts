@@ -535,6 +535,8 @@ describe("skill-eval-cell catalog", () => {
       "ce-setup/unattended-intent-refresh-publishes",
       "ce-setup/unattended-token-refresh-publishes",
       "ce-sweep/closed-at-source-reconciles",
+      "ce-test-browser/live-checks-skip-what-tests-assert",
+      "ce-test-browser/live-gap-recommends-regression-test",
       "compound-trigger/correction-invokes",
       "compound-trigger/rename-only-skips",
       "compound-trigger/replaced-approach-invokes",
