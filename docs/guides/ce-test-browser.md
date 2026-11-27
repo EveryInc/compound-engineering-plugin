@@ -128,7 +128,6 @@ Visibility is separate from unattended. A host-native browser stays visible in b
 | Email | Check the inbox for the test mail |
 | Payments | Complete a sandbox purchase |
 | SMS | Confirm the code arrived |
-| External APIs | Confirm the integration works |
 
 You answer yes (continue) or no (describe the issue). Pipeline mode logs each of these as Skip.
 

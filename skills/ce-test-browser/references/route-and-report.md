@@ -71,7 +71,6 @@ Every affected route gets the render checks below, whatever the tests cover. Spe
 | Email | "Check your inbox for the test email and confirm receipt" |
 | Payments | "Complete a test purchase in sandbox mode" |
 | SMS | "Verify you received the SMS code" |
-| External APIs | "Confirm the [service] integration is working" |
 
 Ask the user with the platform's question tool (the list is in SKILL.md step 6), or present numbered options and wait:
 

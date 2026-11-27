@@ -41,7 +41,7 @@ Read `references/route-and-report.md` from this skill's directory before step 3 
 
    Then navigate to `http://localhost:<port>`, capture its rendered or interactive state, and confirm the root is served before iterating.
 7. **Test each affected page.** Navigate, inspect fresh state, and confirm the route renders. Then spend the interactions on the expectations step 3 left open. Re-driving an expectation that a test already exercises for real adds no evidence, so skip it unless what the page shows contradicts that test. Capture evidence for each check.
-8. **Human verification** where a flow needs external interaction (OAuth, email, payments, SMS, third-party APIs): pause and ask. **Pipeline mode does not pause** — log each such flow as Skip with the reason and continue.
+8. **Human verification** where a flow needs a person to act outside the page, such as signing in with OAuth, reading an email or SMS code, or completing a payment: pause and ask. A third-party call the page makes without a person is an ordinary live check. **Pipeline mode does not pause** — log each such flow as Skip with the reason and continue.
 9. **Handle failures** by capturing the error state and the exact repro, then asking whether to fix now or skip. **Pipeline mode does not ask** — log the failure and continue.
 10. **Report the summary** in the format the reference gives. It names what existing tests already covered, and it recommends a regression test for each live finding that no automated test would catch. The recommendations are text in the summary; this skill does not write those tests.
 
