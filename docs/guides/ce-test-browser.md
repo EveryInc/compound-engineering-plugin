@@ -2,9 +2,9 @@
 
 > Run end-to-end browser tests on the pages the current PR or branch actually changed, using the best approved browser driver available.
 
-`ce-test-browser` is on-demand browser testing. It maps changed files to routes, checks (or, in pipeline mode, starts) the dev server, drives each affected page, captures rendered state and screenshots, pauses for human checks on external flows, and prints a structured summary.
+`ce-test-browser` is on-demand browser testing. It maps changed files to routes, reads what the project's automated tests already assert about them, checks (or, in pipeline mode, starts) the dev server, drives each affected page with live checks aimed at what those tests leave open, captures rendered state and screenshots, pauses for human checks on external flows, and prints a structured summary that recommends a regression test for each gap it found.
 
-It tests and reports. It is not `ce-dogfood` (autonomous QA that fixes small breakages and writes a durable report), not `ce-polish` (you sit with a working feature and talk about feel), and not `ce-test-xcode` (iOS simulator).
+It tests and reports, and it does not write tests. It is not `ce-dogfood` (autonomous QA that fixes small breakages and writes a durable report), not `ce-polish` (you sit with a working feature and talk about feel), and not `ce-test-xcode` (iOS simulator).
 
 Default is manual: you own the server. `mode:pipeline` is for `lfg` and other unattended runners.
 
@@ -14,9 +14,9 @@ Default is manual: you own the server. `mode:pipeline` is for `lfg` and other un
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Maps the diff to routes, drives those pages in an approved browser, asks you to confirm external flows |
+| What does it do? | Maps the diff to routes, reads what existing tests cover, drives those pages in an approved browser on what the tests leave open, asks you to confirm external flows |
 | When to use it | After UI changes, before a PR, or when you want evidence that the affected pages still work |
-| What it produces | Per-route status table, console errors, human verifications, screenshots, overall PASS / FAIL / PARTIAL |
+| What it produces | Existing coverage, per-route status table, console errors, human verifications, recommended regression tests, screenshots, overall PASS / FAIL / PARTIAL |
 | Modes | Manual (default: you start the server). `mode:pipeline` auto-starts the server and picks a free port |
 
 ---
@@ -55,6 +55,8 @@ Browser checks are easy to skip or to do with the wrong tool:
 
 - A missing preferred driver tempts an agent toward standalone Playwright, Puppeteer, or some other stack this skill will not use
 - Figuring out which routes a PR touched is its own task
+- A live run re-checks what the test suite already proves, while the behavior behind a mocked API goes unchecked
+- What a live run finds is gone after the run unless a test holds it
 - Tests fail because the server is down, on the wrong port, or stale
 - The page looks fine while console errors pile up
 - OAuth, payments, and email need a person; without a pause they get marked pass
@@ -66,11 +68,12 @@ A fixed flow:
 
 - Pick one approved driver and keep it for the whole run
 - Map changed files to URLs
+- Read what the existing tests assert for those pages, and treat anything behind a mock as not yet proven
 - Manual mode requires your server; pipeline mode starts one and will not assume port 3000 is free
-- Per page: navigate, inspect, exercise critical actions, screenshot
+- Per page: navigate, confirm it renders, exercise the interactions the tests leave open, screenshot
 - Pause for external flows (skipped in pipeline)
 - On failure, ask fix-now or skip (pipeline records the failure and continues)
-- End with a markdown summary you can paste into a PR
+- End with a markdown summary you can paste into a PR, including a recommended regression test for each gap
 
 ---
 
@@ -100,6 +103,12 @@ Starting patterns, not a closed list. The skill still uses judgment for the real
 | `src/app/*` (Next.js) | Matching routes |
 | `src/components/*` | Pages using those components |
 
+### Live checks go where the tests stop
+
+Before opening the browser, the skill reads the project's own tests for the affected pages, whatever framework they use, and checks what each one actually asserts. An expectation counts as covered only when a test exercises the real behavior. A test that mocks the network, the backend, the database, or a third-party service proves the code up to that boundary, so the real call past it stays open. Every route still gets a render check. The interactions go to the open expectations, and the skill re-drives a covered one only when the page contradicts its test. With no tests for those pages, everything is open.
+
+When a live check finds something no automated test would catch, either a failure or open behavior that works today but would break unnoticed, the summary recommends a regression test: where it belongs in the project's suite and what it would assert. When an existing test asserts behavior that failed live, the summary also recommends `/ce-compound` to hold that lesson as a test. The skill writes none of these itself.
+
 ### Two modes
 
 | Mode | Server | Port | Browser |
@@ -119,7 +128,6 @@ Visibility is separate from unattended. A host-native browser stays visible in b
 | Email | Check the inbox for the test mail |
 | Payments | Complete a sandbox purchase |
 | SMS | Confirm the code arrived |
-| External APIs | Confirm the integration works |
 
 You answer yes (continue) or no (describe the issue). Pipeline mode logs each of these as Skip.
 
@@ -133,11 +141,13 @@ You finished a notification settings page and a layout tweak. You run `/ce-test-
 
 It selects the host-native browser. Scope from `git diff --name-only main...HEAD`: layout, the notifications template, and a Stimulus toggle controller. Routes: `/` (layout), `/settings/notifications`, and other pages that render the toggle.
 
-It uses port 3000, confirms your server is listening, and tests each route: heading and primary content, console, screenshot, toggle interaction. The window stays visible.
+It reads the tests for those pages. A system test already submits the notifications form and asserts the saved preference. No test covers the toggle's behavior in the browser.
+
+It uses port 3000, confirms your server is listening, and tests each route: heading and primary content, console, screenshot. It spends the interaction checks on the toggle rather than re-submitting the form. The window stays visible.
 
 The settings path hits Google sign-in. It pauses. You sign in on the visible browser and say yes.
 
-Summary: 4 routes, 0 console errors, 1 human verification, PASS.
+Summary: 4 routes, 0 console errors, 1 human verification, PASS. It recommends one regression test: a JavaScript test for the toggle controller that asserts the switch flips the hidden field.
 
 ---
 
@@ -198,6 +208,9 @@ Standalone Playwright, Puppeteer, separately configured browser extensions or MC
 
 **What does pipeline mode change?**
 Server start, free-port scan, no blocking questions, human-only flows logged as Skip. Driver selection is unchanged. A native browser is not hidden.
+
+**Does it run the test suite?**
+It does not need to. It reads the tests to learn what they assert, and it never edits them.
 
 **What if the repo layout does not match the table?**
 The table is a start. The skill maps from the real project. You can also pass a branch whose diff already names the files you care about.

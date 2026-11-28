@@ -1,6 +1,6 @@
 # Routes, server, and reporting
 
-Read this before mapping changed files to routes (workflow step 3). It carries the route-mapping starting points, the port and server commands, what to check on each page, the two human-facing prompts, and the summary format.
+Read this before mapping changed files to routes (workflow step 3). It carries the route-mapping starting points, how to read existing test coverage, the port and server commands, what to check on each page, the two human-facing prompts, and the summary format.
 
 ## Map changed files to routes
 
@@ -17,6 +17,15 @@ Map each changed file to the route(s) that render it, then build the list of URL
 | `app/helpers/*_helper.rb` | Pages using that helper |
 | `src/app/*` (Next.js) | Corresponding routes |
 | `src/components/*` | Pages using those components |
+
+## Find what existing tests already cover
+
+The goal is a short list, per affected route or flow, of the expectations the project's automated tests prove for real and the ones they leave open. The live run spends its checks on the open ones.
+
+- **Find the tests from the project itself.** Its test configuration, scripts, and directory layout show where tests live and which runners they use. Look at every kind that can exercise these pages: unit, component, request or integration, and end-to-end specs. Tests that import the changed files, render the affected components, or request the affected routes are the starting set.
+- **Read what each test asserts.** A test named for a page may assert only that it renders. Count an expectation as covered only when you can name the input the test gives and the outcome it checks.
+- **A mock marks where coverage stops.** A test that replaces a real dependency, such as the network, the backend, the database, auth, or a third-party service, with a mock, stub, or fake proves the code up to that boundary. Seeded test data is not a mock. Whether the real call across it works is still open, and a live check is often the only thing that reaches it.
+- **Open by default.** An expectation no test asserts is open. In a project with no tests for these pages, every expectation is open, and the run proceeds as it would have without this step.
 
 ## Determine the port and verify the dev server is running
 
@@ -41,6 +50,8 @@ fi
 
 For each affected route, use the selected driver to navigate and capture fresh rendered or interactive state.
 
+Every affected route gets the render checks below, whatever the tests cover. Spend the interactions on the expectations the coverage read left open.
+
 **Verify key elements:**
 - Page title/heading present
 - Primary content rendered
@@ -48,7 +59,7 @@ For each affected route, use the selected driver to navigate and capture fresh r
 - Forms have expected fields
 - No new console errors attributable to the tested flow
 
-**Test critical interactions:** derive locators or element references from the selected driver's latest inspected state, perform the click/fill/press action, then inspect the resulting state. Do not guess selectors or reuse stale references.
+**Test the open interactions:** derive locators or element references from the selected driver's latest inspected state, perform the click/fill/press action, then inspect the resulting state. Do not guess selectors or reuse stale references.
 
 **Take screenshots:** capture viewport and full-page evidence when the selected driver supports it. Materialize screenshots as local artifacts when a later workflow or report needs file paths; otherwise in-app evidence is sufficient.
 
@@ -60,7 +71,6 @@ For each affected route, use the selected driver to navigate and capture fresh r
 | Email | "Check your inbox for the test email and confirm receipt" |
 | Payments | "Complete a test purchase in sandbox mode" |
 | SMS | "Verify you received the SMS code" |
-| External APIs | "Confirm the [service] integration is working" |
 
 Ask the user with the platform's question tool (the list is in SKILL.md step 6), or present numbered options and wait:
 
@@ -98,6 +108,10 @@ Did it work correctly?
 3. **If "Fix now":** investigate, propose a fix, apply, re-run the failing test
 4. **If "Skip":** log as skipped, continue
 
+## Recommend regression tests
+
+Recommend a regression test for each live finding about behavior this change added or altered that no automated test would catch breaking. A finding can be a live failure. It can also be an open expectation that passed live, since nothing would notice if it broke later. For each one, the summary names where the test belongs in the project's existing suite, at the cheapest level that exercises the real behavior, and what it would assert. When an existing test asserts the behavior that failed live, usually because a mock hid the break, also recommend `ce-compound`. The tests encoded a wrong belief, and `ce-compound` can hold that lesson as a test. These recommendations are text in the summary. This skill does not write the tests.
+
 ## Test summary
 
 ```markdown
@@ -105,6 +119,10 @@ Did it work correctly?
 
 **Test Scope:** PR #[number] / [branch name]
 **Server:** http://localhost:<port>
+
+### Existing Coverage
+- `/users`: create-form validation asserted by `[test file]`
+- `/checkout`: payment submission tested only against a mocked payment client, live check needed
 
 ### Pages Tested: [count]
 
@@ -124,6 +142,10 @@ Did it work correctly?
 
 ### Failures: [count]
 - `/dashboard` - [issue description]
+
+### Recommended Regression Tests: [count]
+- `/dashboard` - [where it belongs in the suite] - [what it would assert]
+- `/checkout` - [where it belongs in the suite] - [what it would assert]; the mocked test hid [what broke], so recommend `ce-compound`
 
 ### Result: [PASS / FAIL / PARTIAL]
 ```
