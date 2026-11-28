@@ -59,7 +59,7 @@ Agent Plugins discovers skills via the [Agent Skills](https://agentskills.io/spe
 | Consumer | Role |
 | --- | --- |
 | Agent Plugins clients | Manifest schema + `skills/` discovery |
-| Antigravity (`agy`) | Root + `.agy/` symlink; needs `name` + `version` (other fields optional). Foreign Agent Plugins `$schema` accepted on `agy` v1.0.10 (fixture + post-change validate, 2026-08-07). |
+| Antigravity (`agy`) | Native manifest at `.antigravity-plugin/plugin.json` takes precedence; root `plugin.json` stays as fallback / Agent Plugins shared surface. |
 | Grok Build | Native surface also at `.grok-plugin/plugin.json`; root may participate in direct installs — treat both as present. |
 | release-please | Owns `$.version` only |
 

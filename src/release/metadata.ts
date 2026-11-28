@@ -41,8 +41,15 @@ type DevinPluginManifest = {
   description?: string
 }
 
-type AntigravityManifest = {
+type RootPluginManifest = {
   version: string
+}
+
+type AntigravityPluginManifest = {
+  name: string
+  version: string
+  description?: string
+  logo?: string
 }
 
 type MarketplaceManifest = {
@@ -262,7 +269,8 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   const compoundPackagePath = path.join(root, "package.json")
   const compoundClaudePath = path.join(root, ".claude-plugin", "plugin.json")
   const compoundCursorPath = path.join(root, ".cursor-plugin", "plugin.json")
-  const compoundAntigravityPath = path.join(root, "plugin.json")
+  const compoundRootPluginPath = path.join(root, "plugin.json")
+  const compoundAntigravityPath = path.join(root, ".antigravity-plugin", "plugin.json")
   const compoundKimiPath = path.join(root, ".kimi-plugin", "plugin.json")
   const compoundDevinPath = path.join(root, ".devin-plugin", "plugin.json")
   const marketplaceClaudePath = path.join(root, ".claude-plugin", "marketplace.json")
@@ -307,18 +315,18 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   updates.push({ path: compoundCursorPath, changed })
   if (write && changed) await writeJson(compoundCursorPath, compoundCursor)
 
-  // Antigravity bundle version sync is detect-only. release-please owns the
+  // Root plugin.json version sync is detect-only. release-please owns the
   // write via extra-files, same as the Codex native plugin manifest.
   try {
-    const compoundAntigravity = await readJson<AntigravityManifest>(compoundAntigravityPath)
+    const compoundRootPlugin = await readJson<RootPluginManifest>(compoundRootPluginPath)
     updates.push({
-      path: compoundAntigravityPath,
-      changed: compoundAntigravity.version !== expectedCompoundVersion,
+      path: compoundRootPluginPath,
+      changed: compoundRootPlugin.version !== expectedCompoundVersion,
     })
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      errors.push(`${compoundAntigravityPath} is missing but ${compoundClaudePath} exists. Antigravity plugin.json parity required.`)
-      updates.push({ path: compoundAntigravityPath, changed: false })
+      errors.push(`${compoundRootPluginPath} is missing but ${compoundClaudePath} exists. Root plugin.json parity required.`)
+      updates.push({ path: compoundRootPluginPath, changed: false })
     } else {
       throw err
     }
@@ -688,6 +696,55 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     }
     updates.push({ path: compoundDevinPath, changed: devinChanged })
     if (write && devinChanged) await writeJson(compoundDevinPath, devin)
+  }
+
+  // Antigravity manifest. Antigravity prefers `.antigravity-plugin/plugin.json`
+  // over root `plugin.json` in multi-tool repos and loads root `skills/` by
+  // convention. Version sync is detect-only — release-please owns the write via
+  // extra-files. Missing manifest short-circuits with one unchanged entry.
+  let antigravity: AntigravityPluginManifest | undefined
+  try {
+    antigravity = await readJson<AntigravityPluginManifest>(compoundAntigravityPath)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${compoundAntigravityPath} is missing but ${compoundClaudePath} exists. Antigravity manifest parity required.`)
+      updates.push({ path: compoundAntigravityPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  if (antigravity) {
+    if (antigravity.name !== "compound-engineering") {
+      errors.push(`${compoundAntigravityPath}: name "${antigravity.name}" does not match expected "compound-engineering"`)
+    }
+
+    if (antigravity.logo !== undefined) {
+      const logoPath = path.resolve(root, antigravity.logo)
+      try {
+        const stat = await fs.stat(logoPath)
+        if (!stat.isFile()) {
+          errors.push(`${compoundAntigravityPath} declares logo: "${antigravity.logo}" but ${logoPath} is not a file`)
+        }
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          errors.push(`${compoundAntigravityPath} declares logo: "${antigravity.logo}" but ${logoPath} does not exist`)
+        } else {
+          throw err
+        }
+      }
+    }
+
+    let antigravityChanged = false
+    if (antigravity.version !== compoundClaude.version) {
+      antigravityChanged = true
+    }
+    if (compoundClaude.description !== undefined && antigravity.description !== compoundClaude.description) {
+      antigravity.description = compoundClaude.description
+      antigravityChanged = true
+    }
+    updates.push({ path: compoundAntigravityPath, changed: antigravityChanged })
+    if (write && antigravityChanged) await writeJson(compoundAntigravityPath, antigravity)
   }
 
   return { updates, errors }

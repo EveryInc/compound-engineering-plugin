@@ -46,10 +46,18 @@ describe("release component detection", () => {
     expect(components.get("compound-engineering")).toEqual([])
   })
 
-  test("maps Antigravity root plugin.json to root plugin component", () => {
-    const components = detectComponentsFromFiles(["plugin.json", ".agy/INSTALL.md"])
+  test("maps Antigravity manifests and .agy files to root plugin component", () => {
+    const components = detectComponentsFromFiles([
+      "plugin.json",
+      ".antigravity-plugin/plugin.json",
+      ".agy/INSTALL.md",
+    ])
 
-    expect(components.get("compound-engineering")).toEqual(["plugin.json", ".agy/INSTALL.md"])
+    expect(components.get("compound-engineering")).toEqual([
+      "plugin.json",
+      ".antigravity-plugin/plugin.json",
+      ".agy/INSTALL.md",
+    ])
     expect(components.get("marketplace")).toEqual([])
     expect(components.get("cursor-marketplace")).toEqual([])
   })

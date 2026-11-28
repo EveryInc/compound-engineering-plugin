@@ -382,15 +382,15 @@ omp plugin link "$PWD"
 
 Run `/reload-plugins` or start a new omp session after installing so the skills load. omp's native deterministic command is `/skill:<name>` (for example, `/skill:ce-plan`); ordinary `/skill-name` prompts can also model-route to visible skills, but manual-only or hidden skills require the native form. See [`docs/specs/omp.md`](docs/specs/omp.md) for details.
 
-### Antigravity CLI (`agy`)
+### Antigravity (App, CLI, and IDE)
 
-Google has replaced the consumer Gemini CLI with [Antigravity CLI](https://antigravity.google) (`agy`), which still runs on Gemini models. Install Compound Engineering directly from GitHub — no clone step required:
+Install Compound Engineering directly from GitHub with [Antigravity CLI](https://antigravity.google) (`agy`) — no clone step required:
 
 ```bash
 agy plugin install https://github.com/EveryInc/compound-engineering-plugin
 ```
 
-Verify with `agy plugin list`. The repository root is the plugin package (`plugin.json` plus `skills/`).
+Verify with `agy plugin list`. Antigravity reads `.antigravity-plugin/plugin.json` alongside root `skills/` and stages the plugin into `~/.gemini/config/plugins/compound-engineering/`, which automatically syncs across the Antigravity App, CLI, and IDE.
 
 For a local checkout or pinned release:
 
@@ -399,7 +399,7 @@ git clone https://github.com/EveryInc/compound-engineering-plugin
 agy plugin install ./compound-engineering-plugin
 ```
 
-The bundled `.agy/` directory remains a compatibility entry point (`agy plugin install ./compound-engineering-plugin/.agy`). `agy` also loads `GEMINI.md` workspace context from the checkout.
+The bundled `.agy/` directory remains a compatibility entry point (`agy plugin install ./compound-engineering-plugin/.agy`). For workspace-scoped installs in the Antigravity App or IDE, place the plugin directory under `.agents/plugins/`.
 
 See [`.agy/INSTALL.md`](.agy/INSTALL.md) for pinning, local development, uninstall, and legacy Gemini import.
 

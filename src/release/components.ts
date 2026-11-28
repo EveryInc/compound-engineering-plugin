@@ -26,13 +26,13 @@ const FILE_COMPONENT_MAP: Array<{ component: ReleaseComponent; prefixes: string[
       ".kimi-plugin/plugin.json",
       ".grok-plugin/",
       ".devin-plugin/plugin.json",
+      ".antigravity-plugin/plugin.json",
       ".opencode/",
       ".cline/",
       ".pi/",
       "AGENTS.md",
       "CLAUDE.md",
       ".agy/",
-      "GEMINI.md", // retained: agy still reads the Gemini-format context file
       "README.md",
       "package.json",
       "src/",
@@ -186,7 +186,8 @@ export function bumpVersion(version: string, bump: BumpLevel | null): string | n
 export async function loadCurrentVersions(cwd = process.cwd()): Promise<VersionSources> {
   const root = await readJson<RootPackageJson>(`${cwd}/package.json`)
   const ce = await readJson<PluginManifest>(`${cwd}/.claude-plugin/plugin.json`)
-  const antigravity = await readJson<PluginManifest>(`${cwd}/plugin.json`)
+  const rootPlugin = await readJson<PluginManifest>(`${cwd}/plugin.json`)
+  const antigravity = await readJson<PluginManifest>(`${cwd}/.antigravity-plugin/plugin.json`)
   const kimi = await readJson<PluginManifest>(`${cwd}/.kimi-plugin/plugin.json`)
   const grok = await readJson<PluginManifest>(`${cwd}/.grok-plugin/plugin.json`)
   const devin = await readJson<PluginManifest>(`${cwd}/.devin-plugin/plugin.json`)
@@ -197,8 +198,12 @@ export async function loadCurrentVersions(cwd = process.cwd()): Promise<VersionS
     throw new Error(`package.json version ${root.version} does not match .claude-plugin/plugin.json version ${ce.version}`)
   }
 
+  if (root.version !== rootPlugin.version) {
+    throw new Error(`package.json version ${root.version} does not match plugin.json version ${rootPlugin.version}`)
+  }
+
   if (root.version !== antigravity.version) {
-    throw new Error(`package.json version ${root.version} does not match plugin.json version ${antigravity.version}`)
+    throw new Error(`package.json version ${root.version} does not match .antigravity-plugin/plugin.json version ${antigravity.version}`)
   }
 
   if (root.version !== kimi.version) {

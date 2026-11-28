@@ -1,0 +1,28 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "compound-engineering",
+  "displayName": "Compound Engineering",
+  "version": "3.38.3",
+  "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+  "logo": "assets/logo.png",
+  "suggestedPrompts": [
+    "Brainstorm a new feature with me",
+    "Ideate and surprise me!",
+    "Simplify the code in my most-churned file"
+  ],
+  "author": {
+    "name": "Kieran Klaassen and Trevin Chow"
+  },
+  "homepage": "https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it",
+  "repository": "https://github.com/EveryInc/compound-engineering-plugin",
+  "license": "MIT",
+  "keywords": [
+    "brainstorming",
+    "code-review",
+    "compound-engineering",
+    "debugging",
+    "ideation",
+    "workflows",
+    "workflow-automation"
+  ]
+}

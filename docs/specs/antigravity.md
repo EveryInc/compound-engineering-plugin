@@ -1,25 +1,16 @@
-# Antigravity CLI (`agy`) target spec
+# Antigravity (`agy`) native plugin spec
 
-Status: spike findings, verified empirically against `agy` v1.0.10 on macOS (2026-06-22). This
-documents the Antigravity CLI plugin format so a `claude-to-antigravity` converter target can be
-built. It supersedes `docs/specs/gemini.md` for new work; Gemini CLI is being removed as a target.
+Status: verified against `agy` v1.5.18 on macOS and the official Antigravity plugin docs (`https://antigravity.google/docs/build-plugins.md`, `https://antigravity.google/docs/plugins.md`, `https://antigravity.google/docs/subagents.md`).
 
 ## Background
 
-Google replaced the consumer Gemini CLI with **Antigravity CLI** (binary `agy`), a Go-based terminal
-agent that still runs on Gemini models. It is a distinct CLI with its own install model, plugin
-format, and permission system -- not a rename of `gemini`. Per public reporting, consumer Gemini CLI
-access (free / AI Pro / Ultra) was cut off ~2026-06-18 while enterprise Gemini Code Assist and paid
-API-key access continue; this repo's decision is to remove the Gemini target entirely and target
-Antigravity instead.
+Google replaced the consumer Gemini CLI with **Antigravity** (App, CLI `agy`, IDE, and IDE extensions). Antigravity has a native plugin system shared across surfaces via `~/.gemini/config/plugins/<plugin-name>/` (global) and `<workspace-root>/.agents/plugins/<plugin-name>/` (workspace).
 
-All facts below were verified by building a fixture plugin and running `agy plugin validate` /
-`agy plugin install` / `agy plugin list` / `agy plugin uninstall`, not from documentation
-(antigravity.google/docs renders client-side and is not machine-readable).
+Compound Engineering installs natively as an Antigravity plugin from this repository — no Bun converter or clone step is required.
 
 ## Install model (user-facing)
 
-`agy` installs a plugin from a **local directory** or a **remote Git repository URL** when the source contains a root `plugin.json`:
+`agy` installs a plugin from a **remote Git repository URL**, a **local directory**, or the **Antigravity Marketplace** (`<plugin>@antigravity-plugins-official` / `<plugin>@antigravity-plugins-partners`):
 
 ```bash
 agy plugin install https://github.com/EveryInc/compound-engineering-plugin
@@ -33,115 +24,86 @@ agy plugin install ./compound-engineering-plugin
 agy plugin install ./compound-engineering-plugin/.agy   # equivalent via symlinked manifest
 ```
 
-- `agy plugin install <target>` requires `<target>` to be a directory containing a `plugin.json` at
-  its root (`agy plugin validate .` fails with "missing plugin.json" otherwise), or a remote Git URL
-  whose root contains `plugin.json`.
-- `agy plugin install <plugin>@<marketplace>` exists for marketplaces; Antigravity does not yet
-  ship a curated marketplace catalog equivalent to Kimi's `.kimi-plugin/marketplace.json`.
-- `agy plugin import [gemini|claude]` imports an existing Gemini-CLI / Claude install; on this machine
-  `agy plugin list` showed `compound-engineering` already imported with `source: gemini-cli`.
-- Other subcommands: `list`, `uninstall <name>`, `enable <name>`, `disable <name>`, `validate [path]`,
-  `link <mp> <target>`.
+- **Manifest precedence:** Antigravity checks `.antigravity-plugin/plugin.json` first, falling back to root `plugin.json`. In multi-tool repos, `.antigravity-plugin/plugin.json` lets us ship Antigravity-specific presentation fields (`$schema`, `displayName`, `logo`, `suggestedPrompts`) without colliding with root `plugin.json`'s Agent Plugins v1.0.0 closed field set.
+- **Storage & sync:** Installed plugins are staged in `~/.gemini/config/plugins/<name>/` and sync across the Antigravity App, CLI, and IDE. `agy plugin list --json` reports `name`, `enabled`, `version`, `source`, `path`, and discovered component arrays.
+- **Committed `.agy/` entry point:** holds symlinks (`plugin.json -> ../.antigravity-plugin/plugin.json`, `skills -> ../skills`, `assets -> ../assets`) plus `.agy/INSTALL.md` for explicit local `.agy` installs and zero-warning `agy plugin validate --strict ./.agy`.
+- Other subcommands: `list [--json]`, `uninstall <name>`, `enable <name>`, `disable <name>`, `validate [target] [--strict] [--json]`, `import [gemini|claude]`, `link <mp> <target>`.
 
-Compound Engineering publishes root `plugin.json` plus `skills/` so remote Git install works without
-a clone step. The committed `.agy/` bundle holds a symlinked manifest (`plugin.json -> ../plugin.json`)
-and `skills -> ../skills` for explicit local `.agy` installs.
+See `.agy/INSTALL.md` for pinning, local development, uninstall, and upgrading from legacy Gemini CLI imports.
 
-See `.agy/INSTALL.md` for pinning, validation, and uninstall.
+## Native plugin layout
 
-Installed/imported plugins are tracked in an internal registry surfaced by `agy plugin list --json`
-(not a readable `plugins/` directory tree). Each entry records `name`, `source`
-(`antigravity` | `gemini-cli` | `claude`), `importedAt`, and the `components` recognized.
-
-## Plugin layout (what the converter must emit)
-
-```
+```text
 <plugin-root>/
-  plugin.json              # required manifest, at root
-  skills/<name>/SKILL.md   # skills (SKILL.md with YAML frontmatter)
-  agents/<name>.md         # subagents (markdown + frontmatter)
-  commands/<name>.{toml,md} # commands -- CONVERTED TO SKILLS on install/import
-  mcp_config.json          # MCP servers (root file)
-  hooks.json               # hooks (root file)
+├── .antigravity-plugin/plugin.json  # preferred manifest in multi-tool repos (or root plugin.json)
+├── README.md                        # optional pre-install docs shown in Marketplace UI
+├── assets/logo.png                  # optional square icon (>=128x128px, referenced by manifest `logo`)
+├── scripts/                         # optional helper scripts (executable 0755)
+├── skills/<name>/SKILL.md           # skills (YAML frontmatter: name, description, optional disable-model-invocation)
+├── agents/<name>.md                 # optional custom agents & subagents
+├── rules/AGENTS.md                  # optional always-on plugin rule (or rules/<rule>.md with trigger frontmatter)
+├── mcp_config.json                  # optional MCP servers
+└── hooks.json                       # optional lifecycle hooks (must live at plugin root)
 ```
 
-`agy plugin validate` reports each section as `processed` or `skipped (not found)`, so all component
-dirs/files are optional and discovered by convention.
+### Manifest (`.antigravity-plugin/plugin.json`)
 
-### `plugin.json`
+Official schema: `https://antigravity.google/schemas/v1/plugin.json` (`additionalProperties: false`).
 
-Minimal valid manifest (verified):
+Key fields:
+- `name` (required, lowercase kebab-case)
+- `displayName`, `description`, `version`, `logo`, `author` (required for Marketplace)
+- `suggestedPrompts` (up to 3 starter prompt chips in the Antigravity App)
+- `homepage`, `repository`, `license`, `keywords`, `skills`, `disabled`, `extensions` (optional)
 
-```json
-{ "name": "compound-engineering", "version": "0.0.0" }
-```
-
-- `name` and `version` are sufficient to validate. `description` and other fields are optional and
-  were not required by the validator. (Version is release-owned in this repo -- see release notes.)
+Compound Engineering ships `.antigravity-plugin/plugin.json` with `displayName`, `logo: "assets/logo.png"`, and 3 `suggestedPrompts`. Version is release-owned via `.github/release-please-config.json`.
 
 ### Skills
 
-- `skills/<name>/SKILL.md` with standard YAML frontmatter (`name`, `description`). Same SKILL.md
-  contract already used by the Claude/Gemini surfaces -- skills appear to port directly.
+- `skills/<name>/SKILL.md` with YAML frontmatter (`name` matching folder name, `description` <= 1,024 chars, optional `disable-model-invocation`, `license`, `compatibility`).
+- Loaded via progressive disclosure (names + descriptions at session start; full body on demand or via `/<name>`).
+- Extra Claude keys (`argument-hint`, `allowed-tools`) are tolerated without validation errors; `allowed-tools` is not enforced by Antigravity.
 
 ### Agents (subagents)
 
-- `agents/<name>.md`, markdown with frontmatter (`name`, `description`). One `.md` per agent.
+- `agents/<name>.md` or `agents/<name>/agent.md` with YAML frontmatter: `name`, `description`, `mainAgent` (default `true`), `subagent` (default `true`), `model` (`inherit` | `flash_lite` | `flash` | `pro`), `tools`, `commandExecutionPolicy` (`off` | `auto` | `eager` | `sandbox`), `skills`, `inheritMcp`, `inheritCustomizations`.
+- Runtime subagent invocation uses `invoke_subagent` (asynchronous background execution with reactive wakeup; built-in types `self`, `research`, `browser`).
 
-### Commands -> skills
+### Rules and `GEMINI.md`
 
-- `commands/<name>.toml` and `commands/<name>.md` both validate and are reported as
-  **"converted to skills"**. Antigravity has no separate runtime command primitive; commands become
-  skills on install. Converter implication: we can emit commands as skills directly rather than
-  shipping a command format.
+- Native Antigravity plugins load rules **only** from `rules/` (`rules/AGENTS.md`, `rules/GEMINI.md`, or `rules/<name>.md` with `trigger: always_on | model_decision | glob | manual`).
+- Root `AGENTS.md` and `GEMINI.md` are **never loaded** by installed plugins (`agy plugin validate .` warns when they exist at root).
+- Root `GEMINI.md` was removed from this repository because: (1) installed Antigravity plugins ignore it completely, and (2) when contributors open this repo checkout in Antigravity, Antigravity loads both `AGENTS.md` and `GEMINI.md` as workspace rules — causing the legacy extension-user instructions in `GEMINI.md` to contradict `AGENTS.md`.
+- Root `AGENTS.md` remains intentionally ignored by Antigravity's plugin loader so repo contributor guidance does not leak into end-user sessions.
 
 ### MCP servers (`mcp_config.json`)
 
-Root file shaped `{ "mcpServers": { "<name>": { ... } } }`. Verified field names:
-
-- **stdio server:** `{ "command": "...", "args": [...] }`
-- **remote server:** `{ "serverUrl": "https://..." }`  -- NOT `url` and NOT `httpUrl`.
-  Validator error for the wrong key: `MCP server "<name>" must have either command or serverUrl`.
-
-Converter implication: map the Gemini/Claude remote-MCP `url` field to `serverUrl`.
+Root file shaped `{ "mcpServers": { "<name>": { ... } } }`:
+- **Stdio:** `{ "command": "...", "args": [...], "env": {...} }` (supports `${PLUGIN_ROOT}` and `${PLUGIN_DATA}`)
+- **Streamable HTTP (remote):** `{ "url": "https://..." }` (`serverUrl` is accepted as a legacy alias; supports `headers`, `variables`, and `oauth`).
 
 ### Hooks (`hooks.json`)
 
-Root file shaped `{ "hooks": { ... } }`. A `{ "hooks": { "PreToolUse": [] } }` shape validates
-(top-level container confirmed). The per-event hook schema (matchers, command shape, event names
-beyond `PreToolUse`) was NOT exhaustively verified in this spike and must be confirmed before
-emitting real hooks.
+Root file where each top-level key is a **named hook group**:
 
-## Permissions / interactive question tool
+```json
+{
+  "<hook-name>": {
+    "enabled": true,
+    "PreToolUse": [{ "matcher": "run_command", "hooks": [{ "type": "command", "command": "./scripts/check.sh" }] }],
+    "Stop": [{ "type": "command", "command": "./scripts/verify.sh" }]
+  }
+}
+```
 
-- `agy` gates tool execution via TUI permission prompts (`/permissions` slash command and a
-  `toolPermission` setting: `always-proceed` | `request-review` | `strict` | `proceed-in-sandbox`),
-  plus `permissions` allow/deny/ask rules in settings -- not a Gemini-CLI-style `ask_user` tool.
-- The interactive blocking-question tool exposed to agents is **`ask_question`** (confirmed in live
-  usage). Plugin skill prose that lists per-harness blocking-question tools should use
-  `ask_question` for Antigravity (this was applied in the Wave 1 skill sweep).
+- `PreToolUse` and `PostToolUse` wrap handlers in `{ matcher, hooks }`; `SessionStart`, `PreInvocation`, `PostInvocation`, and `Stop` take flat handler arrays.
+- Native plugins do **not** stage `hooks/hooks.json` or load `commands/`.
 
-## Context files
+## Interactive question tool & permissions
 
-- `agy` still reads `GEMINI.md` (workspace) and `AGENTS.md` as context. `GEMINI.md` is therefore
-  retained even though the Gemini *converter target* is removed. Google may later consolidate this
-  into `AGENTS.md`; treat that as TBD.
+- The interactive blocking-question tool exposed to agents is **`ask_question`**.
+- Tool execution is gated via `/permissions` and `toolPermission` settings (`always-proceed` | `request-review` | `strict` | `proceed-in-sandbox`).
 
-## Settings (reference)
+## Validation in multi-tool repositories
 
-Global settings live at `~/.gemini/antigravity-cli/settings.json` (keys observed in the bundled CLI
-guide include `permissions`, `toolPermission`, `trustedWorkspaces`, model, sandbox, status line).
-Builtin skills ship under `~/.gemini/antigravity-cli/builtin/skills/`.
-
-## Open questions for implementation
-
-- Exact `hooks.json` per-event schema (matcher/command shape, supported event names).
-- Whether `agy plugin install` supports a monorepo subdirectory or only a root `plugin.json`.
-- Whether a generated root `plugin.json` (vs `.claude-plugin/plugin.json`) is the right emission
-  target, and how it coexists with the existing Claude/Codex manifests at the repo root.
-  **Resolved for CE:** root `plugin.json` is the Antigravity manifest; `.agy/plugin.json` symlinks to it.
-  As of 2026-08-07 the root file also declares the Agent Plugins v1.0.0 `$schema` (shared surface;
-  see `docs/specs/agent-plugins.md`). `agy` v1.0.10 accepts that foreign `$schema` (fixture +
-  `agy plugin validate .` after the swap).
-- Marketplace (`<plugin>@<marketplace>`, `agy plugin link`) distribution — deferred until Antigravity
-  documents a stable catalog schema (unlike Kimi's `.kimi-plugin/marketplace.json`).
+Run `agy plugin validate .` to verify zero errors. In a multi-tool repo, `agy plugin validate --strict .` emits expected warnings for root `AGENTS.md` (contributor instructions) and root `plugin.json` (shadowed by `.antigravity-plugin/plugin.json`). Running `agy plugin validate --strict ./.agy` validates the symlinked bundle with zero warnings.

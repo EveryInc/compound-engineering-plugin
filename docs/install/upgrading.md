@@ -34,6 +34,17 @@ Refresh the marketplace from the **Plugins** panel (remove and re-add the `Every
 
 Reinstall or refresh Compound Engineering on that Cursor account (`/add-plugin compound-engineering` in Cursor Agent chat, or marketplace search). Grok Bot then loads the new snapshot from the shared plugin library. Do not clone this repository onto the Grok Bot computer for a normal update.
 
+**Antigravity (App, CLI, and IDE)**
+
+If you previously imported Compound Engineering from Gemini CLI (`Source: gemini-cli` in `agy plugin list`) or installed an older snapshot, uninstall it and reinstall natively from GitHub:
+
+```bash
+agy plugin uninstall compound-engineering
+agy plugin install https://github.com/EveryInc/compound-engineering-plugin
+```
+
+Plugins stage under `~/.gemini/config/plugins/compound-engineering/` and sync across the Antigravity App, CLI, and IDE.
+
 If you configured a host with a direct path or sparse path under `plugins/compound-engineering`, edit or reinstall that source so it points at the repository root with no sparse path.
 
 If a previous Bun-installed copy is still shadowing native plugin skills, run the current cleanup command from a checkout of this repository:

@@ -93,6 +93,11 @@
         },
         {
           "type": "json",
+          "path": ".antigravity-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "plugin.json",
           "jsonpath": "$.version"
         }
