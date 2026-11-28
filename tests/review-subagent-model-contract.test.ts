@@ -25,10 +25,13 @@ describe("review subagent model rule", () => {
     expect(code).toBe(doc)
   })
 
-  test("the rule names the Codex default and the config key", async () => {
+  test("the rule names the Codex default, the Antigravity tier mapping, and the config key", async () => {
     const rule = await read(RULE_COPIES[0])
     expect(rule).toContain("`spawn_agent`")
     expect(rule).toContain("`gpt-6.1-terra` with reasoning effort `high`")
+    expect(rule).toContain("`invoke_subagent`")
+    expect(rule).toContain("`flash`")
+    expect(rule).toContain("`flash_lite`")
     expect(rule).toContain("`review_subagents`")
     expect(rule).toContain("so it inherits the session model")
   })
