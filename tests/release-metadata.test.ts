@@ -30,6 +30,8 @@ async function makeFixtureRoot(): Promise<string> {
   await mkdir(path.join(root, ".grok-plugin"), { recursive: true })
   await mkdir(path.join(root, ".omp-plugin"), { recursive: true })
   await mkdir(path.join(root, ".devin-plugin"), { recursive: true })
+  await mkdir(path.join(root, ".antigravity-plugin"), { recursive: true })
+  await mkdir(path.join(root, "assets"), { recursive: true })
   await mkdir(path.join(root, ".agents", "plugins"), { recursive: true })
 
   await writeFile(
@@ -89,6 +91,22 @@ async function makeFixtureRoot(): Promise<string> {
         name: "compound-engineering",
         version: "2.42.0",
         description: "old",
+      },
+      null,
+      2,
+    ),
+  )
+  await writeFile(path.join(root, "assets", "logo.png"), "png")
+  await writeFile(
+    path.join(root, ".antigravity-plugin", "plugin.json"),
+    JSON.stringify(
+      {
+        $schema: "https://antigravity.google/schemas/v1/plugin.json",
+        name: "compound-engineering",
+        displayName: "Compound Engineering",
+        version: "2.42.0",
+        description: "old",
+        logo: "assets/logo.png",
       },
       null,
       2,
@@ -611,6 +629,111 @@ describe("release metadata", () => {
     expect(result.errors.some((err) => err.includes(".kimi-plugin/plugin.json is missing"))).toBe(true)
   })
 
+  test("reports missing Antigravity manifest as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await Bun.$`rm ${path.join(root, ".antigravity-plugin", "plugin.json")}`.quiet()
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(result.errors.some((err) => err.includes(".antigravity-plugin/plugin.json is missing"))).toBe(true)
+
+    const antigravityPath = path.join(root, ".antigravity-plugin", "plugin.json")
+    expect(result.updates.filter((u) => u.path === antigravityPath)).toEqual([
+      { path: antigravityPath, changed: false },
+    ])
+  })
+
+  test("reports Antigravity plugin.json missing logo file as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".antigravity-plugin", "plugin.json"),
+      JSON.stringify(
+        {
+          name: "compound-engineering",
+          version: "2.42.0",
+          description: "old",
+          logo: "assets/missing.png",
+        },
+        null,
+        2,
+      ),
+    )
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(
+      result.errors.some(
+        (err) =>
+          err.includes(".antigravity-plugin/plugin.json") &&
+          err.includes("assets/missing.png") &&
+          err.includes("does not exist"),
+      ),
+    ).toBe(true)
+  })
+
+  test("reports Antigravity manifest version drift without auto-correcting", async () => {
+    const root = await makeFixtureRoot()
+    const antigravityPath = path.join(root, ".antigravity-plugin", "plugin.json")
+    await writeFile(
+      antigravityPath,
+      JSON.stringify(
+        {
+          name: "compound-engineering",
+          version: "2.41.0",
+          description: "old",
+          logo: "assets/logo.png",
+        },
+        null,
+        2,
+      ),
+    )
+
+    const result = await syncReleaseMetadata({ root, write: true })
+    const antigravityUpdate = result.updates.find((u) => u.path === antigravityPath)
+
+    expect(antigravityUpdate).toBeDefined()
+    expect(antigravityUpdate!.changed).toBe(true)
+
+    const afterContents = JSON.parse(await Bun.file(antigravityPath).text())
+    expect(afterContents.version).toBe("2.41.0")
+  })
+
+  test("rewrites Antigravity plugin.json description on write when drifted from Claude", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".claude-plugin", "plugin.json"),
+      JSON.stringify(
+        {
+          version: "2.42.0",
+          description: "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+        },
+        null,
+        2,
+      ),
+    )
+    const antigravityPath = path.join(root, ".antigravity-plugin", "plugin.json")
+    await writeFile(
+      antigravityPath,
+      JSON.stringify(
+        {
+          name: "compound-engineering",
+          version: "2.42.0",
+          description: "stale antigravity description",
+          logo: "assets/logo.png",
+        },
+        null,
+        2,
+      ),
+    )
+
+    await syncReleaseMetadata({ root, write: true })
+
+    const afterContents = JSON.parse(await Bun.file(antigravityPath).text())
+    expect(afterContents.description).toBe(
+      "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+    )
+  })
+
   test("reports missing Devin manifest as a structural error", async () => {
     const root = await makeFixtureRoot()
     await Bun.$`rm ${path.join(root, ".devin-plugin", "plugin.json")}`.quiet()
@@ -1002,7 +1125,8 @@ describe("release metadata", () => {
         err.includes(".codex-plugin") ||
         err.includes(".agents/plugins") ||
         err.includes(".kimi-plugin") ||
-        err.includes(".devin-plugin"),
+        err.includes(".devin-plugin") ||
+        err.includes(".antigravity-plugin"),
     )
     expect(nativePluginErrors).toEqual([])
   })
