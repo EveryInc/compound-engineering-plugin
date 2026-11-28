@@ -103,6 +103,16 @@ describe("declaration and absence", () => {
     expect(out).toEqual({ roots: [], warnings: [], errors: [], entries: 0 })
   })
 
+  test("AE4: a linked worktree inherits the primary worktree's local packs", () => {
+    const dir = makeProject("docs_root: docs\n", "packs:\n  - source: ./packs\n")
+    writeKnowledgeFile(path.join(dir, "packs", "kk-style"), "style.md", "kk style")
+    git(dir, "add", ".compound-engineering/config.yaml")
+    commit(dir, "seed")
+    const linked = path.join(tempDir("linked"), "wt")
+    git(dir, "worktree", "add", "-q", linked)
+    expect(ids(resolve(linked))).toEqual(["kk-style"])
+  })
+
   test("AE4: config.yaml and config.local.yaml entries concatenate", () => {
     const team = makePackRepo(["rails"])
     const personal = tempDir("personal")
