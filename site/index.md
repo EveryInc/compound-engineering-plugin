@@ -48,7 +48,7 @@ hero:
 <section class="ce-section ce-more">
   <h2 id="read-more">Read more</h2>
   <ul class="ce-links">
-    <li><a href="https://every.to/guides/compound-engineering">The compound engineering guide</a></li>
+    <li><a href="https://every.to/compound-engineering/guides/">The compound engineering guides</a></li>
     <li><a href="https://every.to/chain-of-thought/compound-engineering-how-every-codes-with-agents">How Every codes with agents</a></li>
     <li><a href="https://github.com/EveryInc/compound-engineering-plugin">Source on GitHub</a></li>
   </ul>
