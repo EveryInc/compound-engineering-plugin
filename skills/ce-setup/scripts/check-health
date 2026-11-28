@@ -396,7 +396,13 @@ if [ "$warm_acpx" = "yes" ]; then
   # Run from an empty directory, as the peer workers do: npx resolves packages
   # from its working directory's node_modules and .npmrc first.
   warm_dir="$(mktemp -d "${TMPDIR:-/tmp}/ce-acpx-warm-XXXXXX")" || { warn "Cannot warm the npm cache: no temporary directory"; echo ""; exit 1; }
-  for spec in "acpx@>=$ACPX_MIN_VERSION <=$ACPX_VERSION" $ACPX_ADAPTER_SPECS $CODEX_PEER_ADAPTER_SPEC; do
+  warm_specs="$ACPX_ADAPTER_SPECS"
+  # The codex route keeps acpx's built-in 1.x launch on native Windows.
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) warm_specs="$warm_specs $CODEX_PEER_ADAPTER_SPEC" ;;
+  esac
+  for spec in "acpx@>=$ACPX_MIN_VERSION <=$ACPX_VERSION" $warm_specs; do
     if (cd "$warm_dir" && npx --yes --package="$spec" -- node --version >/dev/null); then
       ok "cached $spec"
     else

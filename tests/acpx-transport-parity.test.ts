@@ -64,6 +64,7 @@ describe("acpx transport parity", () => {
     expect(spec).toBeDefined()
     const health = await readFile(path.join(process.cwd(), "skills", "ce-setup", "scripts", "check-health"), "utf8")
     expect(health).toContain(`CODEX_PEER_ADAPTER_SPEC="${spec}"`)
-    expect(health).toContain("$CODEX_PEER_ADAPTER_SPEC; do")
+    expect(health).toContain('warm_specs="$warm_specs $CODEX_PEER_ADAPTER_SPEC"')
+    expect(health).toContain("MINGW*|MSYS*|CYGWIN*) ;;")
   })
 })
