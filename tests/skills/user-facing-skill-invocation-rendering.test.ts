@@ -8,6 +8,12 @@ function readRepoFile(relativePath: string): string {
 
 const modelVisibleRendererCases = [
   {
+    file: "skills/ce-sweep/references/interview.md",
+    defaults: ["/ce-sweep"],
+    codex: ["$ce-sweep"],
+    unnecessaryOmp: ["/skill:ce-sweep"],
+  },
+  {
     // The pre-DONE handoff lines that print these invocations moved into lfg's
     // close-out reference.
     file: "skills/lfg/references/shipping.md",
@@ -98,13 +104,6 @@ const explicitOnlyRendererCases = [
     codex: ["$ce-setup", "$ce-dogfood <original arguments>"],
     omp: ["/skill:ce-dogfood <original arguments>"],
     targets: ["ce-dogfood"],
-  },
-  {
-    file: "skills/ce-sweep/references/interview.md",
-    defaults: ["/ce-sweep"],
-    codex: ["$ce-sweep"],
-    omp: ["/skill:ce-sweep"],
-    targets: ["ce-sweep"],
   },
 ] as const
 

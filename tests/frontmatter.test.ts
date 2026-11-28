@@ -143,12 +143,13 @@ describe("frontmatter YAML validity", () => {
         // components. See AGENTS.md "Naming
         // Convention". A small allowlist preserves three pre-existing skills
         // that predate the rule, plus `wtf`, whose invocation is the name a
-        // confused user types. No other entries should be added.
+        // confused user types, and `afg`, the scheduled form of `lfg`. No other entries should be added.
         if (pluginRoot === ".") {
           const SKILL_PREFIX_ALLOWLIST = new Set([
             "every-style-editor",
             "file-todos",
             "lfg",
+            "afg",
             "wtf",
           ])
           test(`${pluginRoot}/${rel} skill name uses ce- prefix`, () => {

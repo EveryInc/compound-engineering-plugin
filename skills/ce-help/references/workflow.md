@@ -38,7 +38,7 @@ What the choice comes down to:
 
 - Running the skills separately gives the user a checkpoint between them.
 - `ce-work` also reaches a PR, so a PR is not a reason to choose `lfg`. Someone who wants to read the code before anything is pushed can ask `ce-work` to commit only.
-- `lfg` does not wait for approval of the plan, diff, or findings, and it pushes without asking. Merging normally stays with the user.
+- `lfg` does not wait for approval of the plan, diff, or findings, and it pushes without asking. Merging normally stays with the user. `afg` is the scheduled form: it picks the work itself, starts `lfg` and other skills for it, and may merge within the tolerances the user saved.
 
 The `lfg` guide page owns how it handles each starting point and what each stage does, so fetch it before describing them.
 

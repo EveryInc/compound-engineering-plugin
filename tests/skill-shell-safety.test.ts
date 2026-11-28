@@ -140,6 +140,42 @@ describe("skills contain no `!` pre-resolution", () => {
   })
 })
 
+// Claude Code runs a command roughly as `eval '<command>' && ...`, and a shell ignores
+// errexit on the left of `&&`, so the line after a failure still runs
+// (docs/solutions/conventions/set-e-does-not-stop-an-agents-shell.md).
+function findErrexit(body: string): number[] {
+  const found: number[] = []
+  let fence: string | null = null
+  body.split(/\r?\n/).forEach((line, i) => {
+    const mark = line.match(/^\s*(`{3,}|~{3,})\s*(\w*)/)
+    if (fence !== null && mark && line.trim().startsWith(fence) && !mark[2]) fence = null
+    else if (fence === null && mark) fence = mark[1]!
+    else if (fence !== null && /^[^#]*(?<![\w-])set(\s+-[A-Za-z]+)*\s+(-[A-Za-z]*e[A-Za-z]*\b|-[A-Za-z]*o\s+errexit\b)/.test(line)) found.push(i + 1)
+  })
+  return found
+}
+
+describe("skills do not rely on errexit", () => {
+  test("findErrexit sees fenced uses and leaves prose and other options alone", () => {
+    expect(findErrexit("```bash\nset -euo pipefail\nfalse\n```\n")).toEqual([2])
+    expect(findErrexit("```sh\ncd x; set -o errexit\n```\n")).toEqual([2])
+    for (const line of ["set -u -e", "set -uo errexit"]) expect(findErrexit("```sh\n" + line + "\n```\n")).toEqual([2])
+    expect(findErrexit("```sh\n# set -e\nbash -e run.sh\n```\n")).toEqual([])
+    expect(findErrexit("`set -e` is ignored.\n```bash\nset -u\na && b\n```\nset -e\n")).toEqual([])
+  })
+
+  test("no fenced block in a skill sets errexit", () => {
+    const offenders = listSkillFiles().flatMap((f) =>
+      findErrexit(readFileSync(f, "utf8")).map((n) => `${path.relative(process.cwd(), f)}:${n}`))
+    expect(
+      offenders,
+      "`set -e` does not stop a block an agent's shell runs: Claude Code evaluates it on the left of `&&`, " +
+        "where errexit is ignored. Join steps that depend on each other with `&&`, or add `|| exit 1`, " +
+        "or put them in a bundled script.\n" + offenders.join("\n"),
+    ).toEqual([])
+  })
+})
+
 /**
  * The load-failure catalog: each command that historically sat in a `!`
  * pre-resolution line, and the state in which pre-resolving it would abort skill

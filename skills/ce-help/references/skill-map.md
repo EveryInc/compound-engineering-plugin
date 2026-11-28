@@ -11,12 +11,13 @@ Recommend one skill. Bring in a second when the situation falls between two skil
 | Plan multi-step work, or deepen a plan | `ce-plan` |
 | Build from a plan or a clear request | `ce-work` |
 | Hand off the remaining steps from any point, ending in an open PR for a code change | `lfg` |
+| Have a repository fix, update and land its own work on a schedule, within set tolerances | `afg` |
 | Capture a lesson from solved work that the final code does not show | `ce-compound` |
 | Review captured learnings: update, merge, shorten, or delete them, and keep standards current | `ce-compound` (refresh) |
 | An existing prompt or schedule uses the old refresh name, which still works but is deprecated | `ce-compound-refresh` |
 | Write or update `STRATEGY.md` | `ce-strategy` |
 | Get a report on usage, errors, and performance | `ce-product-pulse` (manual) |
-| Collect feedback from Slack or GitHub into a plan | `ce-sweep` (manual) |
+| Collect feedback from Slack or GitHub into a plan | `ce-sweep` |
 | Find what slowed agents down in this repo and fix the environment | `ce-retro` |
 | Find and fix the cause of a bug or failing behavior | `ce-debug` |
 | Move a measurable metric on a working system | `ce-optimize` |

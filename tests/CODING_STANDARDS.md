@@ -14,6 +14,7 @@ Criteria for `tests/**`, including `tests/skill-eval-cell/`, on top of the root 
 - Each new contract pin or eval grade goes red on the regressing variant. The PR shows that, or the reviewer can see it from the assertion.
 - A pin reads the file or field that owns the rule, not a concatenated corpus. Its needle does not also match the task prompt, a negation (`commented` inside `non-commented`), or neighboring text.
 - A guard that cannot fail reports false safety and costs more than a missing one.
+- A fake of an external service returns every field the real service returns that the decision under test should depend on, whether or not the code reads it yet, and it changes the state a real write would change. A fake shaped only by what the code reads cannot show what the code forgot (`docs/solutions/skill-design/unattended-landing-gates-fail-on-assumptions-their-fake-shares.md`).
 
 ## Evals
 

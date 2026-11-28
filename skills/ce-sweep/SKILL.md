@@ -1,7 +1,6 @@
 ---
 name: ce-sweep
-description: "Sweep configured feedback sources (Slack, GitHub Issues; email experimental) for new items: acknowledge at source, analyze recordings, verify fixes merged to main, and emit an `lfg`-ready plan. First run sets up sources; supports mode:non-interactive for scheduled runs."
-disable-model-invocation: true
+description: "Sweep configured feedback sources (Slack, GitHub Issues; email experimental) for new items: acknowledge at source, analyze recordings, verify fixes merged to main, and emit an `lfg`-ready plan. Use only when the user asks for a sweep or its setup, or an orchestrating skill runs a configured one; supports mode:non-interactive for scheduled runs."
 argument-hint: "[setup|reconfigure] [mode:non-interactive]"
 allowed-tools:
   - Read

@@ -161,6 +161,11 @@ structure:
       or no longer matching, means the gate is presented again. Missing in
       legacy logs means the gate is presented again on resume, as before.
     children:
+      by:
+        type: string
+        required: false
+        enum: [user, caller]
+        description: "caller when mode:return-to-caller conditions stood in for the user; absent means user"
       approved_at:
         type: string
         format: "ISO 8601 timestamp"

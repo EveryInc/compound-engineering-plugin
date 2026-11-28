@@ -233,7 +233,7 @@ describe("release metadata", () => {
 
     expect(counts).toEqual({
       agents: 0,
-      skills: 38,
+      skills: 39,
       mcpServers: 0,
     })
   })
@@ -260,7 +260,7 @@ describe("release metadata", () => {
       .map((entry) => entry.name)
       .sort()
 
-    const listed = [...section.matchAll(/`(ce-[a-z0-9-]+|lfg|wtf)`/g)].map((match) => match[1])
+    const listed = [...section.matchAll(/`(ce-[a-z0-9-]+|lfg|afg|wtf)`/g)].map((match) => match[1])
     const listedSet = new Set(listed)
 
     expect(skills.filter((skill) => !listedSet.has(skill))).toEqual([])

@@ -1,0 +1,939 @@
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import path from "node:path"
+import { cleanup, HANDS_OFF, ME, SCRIPT, World } from "../helpers/afg-world"
+
+setDefaultTimeout(60_000)
+afterAll(cleanup)
+
+describe("own work", () => {
+  function own(w: World, motion: string, origin?: string, files: Record<string, string> = { "app.rb": "two\n" }) {
+    w.begin()
+    const job = w.run(["job", "--token", w.token, "--motion", motion, "--what", "x", "--opens-pr", ...(origin ? ["--origin", origin] : [])]).json.job
+    const head = w.pr(7, files, { login: ME })
+    expect(w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", head]).code).toBe(0)
+    w.receipts(7, head)
+    return head
+  }
+
+  test("an unrecorded PR by the same account is not its own work", () => {
+    const w = new World()
+    w.pr(7, { "app.rb": "two\n" }, { login: ME })
+    expect(w.gate().reasons).toContain("author-not-trusted")
+  })
+
+  test("a forged record for someone else's PR does not count", () => {
+    const w = new World().begin()
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    const head = w.pr(7, { "app.rb": "two\n" }, { login: "stranger" })
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    writeFileSync(file, readFileSync(file, "utf8") + JSON.stringify({ event: "adopt", at: "2026-01-01T00:00:00Z", pr: 7, job, head }) + "\n")
+    expect(w.gate().reasons).toContain("author-not-trusted")
+  })
+
+  test.each([[ME, undefined], ["stranger", "origin-not-trusted"]])("a bug asked for by %s", (login, reason) => {
+    const w = new World()
+    w.w.issues["3"] = { number: 3, user: { login }, state: "open" }
+    w.save()
+    own(w, "bugs", "issue:3")
+    expect(w.gate().reasons ?? []).toEqual(reason ? [reason] : [])
+  })
+
+  test("a stranger's comment on a trusted issue also counts as an origin", () => {
+    const w = new World()
+    w.w.issues["3"] = { number: 3, user: { login: ME }, state: "open" }
+    w.w.comments = { 3: [{ user: { login: "stranger" } }] }
+    w.save()
+    own(w, "bugs", "issue:3")
+    expect(w.gate().reasons).toEqual(["origin-not-trusted"])
+  })
+
+  test("a red-main repair lands only when it fixes every failing check", () => {
+    const w = new World()
+    const tip = w.git(w.repo, "rev-parse", "origin/main")
+    w.fail(tip)
+    own(w, "main-red")
+    expect(w.gate().allowed).toBe(true)
+    w.fail(tip, "other-check")
+    expect(w.gate().reasons).toContain("main-not-green")
+  })
+
+  test("a push after the recorded head is not the recorded work", () => {
+    const w = new World()
+    own(w, "stack")
+    w.git(w.repo, "branch", "-D", "pr7")
+    w.git(w.repo, "push", "-q", "origin", ":refs/pull/7/head", ":refs/heads/pr7")
+    w.pr(7, { "app.rb": "three\n" }, { login: ME })
+    expect(w.gate().reasons).toContain("author-not-trusted")
+    expect(w.run(["observe"]).json.prs[0].handling).toBe("own-moved")
+  })
+
+  test("an own PR never becomes trusted by listing the running account", () => {
+    const w = new World(HANDS_OFF + "  - maintainer\n")
+    w.pr(7, { "app.rb": "two\n" }, { login: ME })
+    expect(w.gate().reasons).toContain("author-not-trusted")
+  })
+
+  test("another person's commit on an own PR cannot be recorded", () => {
+    const w = new World().begin()
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    const head = w.pr(7, { "app.rb": "two\n" }, { login: ME }, { })
+    w.w.prs[7].api_commits[0].author.login = "stranger"
+    w.save()
+    const adopt = (h: string) => w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", h]).json.reasons
+    expect(adopt(head)).toEqual(["commit-not-attributed"])
+    expect(adopt("a".repeat(40))).toEqual(["head-moved"])
+  })
+
+  test("recording a PR again under an internal job keeps its untrusted origin", () => {
+    const w = new World()
+    w.w.issues["3"] = { number: 3, user: { login: "stranger" }, state: "open" }
+    w.save()
+    const head = own(w, "bugs", "issue:3")
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", head])
+    expect(w.gate().reasons).toEqual(["origin-not-trusted"])
+  })
+
+  test.each(["api_comments", "api_reviews"])("a stranger's %s after the work began caps it", (what) => {
+    const w = new World()
+    own(w, "stack")
+    expect(w.gate().allowed).toBe(true)
+    w.w.prs[7][what] = [{ user: { login: "stranger" } }]
+    w.save()
+    expect(w.gate().reasons).toEqual(["origin-not-trusted"])
+  })
+
+  test("outside reports are never internal", () => {
+    const w = new World().begin()
+    const job = (o: string) => w.run(["job", "--token", w.token, "--motion", "bugs", "--what", "x", "--origin", o]).json
+    expect(job("internal").reasons).toEqual(["origin-missing"])
+    expect(job("external").origin_trusted).toBe(false)
+  })
+
+  test("a repair must also turn the failed workflow green", () => {
+    const w = new World()
+    const tip = w.git(w.repo, "rev-parse", "origin/main")
+    w.fail(tip)
+    const head = own(w, "main-red")
+    const flow = (conclusion: string) => [{ name: "CI", event: "push", status: "completed", conclusion }]
+    w.w.flows = { [tip]: flow("failure") }
+    w.save()
+    expect(w.gate().reasons).toEqual(["main-not-green"])
+    w.w.flows[head] = flow("success")
+    w.save()
+    expect(w.gate().allowed).toBe(true)
+  })
+
+  test("a skipped check does not count as repaired", () => {
+    const w = new World()
+    w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+    const head = own(w, "main-red")
+    w.w.checks[head] = [{ name: "ci", status: "completed", conclusion: "skipped" }, { name: "x", status: "completed", conclusion: "success" }]
+    w.save()
+    expect(w.gate().reasons).toContain("main-not-green")
+  })
+
+  test("a person's merge of recorded work is a clean landing, and a closed PR is not", () => {
+    const w = new World(HANDS_OFF.replace("hands-off", "balanced"))
+    const head = own(w, "stack")
+    w.run(["end", "--token", w.token])
+    w.git(w.repo, "push", "-q", "origin", `${head}:main`)
+    Object.assign(w.w.prs[7], { state: "MERGED", mergeCommit: { oid: head } })
+    w.save()
+    w.begin()
+    expect(w.run(["digest"]).json.land).toMatchObject([{ pr: 7, motion: "stack", by: "person" }])
+  })
+
+  test("a squashed revert that names the PR resets earning", () => {
+    const w = new World(HANDS_OFF.replace("hands-off", "balanced")).begin()
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    writeFileSync(file, [1, 2, 3, 4, 5].map((i) =>
+      JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", motion: "stack", pr: i, merge_sha: `${i}`.repeat(40) })).join("\n") + "\n")
+    expect(w.run(["policy"]).json.levels.stack).toBe("merge")
+    w.git(w.repo, "commit", "-q", "--allow-empty", "-m", "Revert it\n\nReverts o/r#3")
+    w.git(w.repo, "push", "-q", "origin", "main")
+    expect(w.run(["policy"]).json.levels.stack).toBe("babysit")
+  })
+
+  test("an unreadable PR at the start of a run does not hold the lease", () => {
+    const w = new World()
+    own(w, "stack")
+    w.run(["end", "--token", w.token])
+    w.w.view_fails = true
+    w.save()
+    expect(w.run(["begin"]).json.token).toBeTruthy()
+  })
+
+  test("reverting an older landing resets earning", () => {
+    const w = new World(HANDS_OFF.replace("hands-off", "balanced")).begin()
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    writeFileSync(file, [1, 2, 3, 4, 5, 6].map((i) =>
+      JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", motion: "stack", merge_sha: `${i}`.repeat(40) })).join("\n") + "\n")
+    expect(w.run(["policy"]).json.levels.stack).toBe("merge")
+    w.git(w.repo, "commit", "-q", "--allow-empty", "-m", `Revert\n\nThis reverts commit ${"1".repeat(40)}.`)
+    w.git(w.repo, "push", "-q", "origin", "main")
+    expect(w.run(["policy"]).json.levels.stack).toBe("babysit")
+  })
+
+  test("a damaged ledger denies instead of forgetting", () => {
+    const w = new World()
+    w.ready()
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    writeFileSync(file, readFileSync(file, "utf8") + "{\n")
+    expect(w.run(["gate", "--pr", "7"]).code).toBe(3)
+  })
+
+  test("work started under another motion is not a red-main repair", () => {
+    const w = new World()
+    own(w, "stack")
+    w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+    expect(w.gate().reasons).toEqual(["main-not-green"])
+  })
+
+  test("five clean landings raise a motion to its ceiling and a revert resets it", () => {
+    const w = new World(HANDS_OFF.replace("hands-off", "balanced"))
+    w.begin()
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    const land = (i: number) => JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", motion: "stack", merge_sha: `${i}`.repeat(40) })
+    writeFileSync(file, [1, 2, 3, 4].map(land).join("\n") + "\n")
+    expect(w.run(["policy"]).json.levels.stack).toBe("babysit")
+    writeFileSync(file, [1, 2, 3, 4, 5].map(land).join("\n") + "\n")
+    expect(w.run(["policy"]).json.levels).toMatchObject({ stack: "merge", bugs: "babysit" })
+    w.git(w.repo, "commit", "-q", "--allow-empty", "-m", `Revert\n\nThis reverts commit ${"5".repeat(40)}.`)
+    w.git(w.repo, "push", "-q", "origin", "main")
+    expect(w.run(["policy"]).json.levels.stack).toBe("babysit")
+  })
+})
+
+test("checks take turns on one machine, and a swamped machine starts no job", async () => {
+  // With a meeting place, each waits inside for the other, so both finish only when they run together.
+  const check = HANDS_OFF.replace("  - { run: true }", () => "  - run: echo s >> $HOME/turns; if [ -d $HOME/meet ]; then touch $HOME/meet/$$; n=0; until [ $(ls $HOME/meet | wc -l) -ge 2 ]; do n=$((n+1)); [ $n -lt 15 ] || { rm $HOME/meet/$$; exit 1; }; sleep 1; done; else sleep 4; fi; echo e >> $HOME/turns")
+  const w = new World(check)
+  const u = new World(check)
+  u.env.AFG_TURN_DIR = w.env.AFG_TURN_DIR
+  u.env.HOME = w.env.HOME
+  for (const x of [w, u]) {
+    x.begin()
+    x.pr(7, { "app.rb": "two\n" })
+  }
+  const go = (x: World) => Bun.spawn(["python3", SCRIPT, "test", "--token", x.token, "--pr", "7"], { cwd: x.repo, env: x.env as any, stdout: "ignore", stderr: "ignore" }).exited
+  expect(await Promise.all([go(w), go(u)])).toEqual([0, 0])
+  expect(readFileSync(path.join(w.env.HOME!, "turns"), "utf8").trim().split("\n")).toEqual(["s", "e", "s", "e"])
+  // With processors to spare the second does not wait.
+  for (const x of [w, u]) x.env.AFG_SPARE_LIMIT = "100000"
+  mkdirSync(path.join(w.env.HOME!, "meet"))
+  expect(await Promise.all([go(w), go(u)])).toEqual([0, 0])
+  w.env.AFG_LOAD_LIMIT = "0"
+  expect(w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.reasons).toEqual(["machine-busy"])
+})
+
+test("the line is first come first served, and a place left by a dead process is skipped", async () => {
+  const w = new World()
+  const line = path.join(w.env.AFG_TURN_DIR!, `afg-line-${process.getuid!()}.lock.d`)
+  mkdirSync(line)
+  writeFileSync(path.join(line, "00000000000000000001-999999"), "")
+  expect(w.run(["turn", "--run", "test -f app.rb"]).json).toEqual({ ok: true, exit: 0 })
+  expect(readdirSync(line)).toEqual([])
+  writeFileSync(path.join(line, `00000000000000000001-${process.pid}`), "")
+  const waiting = Bun.spawn(["python3", SCRIPT, "turn", "--run", "true"], { cwd: w.repo, env: w.env as any, stdout: "ignore", stderr: "ignore" })
+  await Bun.sleep(2500)
+  expect(waiting.exitCode).toBeNull()
+  waiting.kill()
+  // An unawaited child stays a zombie, which the test runner reads as a lost exit.
+  await waiting.exited
+})
+
+test("clean removes what landed work left, and nothing else", () => {
+  const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
+  const make = (name: string, file: string) => {
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.git(w.repo, "fetch", "-q", "origin")
+    const tree = path.join(w.root, name)
+    w.git(w.repo, "worktree", "add", "-q", "-b", name, tree, "origin/main")
+    writeFileSync(path.join(tree, file), "two\n")
+    w.git(tree, "add", "-A")
+    w.git(tree, "commit", "-q", "-m", name)
+    const sha = w.git(tree, "rev-parse", "HEAD")
+    w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+    return { job, sha, tree }
+  }
+  const land = (x: { job: string; sha: string }) => {
+    w.run(["test", "--token", w.token, "--sha", x.sha])
+    w.run(["review", "--token", w.token, "--sha", x.sha], w.reviewJson(x.sha))
+    expect(w.run(["direct", "--token", w.token, "--sha", x.sha, "--job", x.job]).json.landed).toBe(x.sha)
+  }
+  const landed = make("landed", "a.rb")
+  land(landed)
+  const dirty = make("dirty", "b.rb")
+  land(dirty)
+  writeFileSync(path.join(dirty.tree, "notes.txt"), "mine")
+  const open = make("open", "c.rb")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "theirs", path.join(w.root, "theirs"), "origin/main~1")
+  const r = w.run(["clean", "--token", w.token]).json
+  expect(r.removed).toEqual([landed.tree, "refs/heads/landed"])
+  expect(r.left).toEqual([{ worktree: dirty.tree, head: dirty.sha }])
+  expect(w.git(w.repo, "branch", "--format=%(refname:short)").split("\n").sort()).toEqual(["dirty", "main", "open", "theirs"])
+  expect(readFileSync(path.join(open.tree, "c.rb"), "utf8")).toBe("two\n")
+})
+
+test("clean removes the branch a landed merge joined, and nobody's work on the tip", () => {
+  const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\nautonomous_merge_method: merge\n").begin()
+  const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+  const work = path.join(w.root, "work")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "work", work, "origin/main")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "theirs", path.join(w.root, "theirs"), "origin/main")
+  writeFileSync(path.join(work, "a.rb"), "two\n")
+  w.git(work, "add", "-A")
+  w.git(work, "commit", "-q", "-m", "work")
+  const join = path.join(w.root, "join")
+  w.git(w.repo, "worktree", "add", "-q", "--detach", join, "origin/main")
+  w.git(join, "merge", "-q", "--no-ff", "-m", "Merge work", "work")
+  const sha = w.git(join, "rev-parse", "HEAD")
+  w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+  w.run(["test", "--token", w.token, "--sha", sha])
+  w.run(["review", "--token", w.token, "--sha", sha], w.reviewJson(sha))
+  expect(w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]).json.landed).toBe(sha)
+  expect(w.run(["clean", "--token", w.token]).json.removed.sort()).toEqual([join, work, "refs/heads/work"].sort())
+  expect(w.git(w.repo, "branch", "--format=%(refname:short)").split("\n").sort()).toEqual(["main", "theirs"])
+})
+
+test("a merge that joins the default branch's tip does not claim what sits on it", () => {
+  const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
+  const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+  const work = path.join(w.root, "work")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "work", work, "origin/main")
+  writeFileSync(path.join(work, "a.rb"), "two\n")
+  w.git(work, "add", "-A")
+  w.git(work, "commit", "-q", "-m", "work")
+  w.write("b.rb", "x\n")
+  w.commit("tip", ["b.rb"])
+  w.git(w.repo, "push", "-q", "origin", "main")
+  w.git(w.repo, "fetch", "-q", "origin")
+  w.git(w.repo, "worktree", "add", "-q", "-b", "theirs", path.join(w.root, "theirs"), "origin/main")
+  w.git(work, "merge", "-q", "--no-ff", "-m", "Merge tip", "origin/main")
+  w.run(["adopt", "--token", w.token, "--job", job, "--sha", w.git(work, "rev-parse", "HEAD")])
+  const adopt = readFileSync(path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((r) => r.event === "adopt").at(-1)
+  expect(adopt.joined).toEqual({})
+})
+
+test("room ends when a job could start", () => {
+  const w = new World().begin()
+  const room = () => w.run(["room", "--token", w.token, "--timeout", "1"]).json
+  expect(room()).toEqual({ room: 2 })
+  w.env.AFG_LOAD_LIMIT = "0"
+  expect(room().reasons).toEqual(["no-room-yet"])
+  w.env.AFG_LOAD_LIMIT = "100000"
+  for (const _ of [1, 2]) w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"])
+  expect(room()).toMatchObject({ reasons: ["no-room-yet"], going: 2 })
+})
+
+test("setup can try a check on the tip, which leaves nothing behind", () => {
+  const w = new World()
+  const r = w.run(["check", "--run", "test -f app.rb", "--run", "echo no; false"])
+  expect(r.json).toMatchObject({ ok: false, ran: [{ exit: 0 }, { exit: 1, tail: "no\n" }] })
+  expect(w.git(w.repo, "worktree", "list").split("\n")).toHaveLength(1)
+})
+
+test("a check cannot be pointed at a service in use by the shell it runs from", () => {
+  const w = new World(HANDS_OFF.replace("run: true", "run: env > ../seen; cat ../seen; false"))
+  Object.assign(w.env, { DATABASE_URL: "leak", BENCH_DB: "leak", PGHOST: "leak", REDIS_URL: "leak", RAILS_ENV: "leak", AUTH_TOKEN: "leak", KEPT: "kept" })
+  w.begin()
+  w.pr(7, { "app.rb": "two\n" })
+  const log = readFileSync(w.run(["test", "--token", w.token, "--pr", "7"]).json.log, "utf8")
+  expect(log).toContain("KEPT=kept")
+  expect(log).not.toContain("=leak")
+})
+
+describe("guards", () => {
+  const CHECK = "if grep -hvxFf allow.eslintignore *.rb; then echo refused; exit 1; fi"
+  const settings = (profile = "hands-off") =>
+    `autonomous_profile: ${profile}\nautonomous_landing: direct\nautonomous_ci: ignored\nautonomous_checks:\n  - { run: "${CHECK}" }\n`
+  const probe = "--- a/app.rb\n+++ b/app.rb\n@@ -1 +1 @@\n-two\n+three\n"
+
+  function change(team: string, extra: Record<string, string> = {}) {
+    const w = new World(team.replaceAll("allow.eslintignore", ".eslintignore")).begin()
+    const job = w.run(["job", "--token", w.token, "--motion", "main-red", "--what", "x"]).json.job
+      ?? w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.git(w.repo, "checkout", "-q", "-b", "work", "origin/main")
+    const files: Record<string, string> = { "app.rb": "two\n", ".eslintignore": "one\ntwo\n", ...extra }
+    for (const [p, t] of Object.entries(files)) w.write(p, t)
+    const sha = w.commit("guard", Object.keys(files))
+    w.git(w.repo, "checkout", "-q", "main")
+    expect(w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha]).code).toBe(0)
+    const tested = w.run(["test", "--token", w.token, "--sha", sha]).json
+    w.run(["review", "--token", w.token, "--sha", sha], w.reviewJson(sha, { scope: { base: w.git(w.repo, "rev-parse", "origin/main"), head_sha: sha, files_changed: Object.keys(files).length } }))
+    const verdict = { head_sha: sha, reviewer: "fresh worker", reason: "r", narrow: true, probe_is_real: true, probe, expect: "refused", check: CHECK.replaceAll("allow.eslintignore", ".eslintignore") }
+    return {
+      w, tested,
+      guard: (over: any = {}) => w.run(["guard", "--token", w.token, "--sha", sha, "--file", ".eslintignore"], { ...verdict, ...over }),
+      go: () => w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]),
+    }
+  }
+
+  test("hands-off lands its own guard change only once a probe is caught", () => {
+    const c = change(settings())
+    expect(c.tested.ok).toBe(true)
+    expect(c.go().json.reasons).toEqual(["guard-missing"])
+    expect(c.guard().json.ok).toBe(true)
+    expect(c.go().json.landed).toBeTruthy()
+    expect(c.w.run(["digest"]).json.guards).toHaveLength(1)
+  })
+
+  test.each([
+    ["a guard that no longer catches anything", { ".eslintignore": "one\ntwo\nthree\n" }, {}, "probe-not-caught"],
+    ["a guard the reviewer finds wide", {}, { narrow: false }, "guard-not-narrow"],
+    ["a probe the reviewer calls unreal", {}, { probe_is_real: false }, "probe-not-real"],
+    ["a failure for another reason", {}, { expect: "some other text" }, "probe-not-caught"],
+  ])("%s does not land", (_n, files, over, reason) => {
+    const c = change(settings(), files as Record<string, string>)
+    expect(c.guard(over).json.reasons).toContain(reason)
+    expect(c.go().json.reasons).toEqual(["guard-failed"])
+  })
+
+  test.each([
+    ["edits the guard", { probe: "--- a/.eslintignore\n+++ b/.eslintignore\n@@ -1,2 +1 @@\n-one\n two\n" }, "probe-touches-a-judge"],
+    ["edits a test", { probe: "--- /dev/null\n+++ b/test/a.test.rb\n@@ -0,0 +1 @@\n+x\n" }, "probe-touches-a-judge"],
+    ["adds a symlink", { probe: "diff --git a/out b/out\nnew file mode 120000\n--- /dev/null\n+++ b/out\n@@ -0,0 +1 @@\n+/tmp\n\\ No newline at end of file\n" }, "probe-changes-a-mode"],
+    ["does not apply", { probe: "nonsense" }, "probe-does-not-apply"],
+    ["was written for another head", { head_sha: "0".repeat(40) }, "head-moved"],
+    ["names a check of its own", { check: "echo refused; false" }, "check-unknown"],
+  ])("a probe that %s is refused", (_n, over, reason) => {
+    const c = change(settings())
+    expect(c.guard().json.ok).toBe(true)
+    expect(c.guard(over).json.reasons).toEqual([reason])
+    // A refused verdict about this commit replaces the one before it; a call that names something else says nothing.
+    if (reason.startsWith("probe")) expect(c.go().json.reasons).toEqual(["guard-failed"])
+  })
+
+  test.each([
+    ["below hands-off", settings("balanced"), {}],
+    ["when the owner keeps the file", settings() + "autonomous_judges:\n  - .eslintignore\n", {}],
+    ["beside another protected file", settings(), { "db/migrate/1_x.rb": "x\n" }],
+  ])("a guard waits for a person %s", (_n, team, extra) => {
+    const c = change(team, extra as Record<string, string>)
+    expect(c.tested.reasons).toEqual(["hard-limit"])
+    expect(c.guard().json.reasons).toEqual(["hard-limit"])
+    expect(c.go().json.reasons).toContain("hard-limit")
+  })
+})
+
+test.each([
+  ["stack", [], ["lfg"]],
+  ["stack", ["ce-optimize"], ["lfg"]],
+  ["stack", ["lfg"], null],
+  ["climb", ["ce-optimize"], null],
+  ["climb", ["ce-work", "ce-simplify-code"], ["ce-optimize", "lfg"]],
+])("a %s job built through %p", (motion, via, callees) => {
+  const w = new World(HANDS_OFF + "autonomous_motions: [stack, climb]\n").begin()
+  w.noVia = true
+  const job = w.run(["job", "--token", w.token, "--motion", motion as string, "--what", "x", "--opens-pr"]).json.job
+  const head = w.pr(7, { "app.rb": "two\n" }, { login: ME })
+  const adopt = (v: string[]) => w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", head, ...v.flatMap((x) => ["--via", x])]).json
+  const r = adopt(via as string[])
+  if (callees) expect(r).toMatchObject({ reasons: ["callee-missing"], callees })
+  else {
+    expect(r.job).toBe(job)
+    expect(adopt([]).job).toBe(job)
+    expect(w.run(["digest"]).json.skills[job]).toBeDefined()
+  }
+})
+
+describe("a review after a rebase", () => {
+  function moved(files: Record<string, string>, change = "two\n", review: any = {}, back = false, start = "two\n", before?: string) {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
+    if (before) {
+      w.write("lib/app.rb", before)
+      w.commit("before", ["lib/app.rb"])
+      w.git(w.repo, "push", "-q", "origin", "main")
+    }
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    const commit = (text: string) => {
+      w.git(w.repo, "checkout", "-q", "--detach", "origin/main")
+      w.write("lib/app.rb", text)
+      const sha = w.commit("work", ["lib/app.rb"])
+      w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+      w.run(["test", "--token", w.token, "--sha", sha])
+      return sha
+    }
+    const first = commit(start)
+    w.run(["review", "--token", w.token, "--sha", first], w.reviewJson(first, review))
+    w.git(w.repo, "checkout", "-q", "main")
+    for (const [p, t] of Object.entries(files)) w.write(p, t)
+    w.commit("other", Object.keys(files))
+    w.git(w.repo, "config", "log.showSignature", "true")
+    if (back) w.git(w.repo, "revert", "--no-edit", "HEAD")
+    w.git(w.repo, "push", "-q", "origin", "main")
+    const second = commit(change)
+    return w.run(["direct", "--token", w.token, "--sha", second, "--job", job]).json
+  }
+
+  test("still counts for the same change beside unrelated work", () => {
+    expect(moved({ "docs/a.md": "x\n" }).landed).toBeTruthy()
+  })
+  test.each([
+    ["the change differs", { "docs/a.md": "x\n" }, "three\n", {}, "review-missing", false],
+    ["its neighbours moved", { "lib/b.rb": "x\n" }, "two\n", {}, "review-missing", false],
+    ["something below it moved", { "lib/app/b.rb": "x\n" }, "two\n", {}, "review-missing", false],
+    ["its neighbours moved and came back", { "lib/b.rb": "x\n" }, "two\n", {}, "review-missing", true],
+    ["it was not clean", { "docs/a.md": "x\n" }, "two\n", { verdict: "Not ready" }, "review-missing", false],
+  ])("is asked again when %s", (_n, files, change, review, reason, back) => {
+    expect(moved(files as Record<string, string>, change as string, review, !!back).reasons).toEqual([reason])
+  })
+  test("is asked again when the same lines go elsewhere in the file, which patch-id does not see", () => {
+    const at = (n: number) => "same\n".repeat(n) + "new\n" + "same\n".repeat(60 - n)
+    expect(moved({ "docs/a.md": "x\n" }, at(40), {}, false, at(10), "same\n".repeat(60)).reasons).toEqual(["review-missing"])
+  })
+})
+
+test("parking says what was tried", () => {
+  const w = new World().begin()
+  const r = w.run(["park", "--token", w.token, "--item", "main:x", "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", " "])
+  expect(r.json.reasons).toEqual(["nothing-tried"])
+})
+
+test("a PR is parked for authority only when something a person must supply refuses it", () => {
+  const park = (w: World, ...more: string[]) => {
+    w.w.issues["7"] = { number: 7, updated_at: "2026-01-01T00:00:00Z" }
+    w.save()
+    return w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "authority", "--tried", "z", ...more]).json
+  }
+  const ready = new World()
+  ready.ready()
+  expect(park(ready).reasons).toEqual(["nothing-refuses"])
+  ready.fail(ready.git(ready.repo, "rev-parse", "origin/main"))
+  expect(park(ready)).toMatchObject({ reasons: ["nothing-refuses"], gate: ["main-not-green"] })
+  expect(park(ready, "--instruction", "short").reasons).toEqual(["instruction-missing"])
+  expect(park(ready, "--instruction", "The owner merges every change to pricing.").parked).toBe("pr:7")
+  const theirs = new World()
+  theirs.ready()
+  theirs.w.prs[7].mergeable = "CONFLICTING"
+  theirs.save()
+  expect(park(theirs).parked).toBe("pr:7")
+  const limited = new World()
+  limited.begin().pr(7, { "app/policies/user_policy.rb": "x\n" })
+  expect(limited.gate().reasons).toContain("hard-limit")
+  expect(park(limited).parked).toBe("pr:7")
+})
+
+describe("direct landing", () => {
+  function direct(w: World, motion = "stack") {
+    w.begin()
+    const job = w.run(["job", "--token", w.token, "--motion", motion, "--what", "x"]).json.job
+    w.git(w.repo, "checkout", "-q", "-b", "work", "origin/main")
+    w.write("app.rb", "two\n")
+    const sha = w.commit("work", ["app.rb"])
+    w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+    w.run(["test", "--token", w.token, "--sha", sha])
+    w.run(["review", "--token", w.token, "--sha", sha], w.reviewJson(sha))
+    return { sha, job, go: () => w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]) }
+  }
+
+  test("is off by default", () => {
+    expect(direct(new World()).go().json.reasons).toEqual(["direct-off"])
+  })
+
+  test("fast-forwards the exact tested commit when enabled", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    expect(d.go().json.landed).toBe(d.sha)
+    expect(w.git(path.join(w.root, "origin.git"), "rev-parse", "main")).toBe(d.sha)
+  })
+
+  test("without CI a repair can start on an unknown main, and still needs its own receipts", () => {
+    const start = (more: string) => {
+      const w = new World(HANDS_OFF + more)
+      w.w.checks[w.head()] = []
+      w.save()
+      w.begin()
+      return w.run(["job", "--token", w.token, "--motion", "main-red", "--what", "x"]).json
+    }
+    expect(start("autonomous_landing: direct\nautonomous_ci: ignored\n").job).toBeTruthy()
+    expect(start("autonomous_landing: direct\n").reasons).toEqual(["main-not-red"])
+    expect(start("").reasons).toEqual(["main-not-red"])
+  })
+
+  test.each([["only joins", false, undefined], ["adds something", true, "not-one-merged-commit"]])("a merge commit that %s", (_n, adds, reason) => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\nautonomous_merge_method: merge\n").begin()
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.git(w.repo, "checkout", "-q", "-b", "work", "origin/main")
+    w.write("app.rb", "two\n")
+    w.commit("work", ["app.rb"])
+    w.git(w.repo, "checkout", "-q", "--detach", "origin/main")
+    w.git(w.repo, "merge", "-q", "--no-ff", "-m", "Merge work", "work")
+    if (adds) {
+      w.write("app.rb", "three\n")
+      w.git(w.repo, "commit", "-q", "-a", "--amend", "--no-edit")
+    }
+    const sha = w.head()
+    w.git(w.repo, "checkout", "-q", "main")
+    expect(w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha]).code).toBe(0)
+    w.run(["test", "--token", w.token, "--sha", sha])
+    w.run(["review", "--token", w.token, "--sha", sha], w.reviewJson(sha))
+    const r = w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]).json
+    if (reason) expect(r.reasons).toEqual([reason])
+    else expect(r.landed).toBe(sha)
+  })
+
+  test("never runs or lands a commit this account did not record", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n").begin()
+    const head = w.pr(8, { "app.rb": "evil\n" }, { login: "stranger" })
+    w.w.published = [head]
+    w.save()
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    expect(w.run(["test", "--token", w.token, "--sha", head]).json.reasons).toEqual(["author-not-trusted"])
+    expect(w.run(["adopt", "--token", w.token, "--job", job, "--sha", head]).json.reasons).toEqual(["author-not-trusted"])
+    expect(w.run(["direct", "--token", w.token, "--sha", head, "--job", job]).json.reasons).toEqual(["author-not-trusted"])
+  })
+
+  test("a dry run says what would refuse the commit later, and an own commit that is not adopted is called that", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    expect(w.run(["test", "--token", w.token, "--sha", d.sha, "--dry-run"]).json).toMatchObject({ head: d.sha, landing: [], guards: [] })
+    w.write("again.rb", "x\n")
+    const two = w.commit("again", ["again.rb"])
+    expect(w.run(["test", "--token", w.token, "--sha", two, "--dry-run"]).json.reasons).toEqual(["not-adopted"])
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "y"]).json.job
+    w.run(["adopt", "--token", w.token, "--job", job, "--sha", two])
+    expect(w.run(["test", "--token", w.token, "--sha", two, "--dry-run"]).json.landing).toEqual(["not-one-commit"])
+  })
+
+  test("a tested commit lands on a main whose hosted checks are red, and an untested one does not", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+    expect(d.go().json.landed).toBe(d.sha)
+    const u = new World(HANDS_OFF.replace("run: true", "run: false") + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    expect(direct(u).go().json.reasons).toEqual(["test-failed"])
+  })
+
+  test("a commit GitHub already knows, or cannot answer for, is not this account's work", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    w.w.published = [d.sha]
+    w.save()
+    expect(d.go().json.reasons).toEqual(["author-not-trusted"])
+    w.w.published = []
+    w.w.commit_error = "HTTP 500"
+    w.save()
+    expect(d.go().json.reasons).toEqual(["author-not-trusted"])
+  })
+
+  test("a commit stays with its first job, and a job lands once", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    const other = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "y"]).json.job
+    expect(w.run(["adopt", "--token", w.token, "--job", other, "--sha", d.sha]).json.reasons).toEqual(["commit-already-used"])
+    expect(d.go().json.landed).toBe(d.sha)
+    w.write("app.rb", "four\n")
+    const next = w.commit("next", ["app.rb"])
+    expect(w.run(["adopt", "--token", w.token, "--job", d.job, "--sha", next]).json.reasons).toEqual(["job-already-used"])
+  })
+
+  test("a red-main repair lands directly on its own test when CI is required", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\n")
+    w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+    expect(direct(w, "main-red").go().json.landed).toBeTruthy()
+  })
+
+  test("a repository that stops landing directly can still open PR jobs", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    direct(w)
+    expect(w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x", "--opens-pr"]).code).toBe(0)
+  })
+
+  test("CI still gates a direct landing when settings require it", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\n")
+    const d = direct(w)
+    w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+    expect(d.go().json.reasons).toEqual(["main-not-green"])
+  })
+
+  test("more than one commit does not land directly", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    w.write("app.rb", "three\n")
+    const sha = w.commit("more", ["app.rb"])
+    const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x"]).json.job
+    w.run(["adopt", "--token", w.token, "--job", job, "--sha", sha])
+    expect(d.sha).not.toBe(sha)
+    expect(w.run(["direct", "--token", w.token, "--sha", sha, "--job", job]).json.reasons).toContain("not-one-commit")
+  })
+
+  test("a tip that moved since the test voids it", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    w.git(w.repo, "checkout", "-q", "main")
+    w.write("other.rb", "x\n")
+    w.commit("base", ["other.rb"])
+    w.git(w.repo, "push", "-q", "origin", "main")
+    expect(d.go().json.landed).toBeUndefined()
+  })
+
+  test("a repository that lands directly merges no PR", () => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    w.ready()
+    expect(w.gate().reasons).toEqual(["lands-directly"])
+  })
+
+  test.each([
+    ["protected", { protected: true }],
+    ["ruled", { rules: [{ type: "pull_request" }] }],
+    ["unreadable", { rules_error: "HTTP 500" }],
+  ])("is refused when the branch is %s", (_n, over) => {
+    const w = new World(HANDS_OFF + "autonomous_landing: direct\nautonomous_ci: ignored\n")
+    const d = direct(w)
+    Object.assign(w.w, over)
+    w.save()
+    expect(d.go().json.reasons).toEqual(["default-branch-protected"])
+  })
+})
+
+describe("closing", () => {
+  const comment = "Fixed on main by the linked change, so closing."
+  function issue(w: World) {
+    w.w.issues["9"] = { number: 9, user: { login: "stranger" }, state: "open", updated_at: "t" }
+    w.save()
+    w.begin()
+    return (as: string, evidence: string, text = comment, ...more: string[]) =>
+      w.run(["close", "--token", w.token, "--kind", "issue", "--number", "9", "--as", as, "--evidence", evidence, "--comment", text, ...more])
+  }
+
+  test("closes as fixed by a commit on main, with a comment", () => {
+    const w = new World()
+    const close = issue(w)
+    const ev = `commit:${w.git(w.repo, "rev-parse", "origin/main")}`
+    expect(close("fixed", ev, comment, "--dry-run").json.would_close).toBe("issue:9")
+    expect(w.writes()).toEqual([])
+    expect(close("fixed", ev).json.closed).toBe("issue:9")
+    expect(w.writes().map((c) => c[1])).toEqual(["close", "comment"])
+  })
+
+  test("an item that stays open is neither recorded nor commented on", () => {
+    const w = new World()
+    const close = issue(w)
+    w.w.close_ignored = true
+    w.save()
+    expect(close("fixed", `commit:${w.git(w.repo, "rev-parse", "origin/main")}`).json.reasons).toEqual(["not-confirmed-closed"])
+    expect(w.run(["digest"]).json.close).toEqual([])
+    expect(w.writes().map((c) => c[1])).toEqual(["close"])
+  })
+
+  test("refuses unproven evidence and a missing comment", () => {
+    const w = new World()
+    const close = issue(w)
+    w.pr(7, { "app.rb": "two\n" })
+    w.w.issues["12"] = { number: 12, state: "open" }
+    w.save()
+    expect(close("replaced", "pr:7").json.reasons).toEqual(["evidence-unproven"])
+    expect(close("duplicate", "issue:12").json.reasons).toEqual(["evidence-unproven"])
+    expect(close("fixed", `commit:${"a".repeat(40)}`).json.reasons).toEqual(["evidence-unproven"])
+    expect(close("fixed", `commit:${w.git(w.repo, "rev-parse", "origin/main")}`, "x").json.reasons).toEqual(["comment-missing"])
+    expect(w.writes()).toEqual([])
+  })
+
+  test("a cautious profile does not close", () => {
+    const w = new World("autonomous_profile: cautious\n")
+    const close = issue(w)
+    expect(close("fixed", `commit:${w.git(w.repo, "rev-parse", "origin/main")}`).json.reasons).toEqual(["level-pr"])
+  })
+})
+
+test("a parked item stays parked until it changes", () => {
+  const w = new World().begin()
+  w.pr(7, { "app.rb": "two\n" })
+  w.w.issues["7"] = { number: 7, updated_at: "2026-01-01T00:00:00Z" }
+  w.save()
+  w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", "z"])
+  expect(w.run(["observe"]).json.prs[0].parked).toBe(true)
+  w.w.prs[7].updatedAt = "2026-01-02T00:00:00Z"
+  w.save()
+  expect(w.run(["observe"]).json.prs[0].parked).toBe(false)
+  expect(w.run(["digest"]).json.parked).toHaveLength(1)
+})
+
+test("a main whose checks have not finished does not bring a parked item back, and a settled change does", () => {
+  const w = new World().begin()
+  w.pr(7, { "app.rb": "two\n" })
+  const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+  const parkedUnder = (main: string) => {
+    const at = new Date().toISOString().slice(0, 19) + "Z"
+    appendFileSync(file, JSON.stringify({ event: "park", at, item: "pr:7", updated: w.w.prs[7].updatedAt, main, needs: "fact", why: "x", recommend: "y", tried: "z" }) + "\n")
+    return w.run(["observe"]).json
+  }
+  expect(parkedUnder("green")).toMatchObject({ main: "green", prs: [{ parked: true }] })
+  expect(parkedUnder("red").prs[0].parked).toBe(false)
+  w.w.checks[w.git(w.repo, "rev-parse", "origin/main")] = [{ name: "ci", status: "in_progress" }]
+  w.save()
+  expect(parkedUnder("red")).toMatchObject({ main: "unknown", prs: [{ parked: true }] })
+  delete w.w.checks[w.git(w.repo, "rev-parse", "origin/main")]
+  w.save()
+  // Recorded before the checks finished: green is no news, red is.
+  expect(parkedUnder("unknown")).toMatchObject({ main: "green", prs: [{ parked: true }] })
+  // Checks that could not start, and now do, may be what it waited for.
+  expect(parkedUnder("not-run").prs[0].parked).toBe(false)
+  w.fail(w.git(w.repo, "rev-parse", "origin/main"))
+  for (const before of ["unknown", "not-run", "green"]) expect(parkedUnder(before)).toMatchObject({ main: "red", prs: [{ parked: false }] })
+})
+
+test("park and observe read main under the same settings", () => {
+  const w = new World(HANDS_OFF + "autonomous_ignored_checks: [preview]\n").begin()
+  w.pr(7, { "app.rb": "two\n" })
+  w.w.issues["7"] = { number: 7, updated_at: w.w.prs[7].updatedAt }
+  w.w.checks[w.git(w.repo, "rev-parse", "origin/main")] = [
+    { name: "ci", status: "completed", conclusion: "success" }, { name: "preview", status: "completed", conclusion: "failure" }]
+  w.save()
+  w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", w.w.prs[7].updatedAt, "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", "z"])
+  expect(w.run(["observe"]).json).toMatchObject({ main: "green", prs: [{ parked: true }] })
+})
+
+describe("a finished parked item", () => {
+  const park = (w: World, item: string, needs: string) =>
+    w.run(["park", "--token", w.token, "--item", item, "--why", "x", "--recommend", "y", "--needs", needs, "--tried", "z"])
+  const drop = (w: World, item: string, sha: string) => w.run(["drop", "--token", w.token, "--item", item, "--landed", sha, "--why", "done there"]).json
+  const landed = (w: World) => {
+    const sha = w.git(w.repo, "rev-parse", "origin/main")
+    appendFileSync(path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl"),
+      JSON.stringify({ event: "land", at: new Date(Date.now() + 2000).toISOString().slice(0, 19) + "Z", sha, motion: "stack", by: "run" }) + "\n")
+    return sha
+  }
+
+  test("is dropped by a landing this repository recorded, and the digest shows it", () => {
+    const w = new World().begin()
+    park(w, "idea:x", "later")
+    const sha = landed(w)
+    expect(drop(w, "idea:x", sha).dropped).toBe("idea:x")
+    const d = w.run(["digest"]).json
+    expect(d.parked).toEqual([])
+    expect(d.drop).toMatchObject([{ item: "idea:x", landed: sha }])
+    expect(drop(w, "idea:x", sha).reasons).toEqual(["not-parked"])
+    // Parked again, the same landing no longer speaks for it.
+    park(w, "idea:x", "later")
+    expect(drop(w, "idea:x", sha).reasons).toEqual(["landing-unrecorded"])
+  })
+
+  test("is dropped by a merged PR, and only by what is on main and by the run that holds the lease", () => {
+    const w = new World().begin()
+    const file = path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl")
+    const land = (merge_sha: string) => appendFileSync(file, JSON.stringify({ event: "land", at: new Date().toISOString().slice(0, 19) + "Z", pr: 7, head: "h", motion: "stack", by: "script", merge_sha }) + "\n")
+    w.git(w.repo, "checkout", "-q", "-b", "off", "origin/main")
+    w.write("off.rb", "x\n")
+    const off = w.commit("off", ["off.rb"])
+    const sha = w.git(w.repo, "rev-parse", "origin/main")
+    park(w, "idea:x", "later")
+    land(off)
+    land(sha)
+    expect(drop(w, "idea:x", off).reasons).toEqual(["landing-unrecorded"])
+    expect(w.run(["drop", "--token", "other", "--item", "idea:x", "--landed", sha, "--why", "y"]).json.error).toContain("lease-lost")
+    expect(drop(w, "idea:x", sha).dropped).toBe("idea:x")
+  })
+
+  test("an answer does not make the owner's question the run's", () => {
+    const w = new World().begin()
+    park(w, "idea:x", "authority")
+    w.run(["answer", "--item", "idea:x", "--situation", "s", "--choice", "do it", "--reason-from", "none", "--scope", "once"])
+    park(w, "idea:x", "later")
+    expect(drop(w, "idea:x", landed(w)).reasons).toEqual(["owner-decides"])
+  })
+
+  test("is not dropped without one, or when it was ever the owner's question", () => {
+    const w = new World().begin()
+    park(w, "idea:x", "later")
+    expect(drop(w, "idea:x", w.git(w.repo, "rev-parse", "origin/main")).reasons).toEqual(["landing-unrecorded"])
+    const sha = landed(w)
+    for (const needs of ["authority", "access", "fact"]) {
+      park(w, `idea:${needs}`, needs)
+      park(w, `idea:${needs}`, "later")
+      landed(w)
+      expect(drop(w, `idea:${needs}`, sha).reasons).toEqual(["owner-decides"])
+    }
+    // A commit's job is ended instead, so the board does not offer it for landing again.
+    for (const item of ["security:x", `commit:${sha}`]) {
+      park(w, item, "later")
+      landed(w)
+      expect(drop(w, item, sha).reasons).toEqual(["item-invalid"])
+    }
+    expect(w.run(["digest"]).json.parked.map((r: any) => r.item)).toContain("security:x")
+  })
+
+  test("is not dropped by a landing from before it was parked", () => {
+    const w = new World().begin()
+    const sha = w.git(w.repo, "rev-parse", "origin/main")
+    appendFileSync(path.join(w.repo, ".context/compound-engineering/afg/ledger.jsonl"),
+      JSON.stringify({ event: "land", at: "2026-01-01T00:00:00Z", sha, motion: "stack", by: "run" }) + "\n")
+    park(w, "idea:x", "later")
+    expect(drop(w, "idea:x", sha).reasons).toEqual(["landing-unrecorded"])
+  })
+})
+
+test("a digest leaves out what a reader does not need", () => {
+  const w = new World().begin()
+  w.run(["park", "--token", w.token, "--item", "idea:x", "--why", "x", "--recommend", "y", "--needs", "later", "--tried", "a long account"])
+  expect(Object.keys(w.run(["digest"]).json.parked[0]).sort()).toEqual(["at", "item", "needs", "recommend", "why"])
+})
+
+test("test and turn give checks a short TMPDIR when the caller's is long", () => {
+  const check = HANDS_OFF.replace("  - { run: true }", () => '  - run: test -d "$TMPDIR" && printf "%s" "$TMPDIR" > "$HOME/test-tmpdir.txt"')
+  const w = new World(check).begin()
+  const longTmp = path.join(w.root, "very-long-caller-tmpdir-segment-for-unix-socket-limit-test-1234567890")
+  mkdirSync(longTmp, { recursive: true })
+  w.env.TMPDIR = longTmp
+
+  const turnOut = path.join(w.env.HOME!, "turn-tmpdir.txt")
+  expect(w.run(["turn", "--run", 'test -d "$TMPDIR" && printf "%s" "$TMPDIR" > "$HOME/turn-tmpdir.txt"']).code).toBe(0)
+  const seenTurn = readFileSync(turnOut, "utf8")
+  expect(seenTurn.length).toBeGreaterThan(0)
+  expect(seenTurn.length).toBeLessThanOrEqual(40)
+  expect(existsSync(seenTurn)).toBe(false)
+
+  const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x", "--opens-pr"]).json.job
+  const head = w.pr(7, { "app.rb": "two\n" }, { login: ME })
+  expect(w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", head, "--via", "lfg"]).code).toBe(0)
+  expect(w.run(["test", "--token", w.token, "--pr", "7"]).code).toBe(0)
+  const seenTest = readFileSync(path.join(w.env.HOME!, "test-tmpdir.txt"), "utf8")
+  expect(seenTest.length).toBeGreaterThan(0)
+  expect(seenTest.length).toBeLessThanOrEqual(40)
+  expect(existsSync(seenTest)).toBe(false)
+})
+
+describe("recorded decisions", () => {
+  const answer = (w: World, ...more: string[]) =>
+    w.run(["answer", "--item", "pr:7", "--situation", "lane full", "--option", "wait", "--option", "start", "--choice", "wait", ...more])
+  const stated = ["--reason", "overlapping gates slow both", "--reason-from", "stated", "--scope", "future"]
+
+  test("an answer unparks its item and is offered next time", () => {
+    const w = new World().begin()
+    w.pr(7, { "app.rb": "two\n" })
+    w.w.issues["7"] = { number: 7, updated_at: "2026-01-01T00:00:00Z" }
+    w.save()
+    w.run(["park", "--token", w.token, "--item", "pr:7", "--updated", "2026-01-01T00:00:00Z", "--why", "x", "--recommend", "y", "--needs", "fact", "--tried", "z"])
+    const id = answer(w, ...stated).json.id
+    expect(w.run(["observe"]).json.prs[0].parked).toBe(false)
+    expect(w.run(["decisions"]).json.decisions).toMatchObject([{ id, choice: "wait", reason: "overlapping gates slow both" }])
+  })
+
+  test("a one-time answer is not a precedent and a skipped guess is not recorded", () => {
+    const w = new World()
+    answer(w, "--reason", "my guess", "--reason-from", "none", "--scope", "once")
+    expect(w.run(["decisions"]).json.decisions).toEqual([])
+    expect(w.run(["digest"]).json.answer[0].reason).toBeNull()
+    expect(answer(w, "--reason-from", "stated", "--scope", "future").json.reasons).toEqual(["reason-missing"])
+  })
+
+  test("a newer decision replaces an older one and a wrong one is retired", () => {
+    const w = new World()
+    const first = answer(w, ...stated).json.id
+    const second = answer(w, ...stated, "--replaces", first).json.id
+    expect(w.run(["decisions"]).json.decisions.map((d: any) => d.id)).toEqual([second])
+    w.run(["retire", "--id", second, "--why", "wrong"])
+    expect(w.run(["decisions"]).json.decisions).toEqual([])
+  })
+
+  test("a decision never changes what the gate allows", () => {
+    const w = new World()
+    w.pr(7, { "db/migrate/1.rb": "x\n" }, { login: "stranger" })
+    const before = w.gate().reasons
+    answer(w, ...stated)
+    expect(w.gate().reasons).toEqual(before)
+  })
+})

@@ -14,6 +14,8 @@ const REF = `AGENTS.md "Naming Convention"`
 const SKILL_EXEMPTIONS = new Set<string>([
   // lfg ships as the public command `/lfg` (see README.md).
   "lfg",
+  // afg is the always-going form of `/lfg` and ships as `/afg`.
+  "afg",
   // wtf ships as the public command `/wtf`: the name is what a confused user types.
   "wtf",
 ])

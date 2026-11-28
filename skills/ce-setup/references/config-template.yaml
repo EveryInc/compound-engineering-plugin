@@ -1,5 +1,5 @@
 # Compound Engineering -- repo config
-# ce-config-template-version: 3
+# ce-config-template-version: 8
 # Copy to .compound-engineering/config.yaml in your project root (team defaults).
 # Optional override: .compound-engineering/config.local.yaml, same keys.
 # Ordinary keys: local wins when set, then this file, then the skill default.
@@ -216,6 +216,44 @@
 # sweep_ack_cap: 25                                 # max acks per source per run before the circuit breaker
 # sweep_lease_ttl_minutes: 60                       # single-writer lease staleness threshold
 # sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology
+
+# --- Autonomous mode (afg) ---
+
+# How far `afg` may go without a person. Unset profile means it reports
+# and does nothing else. `afg setup` writes these for you. A profile in
+# this file, on the default branch, is the repository policy and
+# config.local.yaml can only tighten it. Without one here, config.local.yaml
+# is the whole policy for that checkout. An invalid autonomous value turns
+# autonomous mode off; it does not fall through to a default.
+
+# autonomous_profile: balanced                # cautious | balanced | hands-off
+# autonomous_motions: [main-red, bugs, backlog, stack]   # also security, climb, create
+
+# How work lands. `afg setup` fills these in from the project's own
+# instructions. Local settings may repeat them, never replace them.
+# autonomous_landing: pull-request            # pull-request | direct (one commit on the default branch, no PR) | upstream (local file only, your fork of a project you do not maintain)
+# autonomous_upstream_open: 3                 # with more of your PRs open there, upstream work only tends them
+# autonomous_ci: required                     # required | if-running (skips CI GitHub refuses to start, hands-off default) | ignored (direct only)
+# autonomous_ignored_checks: [deploy/old-host]   # hosted checks that do not count, such as a retired service
+# autonomous_merge_method: squash             # squash | rebase | merge (default is the first the repository allows)
+# autonomous_checks:                          # must pass on this machine, paths limits one to the files changed
+#   - { run: bun run test }
+#   - { run: npm run types, paths: "*.ts *.tsx" }
+# autonomous_judges:                          # files that decide whether a check passes, changes to them wait for you
+#   - test/gates/*
+# autonomous_landing_steps:                   # your own words, each confirmed at the exact commit before it lands
+#   - The commit message says which checks ran and which did not
+
+# autonomous_trusted_authors:                 # accounts whose PRs may merge; write bots as name[bot]
+#   - dependabot[bot]
+# autonomous_babysit_authors: [teammate]      # accounts whose PR code may be run and fixed here, never merged
+# autonomous_overrides:                       # the strictest match wins; max is report | pr | babysit | merge
+#   - { motion: stack, max: babysit }
+#   - { author: teammate, max: pr }
+# autonomous_rules:                           # your own words; each can only make a landing stricter
+#   - Ask me about anything that changes what users pay
+# autonomous_jobs_per_hour: 6                 # unset by default: a run works until a usage limit
+# autonomous_open_pr_cap: 5                   # default 5
 
 # --- Compound Packs ---
 
