@@ -31,7 +31,7 @@ When triage selects Return-to-Caller Mode, read `references/return-to-caller.md`
 
 ### Phase 1: Quick Start
 
-1. **Establish the workspace.** Before moving branches, editing, dispatching, or committing, read `references/workspace-setup.md`. It decides the checkout, branch, dirty files, and task setup. Never write without a writable canonical checkout, and never write on the real default branch unless the user explicitly directed that in this session.
+1. **Establish the workspace.** Before moving branches, editing, dispatching, or committing, read `references/workspace-setup.md`. It decides the checkout, branch, dirty files, and task setup. Never write without a writable canonical checkout, and never write on the real default branch unless the user explicitly directed that, in this session or as a standing instruction.
 
    **Do not commit or publish anything the user did not offer.** When a unit needs a file that was already dirty, standalone mode asks once whether to include or exclude that file. Return-to-Caller Mode neither asks nor edits it; it returns blocked, naming the collision and how to recover.
 

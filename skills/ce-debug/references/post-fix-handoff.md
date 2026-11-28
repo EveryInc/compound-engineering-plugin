@@ -41,7 +41,7 @@ SKILL.md's Phase 4 **Routing** block defines the bare per-case actions: which sk
 
 **Why the separable case acts and the entangled case asks.** Committing only the fix-owned files is safe and trivially reversible. The user who wanted exactly that pays no round trip, and the user who wanted the PR says one word. The routing offers the PR rather than asking permission for it. Entanglement is different in kind: when a fix-owned file already held the user's edits, every available move loses something real, and no default is defensible. Restricting the question to that state is what keeps it from becoming the reflexive prompt this routing exists to remove. Most runs reach neither state. A fresh branch or clean tree routes straight to the PR.
 
-**Contextual overrides come first.** An explicit, clearly applicable instruction such as "always review before pushing", "open PRs as drafts", "don't open PRs from skills", or "commit only" outranks the default routing: skip the PR step, adjust it, or stop, whichever matches what the user said. A vague tonal cue is not an override.
+**Contextual overrides come first.** An explicit, clearly applicable instruction such as "always review before pushing", "open PRs as drafts", "don't open PRs from skills", "never push", or "commit only" outranks the default routing, whether it was given in this request or is a standing instruction in memories or the project's active instructions already in your context: skip the PR step, adjust it, or stop, whichever matches what the user said. A vague tonal cue is not an override.
 
 **The preview is not a question.** State what gets committed, on what branch, and that a PR will be opened, then proceed without waiting. It exists so the user can interrupt.
 

@@ -26,7 +26,7 @@ Default is manual: you own the server. `mode:pipeline` is for `lfg` and other un
 PR and branch arguments choose the diff used to pick routes. They do not switch your checkout. Have the target code checked out and, in manual mode, its server running.
 
 ```text
-# Empty: routes from git diff main...HEAD. You own the server
+# Empty: routes from git diff <default>...HEAD. You own the server
 /ce-test-browser
 
 # Same as empty, said explicitly
@@ -80,7 +80,7 @@ A fixed flow:
 
 The skill prefers a host-native integrated browser: a surface embedded in or directly owned by the active harness that can open local URLs, inspect rendered and interactive state, click/fill/press, screenshot, and read console errors. A separately configured browser extension or MCP does not count. If the host has no such surface, the run has to fall back to `agent-browser`.
 
-One driver owns the run. The skill will not install standalone Playwright, Puppeteer, or another automation stack. A Playwright API inside the selected host browser is still that browser, not a substitute stack.
+One driver owns the run. The skill will not install standalone Playwright, Puppeteer, or another automation stack. A Playwright API inside the selected host browser is still that browser, not a substitute stack. When your project instructions or memories name a browser driver for UI testing, that driver is used instead of this selection.
 
 If neither a native browser nor `agent-browser` is available, it stops and points at `/ce-setup`.
 
@@ -174,9 +174,9 @@ Bare and `mode:agent` `ce-code-review` runs are report-only and can share the ch
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ or `current` | Routes from `main...HEAD` |
+| _(empty)_ or `current` | Routes from `<default>...HEAD`, where `<default>` is the repo's default branch |
 | `<PR number>` | Routes from that PR's files. Does not check out |
-| `<branch name>` | Routes from `main...<branch>`. Does not check out |
+| `<branch name>` | Routes from `<default>...<branch>`. Does not check out |
 | `--port <number>` | Skip port detection |
 | `mode:pipeline` | Auto-start server, free-port scan, no questions, skip human-only flows |
 

@@ -17,7 +17,7 @@ Run end-to-end browser tests on pages affected by a PR or branch using the best 
 
 ## Browser Driver Policy
 
-Select the driver before the first browser action:
+Select the driver before the first browser action. When the user's request, memories, or the project's active instructions already in your context carry a standing instruction naming a browser driver for UI testing, that driver is the run's one driver, and the list below does not apply. Load its own usage instructions before browser work; when the named driver is `agent-browser`, that means `references/agent-browser-driver.md`. Otherwise:
 
 1. **Prefer a host-native integrated browser.** Use a browser-control surface embedded in or directly owned by the active harness when it can navigate local URLs, inspect rendered and interactive state, click/fill/press, capture screenshots, and inspect console errors. A separately configured browser extension or integration is not host-native. Load and follow the selected capability's own instructions before browser work.
 2. **Otherwise fall back to `agent-browser`.** Read `references/agent-browser-driver.md` before running any command.
@@ -30,7 +30,7 @@ Use one driver for the entire run. A selected host-native driver may fall back t
 Read `references/route-and-report.md` from this skill's directory before step 3 (Map changed files to routes). It carries the route-mapping patterns, the port and server commands, the per-page checks, the two human-facing prompts, and the summary format.
 
 1. **Select the driver** per the policy above and record it. This also requires a git repository with changes to test.
-2. **Determine test scope** from the argument: a PR number → `gh pr view [number] --json files -q '.files[].path'`; `current` or empty → `git diff --name-only main...HEAD`; a branch name → `git diff --name-only main...[branch]`.
+2. **Determine test scope** from the argument: a PR number → `gh pr view [number] --json files -q '.files[].path'`; `current` or empty → `git diff --name-only <base>...HEAD`; a branch name → `git diff --name-only <base>...[branch]`. `<base>` is a ref for the repository's default branch: on its tracking remote when there is one, otherwise the local branch. Never assume a branch name; repos default to `main`, `master`, `trunk`, and others.
 3. **Map changed files to routes** and build the list of URLs to test.
 4. **Determine the dev server port.** `scripts/resolve-port.sh` resolves it and prints the port alone on stdout: an explicit port argument; else a `--port` flag in a `package.json` dev/start script; else `PORT=` in `.env`, `.env.local`, or `.env.development`; else `3000`. Pass an explicit port when the user gave `--port N`, or when your active project instructions already in context state the dev-server port. Do not grep instruction files for one: prose mentions in docs, examples, and troubleshooting are unreliable and false-positive-prone, while config files and `.env` are trustworthy. Each mode runs the script in the shell call that needs the port, so no port value has to survive between shell calls or be transcribed out of prose; the reference gives the command. Manual mode uses that port as-is: the user controls their own server, so do not scan for alternatives.
 5. **Verify the dev server is running** before asking the headed/headless question — a manual run with no server stops here, so asking first would waste the question.

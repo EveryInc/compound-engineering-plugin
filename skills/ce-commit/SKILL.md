@@ -33,6 +33,8 @@ Treat this as a snapshot. Re-read branch and staged set immediately before commi
 
 2. **Branch first** — if detached HEAD, or on the default branch (`main` / `master` / the bare default name above), create a feature branch from the change content (`git checkout -b <name>`), then re-read `git branch --show-current`. Do not ask — commit-only still must not leave work only on a detached HEAD or the default branch. If the derived name exists, pick a non-conflicting suffix.
 
+   One exception: on the default branch (not detached), when the user's request, memories, or the project's active instructions already in your context carry a standing instruction to commit on the default branch, commit where you are and name that instruction in the report.
+
 3. **Convention** — match project commit conventions already in context; else match the recent log pattern; else conventional commits (`type(scope): description`). When using conventional commits and `fix`/`feat` both fit, default to `fix:` (remedying broken or missing behavior); reserve `feat:` for new capabilities. User override wins.
 
 4. **Logical commits** — if changed files clearly split into distinct concerns, make separate commits (file level only, 2–3 max, no `git add -p`). If ambiguous, one commit.
