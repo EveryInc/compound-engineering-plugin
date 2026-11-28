@@ -341,8 +341,13 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
 acpx_agent_argv() {   # <route>
   # The preflight refuses opencode when it is not installed; the bare name keeps
   # --emit-adapter output readable on a machine without it.
-  if [ "$1" = opencode ]; then printf '%s\0' --agent "$(command -v opencode || printf opencode) acp" exec
-  else printf '%s\0' "$(acpx_agent "$1")" exec; fi
+  case "$1" in
+    # acpx pins codex-acp 1.x, whose bundled core the service refuses for every
+    # gpt-6.1/6.2 model; launch the 2.x adapter that serves them (#2098).
+    codex) printf '%s\0' --agent "npx -y @agentclientprotocol/codex-acp@2.12.0" exec ;;
+    opencode) printf '%s\0' --agent "$(command -v opencode || printf opencode) acp" exec ;;
+    *) printf '%s\0' "$(acpx_agent "$1")" exec ;;
+  esac
 }
 
 # The run's outcome is the result of its own session/prompt request, matched by
