@@ -2,7 +2,9 @@
 """Resolve the Compound Packs declared in this repo's CE config into pack roots.
 
 Reads the `packs:` list from `<repo-root>/.compound-engineering/config.yaml`
-and `config.local.yaml` (both layers concatenate; local adds, never replaces),
+and `config.local.yaml` (both layers concatenate; local adds, never replaces).
+A linked worktree with no local file reads the primary worktree's, and that
+file's relative sources resolve against the primary worktree.
 validates each entry, resolves path and git sources, enumerates the packs each
 source publishes, applies selection, and prints one JSON object to stdout:
 
@@ -19,8 +21,9 @@ Exit 0 whenever resolution ran (per-entry failures are data in `errors` /
 availability (e.g. an unreachable git source skipped per the warn-and-continue
 contract).
 
-`--declared-only` answers the config-only question without touching git or the
-cache: it parses both config layers, shape-checks each entry, and prints
+`--declared-only` answers the config-only question without resolving sources or
+touching the cache -- it still asks git for an inherited local layer. It parses
+both config layers, shape-checks each entry, and prints
 
     {"declared": <bool|null>, "entries": <n>, "errors": [...]}
 
@@ -659,6 +662,30 @@ def _emit(declared_only: bool, entries: list, roots: list, warnings: list, error
     return 0
 
 
+def _primary_worktree_root(repo_root: str) -> str | None:
+    """The main worktree's root when `repo_root` is a linked worktree. None for
+    the main worktree itself, a submodule, or when git cannot answer."""
+    if shutil.which("git") is None:
+        return None
+    proc = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=repo_root,
+                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                          encoding="utf-8", errors="surrogateescape")
+    if proc.returncode != 0:
+        return None
+    for line in proc.stdout.splitlines():
+        if line.startswith("worktree "):
+            main = line[len("worktree "):].strip()
+            if not main or os.path.realpath(main) == os.path.realpath(repo_root):
+                return None
+            probe = subprocess.run(["git", "-C", main, "rev-parse", "--show-toplevel"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                   encoding="utf-8", errors="surrogateescape")
+            if probe.returncode != 0 or os.path.realpath(probe.stdout.strip()) != os.path.realpath(main):
+                return None
+            return main
+    return None
+
+
 def _repo_root() -> str | None:
     """The enclosing checkout's top level: git's answer when git is on PATH,
     otherwise the nearest ancestor of the working directory holding a `.git`
@@ -666,7 +693,8 @@ def _repo_root() -> str | None:
     the working directory is not inside a checkout."""
     if shutil.which("git") is not None:
         proc = subprocess.run(["git", "rev-parse", "--show-toplevel"],
-                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                              encoding="utf-8", errors="surrogateescape")
         return proc.stdout.strip() if proc.returncode == 0 else None
     current = os.getcwd()
     while True:
@@ -682,7 +710,7 @@ def _main(argv: list) -> int:
     parser = argparse.ArgumentParser(description="Resolve the Compound Packs declared in CE config.")
     parser.add_argument(
         "--declared-only", action="store_true",
-        help="parse and shape-check the packs: entries only; no git or cache work",
+        help="parse and shape-check the packs: entries only, without resolving sources or touching the cache",
     )
     args = parser.parse_args(argv)
     warnings, errors, roots, entries = [], [], [], []
@@ -692,8 +720,20 @@ def _main(argv: list) -> int:
         warnings.append("not inside a git repository; no CE config to read")
         return _emit(args.declared_only, entries, roots, warnings, errors)
     cfg_dir = os.path.join(repo_root, ".compound-engineering")
-    for name in CONFIG_FILES:
-        entries.extend(parse_packs_block(os.path.join(cfg_dir, name), errors))
+    sources = [(os.path.join(cfg_dir, CONFIG_FILES[0]), repo_root)]
+    local_path = os.path.join(cfg_dir, CONFIG_FILES[1])
+    local_base = repo_root
+    if not os.path.isfile(local_path):
+        primary = _primary_worktree_root(repo_root)
+        if primary is not None:
+            inherited = os.path.join(primary, ".compound-engineering", CONFIG_FILES[1])
+            if os.path.isfile(inherited):
+                local_path, local_base = inherited, primary
+    sources.append((local_path, local_base))
+    for path, base in sources:
+        for entry in parse_packs_block(path, errors):
+            entry["_base_root"] = base
+            entries.append(entry)
 
     if args.declared_only:
         for entry in entries:
@@ -702,7 +742,7 @@ def _main(argv: list) -> int:
 
     for entry in entries:
         try:
-            resolve_entry(entry, repo_root, roots, warnings, errors)
+            resolve_entry(entry, entry.get("_base_root", repo_root), roots, warnings, errors)
         except Exception as exc:  # one entry's surprise is that entry's error, not everyone's
             errors.append(f"{_entry_label(entry)}: unexpected error resolving entry: {exc}")
 

@@ -9,10 +9,10 @@ If the user's or project's active instructions or the live prompt name a model f
 **Configured model.** `review_subagents` in CE config is the model configured for this subagent's role. Read it under this rule:
 
 <!-- ce-config-layers:start -->
-**Resolve ordinary CE yaml keys from the two repo files.**
+**Resolve CE yaml keys from the config files.**
 
-- **Read** `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml` (`<repo-root>` = `git rev-parse --show-toplevel`). Missing files are skipped. Gitignore does not change resolution.
-- **Win** with the first active (non-commented) value. For scalars, empty is unset; an invalid value continues to the next layer, then the skill default. For lists and maps, a present key — including an empty list or map — replaces the whole key.
+- **Read** `<repo-root>/.compound-engineering/config.local.yaml` — or the primary worktree's copy of it when this checkout is a linked worktree with no local file — then `config.yaml` (`<repo-root>` = `git rev-parse --show-toplevel`). Missing files are skipped. Gitignore does not change resolution.
+- **Win** with the first active (non-commented) value: empty scalars are unset, an invalid value continues to the next layer, then the skill default; a present list or map — including an empty list or map — replaces the whole key.
 - **Do not** use this rule for `docs_root` — that key is `config.yaml` only.
 <!-- ce-config-layers:end -->
 

@@ -102,7 +102,7 @@ Every metric, event, and signal you propose gets checked for being specific, mea
 
 ### Read-only, and a trailing buffer
 
-The only writes are `pulse_*` keys in `.compound-engineering/config.local.yaml` and the report file. MCP and other tools are called read-only even when they offer a write mode.
+The only writes are `pulse_*` keys in `.compound-engineering/config.local.yaml` (seeding a new file from an inherited copy first) and the report file. MCP and other tools are called read-only even when they offer a write mode.
 
 Database access is optional. Many products finish the pulse on analytics and tracing alone. If you offer a read-write credential, the interview refuses and points at a read replica, a BI view, or a snapshot export.
 
@@ -175,7 +175,7 @@ Reports stay in `docs/pulse-reports/` as working memory: greppable, diffable, an
 | `24h`, `48h`, `72h`, `7d`, `30d`, `1h` | Trailing time window. Upper bound is always `now - 15m`. An unparseable argument asks you to clarify. |
 | `setup` / `reconfigure` / `edit config` | Re-run the interview regardless of config state, then run a pulse |
 
-Configuration lives in CE config (`config.local.yaml` then `config.yaml`; the interview writes local) under `pulse_*` keys: product name, default lookback, primary / value / completion events, quality scoring and dimension, analytics / tracing / payments sources, DB enabled, per-metric source overrides, pending metrics, excluded metrics. See the [configuration reference](./configuration.md).
+Configuration lives in CE config (`config.local.yaml`, inherited from the primary worktree in a linked worktree with none, then `config.yaml`; the interview writes local) under `pulse_*` keys: product name, default lookback, primary / value / completion events, quality scoring and dimension, analytics / tracing / payments sources, DB enabled, per-metric source overrides, pending metrics, excluded metrics. See the [configuration reference](./configuration.md).
 
 Default report path: `docs/pulse-reports/YYYY-MM-DD_HH-MM.md`. If `docs_root` is set, that folder moves with the other CE artifacts.
 

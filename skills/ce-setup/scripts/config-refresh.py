@@ -808,22 +808,31 @@ def load_layer(bundle, repo, layer):
     return (path, parsed) + layer_state(bundle, parsed, layer)
 
 
-def describe_layer(bundle, repo, layer):
-    _path, parsed, state, reason = load_layer(bundle, repo, layer)
+def describe_layer(bundle, repo, layer, local_repo=None):
+    # A linked worktree with no local file reads the primary worktree's copy;
+    # --local-repo lets status report that inherited layer without moving the
+    # tracked file or the write target.
+    effective = local_repo if layer == "local" and local_repo else repo
+    _path, parsed, state, reason = load_layer(bundle, effective, layer)
     row = {"file": LAYER_FILES[layer], "state": state}
     if state != "missing":
         row["reason"] = reason
     if parsed is not None:
-        row["keys"] = key_report(bundle, repo, layer, parsed)
+        row["keys"] = key_report(bundle, effective, layer, parsed)
     return row
 
 
-def cmd_status(bundle, repo, _args):
+def cmd_status(bundle, repo, args):
+    local_repo = getattr(args, "local_repo", None)
+    # The override exists for a checkout that has no local file; a present file
+    # always outranks the inherited one.
+    if local_repo and os.path.isfile(layer_path(repo, "local")):
+        local_repo = None
     return emit({
         "ok": True,
         "bundled_version": bundle.version,
         "tracked": describe_layer(bundle, repo, "tracked"),
-        "local": describe_layer(bundle, repo, "local"),
+        "local": describe_layer(bundle, repo, "local", local_repo),
     })
 
 
@@ -959,6 +968,8 @@ def main(argv=None):
     for name in ("status", "draft", "verify", "apply"):
         cmd = sub.add_parser(name)
         cmd.add_argument("--repo")
+        if name == "status":
+            cmd.add_argument("--local-repo")
         if name != "status":
             cmd.add_argument("--layer", choices=sorted(LAYER_FILES), required=True)
             cmd.add_argument("--changes", required=name != "draft")

@@ -35,7 +35,7 @@ If the bundled template cannot be located by the current platform, print the sou
 
 ### Step 5a: Refresh Repo Config Files
 
-When the health report says `config.yaml` was written from an older template, names a retired config key in either file, or calls `config.local.yaml` a full copy of the old local template, read `references/config-refresh.md` and follow it. A file the report says was written by a newer plugin, or cannot be refreshed, stays untouched.
+When the health report says `config.yaml` was written from an older template, names a retired config key in either file, or calls `config.local.yaml` a full copy of the old local template, read `references/config-refresh.md` and follow it. When the report says the local file is inherited, run the refresh against the worktree that owns it (the path the report prints), not this checkout. A file the report says was written by a newer plugin, or cannot be refreshed, stays untouched.
 
 ### Step 6: Create Repo Config If Missing
 
@@ -49,7 +49,7 @@ Do not create `config.local.yaml`.
 
 ### Step 6a: Repair Invalid CE Work Preferences
 
-When the health report marks the CE Work implementation engine unavailable or invalid, or reports malformed dormant `work_engine_preferences`, do not guess the intended recipients. Retired routing keys such as `work_engine_target` are Step 5a's to remove, not this step's. Explain the exact reported problem, derive a valid ordered `work_engine_preferences` block from the user's stated harness/model order (or remove malformed dormant preferences and use `work_engine_mode: off` when they want native-by-default), and show the complete replacement block. Edit the layer that supplied the failing value. If the bad ordinary key is only in `config.yaml`, edit that file after preview. Do not hide a broken team value behind a new local override. Preserve every unrelated setting. Re-run the health check and require it to report either native or the intended normalized ordered list before setup is complete.
+When the health report marks the CE Work implementation engine unavailable or invalid, or reports malformed dormant `work_engine_preferences`, do not guess the intended recipients. Retired routing keys such as `work_engine_target` are Step 5a's to remove, not this step's. Explain the exact reported problem, derive a valid ordered `work_engine_preferences` block from the user's stated harness/model order (or remove malformed dormant preferences and use `work_engine_mode: off` when they want native-by-default), and show the complete replacement block. Edit the layer that supplied the failing value; an inherited local layer lives in the primary worktree, at the path the report prints. If the bad ordinary key is only in `config.yaml`, edit that file after preview. Do not hide a broken team value behind a new local override. Preserve every unrelated setting. Re-run the health check and require it to report either native or the intended normalized ordered list before setup is complete.
 
 When the health report warns about `work_engine_effort`, the health status of the engine does not change, and the warning says what `ce-work` does with the value. A value that is not a map, or an entry for an unknown harness, requests nothing. A `cursor` entry is different: no Cursor route can run at an effort, so `ce-work` treats Cursor entries in the preference list as unavailable until the entry is removed. The key is a map from harness to one of that harness's own effort levels. Ask what effort the user wants for each harness rather than guessing, show the replacement map, and edit the layer the warning names. Re-run the health check and require the warning to be gone.
 
@@ -65,7 +65,7 @@ If `.compound-engineering/config.local.yaml` exists and is not covered by `.giti
 .compound-engineering/*.local.yaml
 ```
 
-Append the entry to the repo-root `.gitignore` only if the user approves. Do not overwrite unrelated `.gitignore` content.
+Append the entry to the repo-root `.gitignore` only if the user approves. When the report says the local file is inherited, the entry belongs in that file's worktree (the path the report prints), because that is where the ignore is checked. Do not overwrite unrelated `.gitignore` content.
 
 ### Step 8: Offer To Gitignore CE Scratch Space
 

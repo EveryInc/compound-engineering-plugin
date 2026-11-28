@@ -94,6 +94,22 @@ resolve_real_best_effort() {
   printf '%s' "${base}${tail}"
 }
 
+# Resolve the primary checkout of a linked worktree. Mirrors the config rule:
+# the first `git worktree list` record counts only when it is a checkout itself.
+# Prints nothing when this is the main worktree or git cannot name one.
+resolve_primary_checkout() {
+  local repo_root="$1" main probe repo_real main_real
+  command -v git >/dev/null 2>&1 || return 1
+  main="$(git -C "$repo_root" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print substr($0,10); exit}')"
+  [ -n "$main" ] || return 1
+  repo_real="$(cd "$repo_root" 2>/dev/null && pwd -P)" || return 1
+  main_real="$(cd "$main" 2>/dev/null && pwd -P)" || return 1
+  [ "$main_real" != "$repo_real" ] || return 1
+  probe="$(git -C "$main" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [ "$(cd "$probe" 2>/dev/null && pwd -P)" = "$main_real" ] || return 1
+  printf '%s' "$main"
+}
+
 # Resolve docs_root from tracked config.yaml only. A docs_root in
 # config.local.yaml is ignored. Unset -> default root `docs`. A configured
 # value is validated and rejected (never silently defaulted) when it is
@@ -103,7 +119,7 @@ resolve_real_best_effort() {
 # docs_root_source, docs_root_error, and docs_root_local_ignored.
 resolve_docs_root() {
   local repo_root="$1"
-  local local_cfg="$repo_root/.compound-engineering/config.local.yaml"
+  local local_cfg="${2:-$repo_root/.compound-engineering/config.local.yaml}"
   local tracked_cfg="$repo_root/.compound-engineering/config.yaml"
   local value="" source="" repo_real real local_docs probe
 
@@ -483,8 +499,18 @@ antigravity_configured="no"
 if [ "$in_repo" = "yes" ]; then
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
   local_config_path="$repo_root/.compound-engineering/config.local.yaml"
+  local_config_root="$repo_root"
+  local_config_inherited="no"
+  if [ ! -f "$local_config_path" ]; then
+    primary_checkout="$(resolve_primary_checkout "$repo_root")"
+    if [ -n "$primary_checkout" ] && [ -f "$primary_checkout/.compound-engineering/config.local.yaml" ]; then
+      local_config_path="$primary_checkout/.compound-engineering/config.local.yaml"
+      local_config_root="$primary_checkout"
+      local_config_inherited="yes"
+    fi
+  fi
   tracked_config_path="$repo_root/.compound-engineering/config.yaml"
-  resolve_docs_root "$repo_root"
+  resolve_docs_root "$repo_root" "$local_config_path"
   [ "$docs_root_status" = "invalid" ] && project_issues=$((project_issues + 1))
   legacy_cfg="missing"
   [ -f "$repo_root/compound-engineering.local.md" ] && legacy_cfg="present"
@@ -492,7 +518,7 @@ if [ "$in_repo" = "yes" ]; then
   local_cfg="missing"
   if [ -e "$local_config_path" ]; then
     local_cfg="present"
-    if git check-ignore -q "$local_config_path" 2>/dev/null; then
+    if git -C "$local_config_root" check-ignore -q "$local_config_path" 2>/dev/null; then
       repo_cfg_gitignore="ok"
     else
       repo_cfg_gitignore="missing"
@@ -675,7 +701,7 @@ if [ "$in_repo" = "yes" ]; then
   config_refresh="$script_dir/config-refresh.py"
   config_status_report=""
   if [ -n "$cfg_python" ] && [ -f "$config_refresh" ] && [ "$have_repo_config" = "yes" ]; then
-    config_status_report="$(cd "$repo_root" && "$cfg_python" "$config_refresh" status --repo "$repo_root" 2>/dev/null | "$cfg_python" -c '
+    config_status_report="$(cd "$repo_root" && "$cfg_python" "$config_refresh" status --repo "$repo_root" --local-repo "$local_config_root" 2>/dev/null | "$cfg_python" -c '
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -779,7 +805,17 @@ if [ "$in_repo" = "yes" ]; then
     skip "No repo config yet (.compound-engineering/config.yaml)"
   fi
 
-  if [ "$local_cfg" = "present" ]; then
+  if [ "$local_cfg" = "present" ] && [ "$local_config_inherited" = "yes" ]; then
+    ok ".compound-engineering/config.local.yaml inherited from the primary worktree"
+    detail "$local_config_path"
+    if [ "$repo_cfg_gitignore" = "ok" ]; then
+      ok "Inherited local config is gitignored"
+    else
+      warn "Inherited local config is not safely gitignored"
+      detail "Add '.compound-engineering/*.local.yaml' to $local_config_root/.gitignore"
+      project_issues=$((project_issues + 1))
+    fi
+  elif [ "$local_cfg" = "present" ]; then
     ok ".compound-engineering/config.local.yaml exists"
     if [ "$repo_cfg_gitignore" = "ok" ]; then
       ok "Local config is gitignored"

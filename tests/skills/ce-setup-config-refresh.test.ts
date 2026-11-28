@@ -448,6 +448,22 @@ describe("config-refresh verify", () => {
 })
 
 describe("config-refresh of config.local.yaml", () => {
+  // A linked worktree with no local file reads the primary's copy; status must
+  // report that file, not this checkout's absent one (#1803).
+  test("status reads the inherited local layer from --local-repo", () => {
+    const root = makeRepo({ tracked: "docs_root: docs\n" })
+    const primary = makeRepo({ local: legacyLocal })
+    expect(run(root, ["status"]).json.local.state).toBe("missing")
+    const inherited = run(root, ["status", "--local-repo", primary])
+    expect(inherited.json.local.state).toBe("legacy")
+  })
+
+  test("--local-repo never overrides a local file this checkout has", () => {
+    const root = makeRepo({ local: "plan_model: opus\n" })
+    const primary = makeRepo({ local: legacyLocal })
+    expect(run(root, ["status", "--local-repo", primary]).json.local.state).not.toBe("legacy")
+  })
+
   test("a legacy full-template copy is cut down to its settings and team comments", () => {
     const peer = "# cross_model_peer: codex          # codex | claude | grok | cursor | composer"
     const local = `${withPeer(legacyLocal, peer)}\nplan_use_fable: true\nwork_delegate: codex\n`

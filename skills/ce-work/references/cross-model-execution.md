@@ -12,7 +12,7 @@ A live request such as "use Codex" is preference-strength by default. Interpret 
 
 Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Grok, then Codex"). Preserve that order and normalize each harness/model candidate with the same rules as standing configuration. A typed caller binding remains a single already-selected candidate; do not widen its exact four-field grammar into a list.
 
-Standing configuration uses one mode plus an ordered route list. Resolve `work_engine_mode` and `work_engine_preferences` independently from the two repo files (`config.local.yaml` then `config.yaml`); a present local list, including `[]`, replaces the team list. Do not pick one file for the whole group.
+Standing configuration uses one mode plus an ordered route list. Resolve `work_engine_mode` and `work_engine_preferences` independently by the config-layers rule (this checkout's `config.local.yaml`, or the primary worktree's for a linked worktree with none, then `config.yaml`); a present local list, including `[]`, replaces the team list. Do not pick one file for the whole group.
 
 ```yaml
 work_engine_mode: prefer

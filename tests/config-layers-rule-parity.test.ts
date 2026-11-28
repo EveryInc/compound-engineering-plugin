@@ -67,6 +67,8 @@ describe("config-layers rule shared-asset parity", () => {
     expect(block).toContain("config.local.yaml")
     expect(block).toContain("config.yaml")
     expect(block).toContain("Gitignore does not change resolution")
+    expect(block).toContain("linked worktree")
+    expect(block).toContain("primary worktree's copy")
     expect(block).toContain("invalid value continues to the next layer")
     expect(block).toContain("including an empty list or map")
     expect(block).toContain("Do not** use this rule for `docs_root`")
