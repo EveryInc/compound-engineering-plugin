@@ -14,10 +14,6 @@ export function resolveTargetOutputRoot(options: {
   const { targetName, outputRoot, codexHome, piHome, hasExplicitOutput } = options
   if (targetName === "codex") return codexHome
   if (targetName === "pi") return piHome
-  if (targetName === "antigravity") {
-    const base = hasExplicitOutput ? outputRoot : process.cwd()
-    return path.join(base, ".agy")
-  }
   if (targetName === "opencode") {
     // Without an explicit --output, default to the OpenCode global-config root
     // (OPENCODE_CONFIG_DIR or ~/.config/opencode). With an explicit --output,

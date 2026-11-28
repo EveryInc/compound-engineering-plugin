@@ -2,11 +2,9 @@ import type { ClaudePlugin } from "../types/claude"
 import { convertClaudeToOpenCode, type ClaudeToOpenCodeOptions } from "../converters/claude-to-opencode"
 import { convertClaudeToCodex } from "../converters/claude-to-codex"
 import { convertClaudeToPi } from "../converters/claude-to-pi"
-import { convertClaudeToAntigravity } from "../converters/claude-to-antigravity"
 import { writeOpenCodeBundle } from "./opencode"
 import { writeCodexBundle } from "./codex"
 import { writePiBundle } from "./pi"
-import { writeAntigravityBundle } from "./antigravity"
 
 export type TargetScope = "global" | "workspace"
 
@@ -66,11 +64,5 @@ export const targets: Record<string, TargetHandler> = {
     implemented: true,
     convert: convertClaudeToPi as TargetHandler["convert"],
     write: writePiBundle as TargetHandler["write"],
-  },
-  antigravity: {
-    name: "antigravity",
-    implemented: true,
-    convert: convertClaudeToAntigravity as TargetHandler["convert"],
-    write: writeAntigravityBundle as TargetHandler["write"],
   },
 }
