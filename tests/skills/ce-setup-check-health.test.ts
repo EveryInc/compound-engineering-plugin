@@ -1326,12 +1326,14 @@ describe("ce-setup check-health cross-model peers prerequisite", () => {
   test("the warm step caches exactly the pinned acpx and adapter specs", async () => {
     const script = await readFile(checkHealthScript, "utf8")
     const adapterSpecs = script.match(/^ACPX_ADAPTER_SPECS="([^"]+)"$/m)?.[1].split(" ") ?? []
+    const codexPeerSpec = script.match(/^CODEX_PEER_ADAPTER_SPEC="([^"]+)"$/m)?.[1]
     const result = await runWithNode({ nodeVersion: "24.17.0", npx: true, args: ["--warm-acpx"] })
 
     expect(result.exitCode).toBe(0)
     expect(adapterSpecs.length).toBeGreaterThan(0)
+    expect(codexPeerSpec).toBeDefined()
     expect(result.npxCalls).toEqual(
-      [ACPX_RANGE, ...adapterSpecs].map((spec) => `--yes --package=${spec} -- node --version`),
+      [ACPX_RANGE, ...adapterSpecs, codexPeerSpec!].map((spec) => `--yes --package=${spec} -- node --version`),
     )
     expect(result.stdout).not.toContain("Optional capabilities")
     // npx resolves packages from its working directory first, so the warm must
