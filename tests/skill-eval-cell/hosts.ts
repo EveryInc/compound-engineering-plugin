@@ -9,7 +9,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-export const HOSTS = ["claude", "codex", "grok", "opencode"] as const
+export const HOSTS = ["claude", "codex", "agy", "grok", "opencode"] as const
 export type Host = (typeof HOSTS)[number]
 export type CurrentHost = Host | "unknown"
 
@@ -35,14 +35,31 @@ export function attestCurrentHost(env: NodeJS.ProcessEnv = process.env): Current
   ) {
     return "codex"
   }
+  if (
+    env.ANTIGRAVITY_AGENT === "1" ||
+    env.ANTIGRAVITY_CONVERSATION_ID ||
+    env.ANTIGRAVITY_TRAJECTORY_ID ||
+    env.ANTIGRAVITY_LS_ADDRESS
+  ) {
+    return "agy"
+  }
   if (env.GROK_AGENT === "1" || env.GROK_SESSION_ID) return "grok"
   if (env.OPENCODE_TERMINAL) return "opencode"
   return "unknown"
 }
 
-export function peerHosts(current: CurrentHost): Host[] {
-  if (current === "unknown") return [...HOSTS]
-  return HOSTS.filter((host) => host !== current)
+export function peerHosts(
+  current: CurrentHost,
+  opts: { agyAvailable?: boolean } = {},
+): Host[] {
+  // Prefer `agy` over `grok` by default; fall back to `grok` only when `agy`
+  // is unavailable (and not the calling harness).
+  const agyAvailable = opts.agyAvailable ?? (current === "agy" || commandExists("agy"))
+  const defaults: Host[] = agyAvailable
+    ? ["claude", "codex", "agy", "opencode"]
+    : ["claude", "codex", "grok", "opencode"]
+  if (current === "unknown") return defaults
+  return defaults.filter((host) => host !== current)
 }
 
 export function resolveRunHosts(opts: {
@@ -51,8 +68,9 @@ export function resolveRunHosts(opts: {
   onPath?: (host: Host) => boolean
 }): HostResolution {
   const current = attestCurrentHost(opts.env)
-  const wanted = opts.explicit ?? peerHosts(current)
   const onPath = opts.onPath ?? ((host: Host) => commandExists(host))
+  const agyAvailable = current === "agy" || onPath("agy")
+  const wanted = opts.explicit ?? peerHosts(current, { agyAvailable })
   const warnings: string[] = []
   if (!opts.explicit && current === "unknown") {
     warnings.push("warning: could not attest current harness; defaulting to every CLI on PATH")
@@ -110,6 +128,14 @@ export function cellEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEn
   delete env.CODEX_SESSION_ID
   delete env.CODEX_THREAD_ID
   delete env.CODEX_CI
+  delete env.ANTIGRAVITY_AGENT
+  delete env.ANTIGRAVITY_CONVERSATION_ID
+  delete env.ANTIGRAVITY_TRAJECTORY_ID
+  delete env.ANTIGRAVITY_LS_ADDRESS
+  delete env.ANTIGRAVITY_CSRF_TOKEN
+  delete env.ANTIGRAVITY_APP_DATA_DIR
+  delete env.ANTIGRAVITY_SOURCE_METADATA
+  delete env.ANTIGRAVITY_AGENTAPI_EXE
   delete env.GROK_AGENT
   delete env.GROK_SESSION_ID
   delete env.OPENCODE_TERMINAL
@@ -121,6 +147,19 @@ export function cellEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEn
 
 /** Read-only cells must not mutate, delegate, or reach the network. */
 export const CLAUDE_READ_ONLY_DENY = "Bash,Edit,Write,NotebookEdit,Task,Skill,WebFetch,WebSearch"
+
+/**
+ * Antigravity read-only policy passed via `--settings`: allow file reads so
+ * extracted skills under temp stay readable, and deny shell commands, file
+ * writes, web/browser actions, and MCP tools. Must NOT be paired with
+ * `--dangerously-skip-permissions`, which overrides permission deny rules.
+ */
+export const AGY_READ_ONLY_SETTINGS = JSON.stringify({
+  permissions: {
+    allow: ["read_file(*)"],
+    deny: ["command(*)", "write_file(*)", "read_url(*)", "execute_url(*)", "download_url(*)", "mcp(*)"],
+  },
+})
 
 /**
  * Drops the "user" source: ~/.claude/CLAUDE.md, rules, skills, agents, commands, and
@@ -246,6 +285,21 @@ export function planHost(
     argv.push("--skip-git-repo-check", "-C", opts.cwd, opts.prompt)
     return { host, argv, env, stdin: "null", notes }
   }
+  if (host === "agy") {
+    notes.push("print mode (-p) consumes the next token as the prompt, so flags must precede -p")
+    notes.push("user-level ~/.gemini/config is not isolated; prompt directs the agent to the extracted skill copy")
+    const argv = ["agy", "--disable-slash-commands", "--output-format", "text"]
+    if (opts.readOnly) {
+      // --dangerously-skip-permissions overrides --settings deny rules, so omit it in read-only mode.
+      argv.push("--settings", AGY_READ_ONLY_SETTINGS)
+      notes.push("read-only: --settings denies command, write_file, web/browser, and mcp; read_file allowed")
+    } else {
+      argv.push("--dangerously-skip-permissions")
+    }
+    if (opts.reasoningEffort) argv.push("--effort", opts.reasoningEffort)
+    argv.push("-p", opts.prompt)
+    return { host, argv, env, stdin: "null", notes }
+  }
   if (host === "opencode") {
     // OpenCode 2.x routes a plain `run` through its background service, which
     // ignores this process's OPENCODE_CONFIG_CONTENT deny; --standalone keeps it.
@@ -303,7 +357,7 @@ export function wrapPrompt(opts: {
   return [
     `Read the skill at ${path.join(opts.skillDir, "SKILL.md")} first.`,
     `Resolve bundled references and scripts from that directory.`,
-    `Do not read or use an installed plugin copy of this skill (not ~/.claude, ~/.grok, ~/.agents, ~/.config/opencode, project .opencode, or a plugin cache).`,
+    `Do not read or use an installed plugin copy of this skill (not ~/.claude, ~/.gemini, ~/.grok, ~/.agents, ~/.config/opencode, project .opencode, or a plugin cache).`,
     ...companions.map(
       (c) =>
         `When it tells you to invoke the \`${c.name}\` skill, invoke it by reading ${path.join(c.dir, "SKILL.md")} and following it, resolving its references from that directory. Do not use an installed plugin copy of \`${c.name}\`.`,

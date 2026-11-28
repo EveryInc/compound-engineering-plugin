@@ -1,8 +1,8 @@
 # Skill-eval cell driver
 
-Extract `skills/<name>` from a git ref and run the same prompt on the CLIs already on PATH: `claude`, `codex`, `grok`. Bills those products (whatever you already use to run the harness). No extra Anthropic/OpenAI API key. No Vercel AI SDK.
+Extract `skills/<name>` from a git ref and run the same prompt on the CLIs already on PATH: `claude`, `codex`, `agy` (falling back to `grok` when `agy` is absent), and `opencode`. Bills those products (whatever you already use to run the harness). No extra Anthropic/OpenAI API key. No Vercel AI SDK.
 
-Default hosts are the **other two** from the calling harness (Claude Code → Codex+Grok, Codex → Claude+Grok, Grok → Claude+Codex). `--hosts` overrides that. A missing CLI prints `warning: skipping <host>: …` and the run continues with whatever is left. If no peers are installed it falls back to the current harness and prints `warning: own-eval only …`. Exit 2 only when nothing can run. `summary.json` records `current_harness`, `hosts_wanted`, `hosts_run`, `own_eval_only`, and `warnings`. Not in default `bun test` except mechanical pins (`hosts.test.ts`, `extract.test.ts`, `path-shim.test.ts`). Cursor is not a default host (`cursor-agent -p` hangs without prior trust).
+Default hosts are the **peer harnesses** from the calling session, preferring `agy` over `grok` when `agy` is on PATH and falling back to `grok` only when `agy` is absent (e.g., Claude Code → Codex+Antigravity when `agy` is installed, else Codex+Grok; Antigravity → Claude+Codex). `--hosts` overrides that. A missing CLI prints `warning: skipping <host>: …` and the run continues with whatever is left. If no peers are installed it falls back to the current harness and prints `warning: own-eval only …`. Exit 2 only when nothing can run. `summary.json` records `current_harness`, `hosts_wanted`, `hosts_run`, `own_eval_only`, and `warnings`. Not in default `bun test` except mechanical pins (`hosts.test.ts`, `extract.test.ts`, `path-shim.test.ts`). Cursor is not a default host (`cursor-agent -p` hangs without prior trust).
 
 ## Run
 
@@ -38,7 +38,7 @@ Claude and Codex cells do not load the operator's own instructions or skills, so
 
 - Claude runs with `--setting-sources project,local`, which skips `~/.claude/CLAUDE.md`, rules, skills, agents, commands, and `settings.json` (with its plugins and hooks). It also sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
 - Codex runs on a private `CODEX_HOME` at `<out>/user-config/codex/codex-home`. It has no `AGENTS.md` and no operator `config.toml`, so the operator's plugins, MCP servers, and custom provider do not load, and Codex uses its default model and provider. `auth.json` and `auth.lock` are symlinks to the operator's own files: a token refresh writes through the link, and nothing secret is copied into the run. Codex also reads `~/.agents/skills` from the real `HOME`, so the private `config.toml` disables each `SKILL.md` there by path. HOME itself is not overridden, because git identity and `gh` login depend on it.
-- Grok and OpenCode cells still load user-level configuration.
+- Antigravity (`agy`), Grok, and OpenCode cells still load user-level configuration. In `--read-only` mode, `agy` passes `--settings` denying `command(*)`, `write_file(*)`, web/browser actions, and `mcp(*)` while allowing `read_file(*)`, and omits `--dangerously-skip-permissions` (which overrides deny rules).
 
 Results recorded before this isolation was added ran with the operator's instructions loaded. Pack collectors read Codex rollouts from the private home, and fall back to `~/.codex/sessions` for older runs.
 
