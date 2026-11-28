@@ -260,7 +260,9 @@ function flagValue(args: string[], flag: string) {
 describe("ce-work fixed write routes", () => {
   // One emit per case: each is a subprocess, and a loop of them can outrun the file timeout.
   const ROUTE_ARGV: Record<string, { contains: string[]; model?: string }> = {
-    codex: { contains: ["--agent npx -y @agentclientprotocol/codex-acp@2.12.0 exec --config-option mode=agent --config-option reasoning_effort=high"] },
+    codex: { contains: [process.platform === "win32"
+      ? "codex exec --config-option mode=agent --config-option reasoning_effort=high"
+      : "--agent npx -y @agentclientprotocol/codex-acp@2.12.0 exec --config-option mode=agent --config-option reasoning_effort=high"] },
     claude: {
       contains: [
         "CLAUDE_CODE_EXECUTABLE=<claude-safe-mode-wrapper>",

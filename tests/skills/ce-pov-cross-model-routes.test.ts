@@ -268,7 +268,7 @@ describe("ce-pov cross-model route safety", () => {
   })
 
   test.each([
-    ["codex", "--model gpt-6.1-sol --agent npx -y @agentclientprotocol/codex-acp@2.12.0 exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
+    ["codex", process.platform === "win32" ? "--model gpt-6.1-sol codex exec" : "--model gpt-6.1-sol --agent npx -y @agentclientprotocol/codex-acp@2.12.0 exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
     ["claude", "--model claude-opus-5-5 claude exec", ["--config-option mode=default", "--config-option effort=high", "--allowed-tools Read,Glob,Grep,WebSearch,WebFetch --max-turns 15"]],
     ["grok-cli", "--model grok-4.7 grok-build exec", ["--config-option reasoning_effort=xhigh"]],
     ["grok-cursor", "--model grok-4.7[context=256k,reasoning_effort=high,fast=true] cursor exec", ["--config-option mode=ask"]],

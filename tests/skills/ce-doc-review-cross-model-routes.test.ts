@@ -265,7 +265,7 @@ describe("cross-model-doc-review route safety (R17)", () => {
   })
 
   test.each([
-    ["codex", "--model gpt-6.1-terra --agent npx -y @agentclientprotocol/codex-acp@2.12.0 exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
+    ["codex", process.platform === "win32" ? "--model gpt-6.1-terra codex exec" : "--model gpt-6.1-terra --agent npx -y @agentclientprotocol/codex-acp@2.12.0 exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
     ["claude", "--max-turns 15 --model claude-opus-5-5 claude exec", ["--config-option mode=default", "--config-option effort=high"]],
     ["grok-cli", "--model grok-4.7 grok-build exec", ["--config-option reasoning_effort=xhigh"]],
     ["grok-cursor", "--model grok-4.7[context=256k,reasoning_effort=high,fast=true] cursor exec", ["--config-option mode=ask"]],
