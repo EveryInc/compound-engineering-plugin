@@ -126,7 +126,7 @@ selectors (at least one, or --all for the whole catalog):
 options:
   --list                  print the matching scenarios and exit; runs nothing
   --arm pre|post|preview|ab   default ab
-  --hosts claude,codex,grok,opencode   default: the cell driver's default
+  --hosts claude,codex,agy,grok,opencode   default: the cell driver's default
   --out <dir>             default: a new directory under OS temp
   --help, -h              print this and exit`
 

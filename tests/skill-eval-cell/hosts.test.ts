@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { attestCurrentHost, cellEnv, peerHosts, planHost, privateCodexHome, resolveRunHosts, wrapPrompt } from "./hosts"
+import { AGY_READ_ONLY_SETTINGS, attestCurrentHost, cellEnv, peerHosts, planHost, privateCodexHome, resolveRunHosts, wrapPrompt } from "./hosts"
 
 // A fake operator: the real HOME and ~/.codex must never be read or linked by these tests.
 const fake = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cell-hosts-"))
@@ -26,10 +26,21 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
   const promptFile = path.join(cwd, "prompt.md")
   const userConfigDir = path.join(fake, "user-config")
 
-  test("every host unsets CLAUDECODE and forces NO_COLOR", () => {
-    const env = cellEnv({ CLAUDECODE: "1", OMPCODE: "1", CLICOLOR_FORCE: "1", GH_FORCE_TTY: "1" })
+  test("every host unsets CLAUDECODE, ANTIGRAVITY_*, and forces NO_COLOR", () => {
+    const env = cellEnv({
+      CLAUDECODE: "1",
+      OMPCODE: "1",
+      ANTIGRAVITY_AGENT: "1",
+      ANTIGRAVITY_CONVERSATION_ID: "conv-1",
+      ANTIGRAVITY_LS_ADDRESS: "127.0.0.1:9999",
+      CLICOLOR_FORCE: "1",
+      GH_FORCE_TTY: "1",
+    })
     expect(env.CLAUDECODE).toBeUndefined()
     expect(env.OMPCODE).toBeUndefined()
+    expect(env.ANTIGRAVITY_AGENT).toBeUndefined()
+    expect(env.ANTIGRAVITY_CONVERSATION_ID).toBeUndefined()
+    expect(env.ANTIGRAVITY_LS_ADDRESS).toBeUndefined()
     expect(env.CLICOLOR_FORCE).toBeUndefined()
     expect(env.GH_FORCE_TTY).toBeUndefined()
     expect(env.NO_COLOR).toBe("1")
@@ -106,6 +117,35 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(plan.stdin).toBe("null")
   })
 
+  test("agy runs print mode with flags before -p and enforces read-only without skip-permissions", () => {
+    const plan = planHost("agy", { cwd, prompt: "task", promptFile, userConfigDir })
+    expect(plan.argv).toEqual([
+      "agy",
+      "--disable-slash-commands",
+      "--output-format",
+      "text",
+      "--dangerously-skip-permissions",
+      "-p",
+      "task",
+    ])
+    expect(plan.stdin).toBe("null")
+
+    const readOnly = planHost("agy", { cwd, prompt: "task", promptFile, userConfigDir, readOnly: true })
+    expect(readOnly.argv).toEqual([
+      "agy",
+      "--disable-slash-commands",
+      "--output-format",
+      "text",
+      "--settings",
+      AGY_READ_ONLY_SETTINGS,
+      "-p",
+      "task",
+    ])
+    expect(readOnly.argv).not.toContain("--dangerously-skip-permissions")
+    expect(attestCurrentHost({ ANTIGRAVITY_AGENT: "1" })).toBe("agy")
+    expect(attestCurrentHost({ ANTIGRAVITY_CONVERSATION_ID: "abc" })).toBe("agy")
+  })
+
   test("opencode runs a private --standalone server and omits --auto when read-only", () => {
     const plan = planHost("opencode", { cwd, prompt: "task", promptFile, userConfigDir })
     expect(plan.argv).toEqual(["opencode", "run", "--standalone", "task", "--auto"])
@@ -121,9 +161,34 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(resolveRunHosts({ env, onPath: () => true }).run).toContain("claude")
   })
 
-  test("from grok the default peers are claude, codex, and opencode", () => {
+  test("default peers prefer agy over grok when agy is on PATH, and fall back to grok when agy is absent", () => {
+    const withAgy = resolveRunHosts({
+      env: { CLAUDECODE: "1" },
+      onPath: () => true,
+    })
+    expect(withAgy.wanted).toEqual(["codex", "agy", "opencode"])
+    expect(withAgy.run).toEqual(["codex", "agy", "opencode"])
+
+    const withoutAgy = resolveRunHosts({
+      env: { CLAUDECODE: "1" },
+      onPath: (host) => host !== "agy",
+    })
+    expect(withoutAgy.wanted).toEqual(["codex", "grok", "opencode"])
+    expect(withoutAgy.run).toEqual(["codex", "grok", "opencode"])
+
+    const fromAgy = resolveRunHosts({
+      env: { ANTIGRAVITY_AGENT: "1" },
+      onPath: () => true,
+    })
+    expect(fromAgy.current).toBe("agy")
+    expect(fromAgy.wanted).toEqual(["claude", "codex", "opencode"])
+    expect(fromAgy.run).toEqual(["claude", "codex", "opencode"])
+  })
+
+  test("from grok the default peers include agy when installed, or claude, codex, and opencode when agy is absent", () => {
     expect(attestCurrentHost({ GROK_AGENT: "1" })).toBe("grok")
-    expect(peerHosts("grok")).toEqual(["claude", "codex", "opencode"])
+    expect(peerHosts("grok", { agyAvailable: false })).toEqual(["claude", "codex", "opencode"])
+    expect(peerHosts("grok", { agyAvailable: true })).toEqual(["claude", "codex", "agy", "opencode"])
     const resolved = resolveRunHosts({
       env: { GROK_AGENT: "1" },
       onPath: (host) => host === "claude" || host === "codex" || host === "opencode",
@@ -191,6 +256,7 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(prompt.toLowerCase()).not.toContain("eval")
     expect(prompt).toContain("Babysit PR #12.")
     expect(prompt).toContain("FILES_READ:")
+    expect(prompt).toContain("~/.gemini")
     expect(prompt).toContain("~/.config/opencode")
     expect(prompt).toContain("project .opencode")
   })
@@ -202,6 +268,10 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(pair(planHost("grok", { ...base, reasoningEffort: "high" }).argv, "--reasoning-effort")).toEqual(["--reasoning-effort", "high"])
     expect(planHost("claude", base).argv).not.toContain("--effort")
     expect(pair(planHost("claude", { ...base, reasoningEffort: "xhigh" }).argv, "--effort")).toEqual(["--effort", "xhigh"])
+    expect(planHost("agy", base).argv).not.toContain("--effort")
+    const agyEffort = planHost("agy", { ...base, reasoningEffort: "high" }).argv
+    expect(pair(agyEffort, "--effort")).toEqual(["--effort", "high"])
+    expect(agyEffort.slice(-2)).toEqual(["-p", "p"])
     expect(planHost("codex", base).argv).not.toContain("-c")
     const codex = planHost("codex", { ...base, reasoningEffort: "xhigh" }).argv
     expect(pair(codex, "-c")).toEqual(["-c", "model_reasoning_effort=xhigh"])

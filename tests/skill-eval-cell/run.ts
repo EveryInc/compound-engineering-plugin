@@ -20,7 +20,7 @@ function parseHosts(): Host[] | undefined {
   const raw = arg("--hosts")
   if (raw === undefined) return undefined
   if (!raw) {
-    console.error("usage: --hosts claude,codex,grok,opencode")
+    console.error("usage: --hosts claude,codex,agy,grok,opencode")
     process.exit(2)
   }
   const wanted = raw.split(",").map((s) => s.trim()).filter(Boolean) as Host[]
@@ -239,7 +239,7 @@ async function main() {
   const taskFile = arg("--task-file")
   if (!skill) {
     console.error(
-      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--with-skill name,name] [--handoff-probe name,name] [--persona file --max-turns 20 (claude, codex)] [--reasoning-effort level] [--read-only] [--git-init] [--git-untracked p,p] [--git-staged p,p] [--git-deleted p,p] [--fixture-omit p,p] [--git-change json(patch,branch,message)] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
+      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,agy,grok,opencode] [--fixture dir] [--out dir] [--timeout-secs 600] [--with-skill name,name] [--handoff-probe name,name] [--persona file --max-turns 20 (claude, codex)] [--reasoning-effort level] [--read-only] [--git-init] [--git-untracked p,p] [--git-staged p,p] [--git-deleted p,p] [--fixture-omit p,p] [--git-change json(patch,branch,message)] [--shim-git-push] [--shim-gh-pr]\n       default --hosts prefers claude, codex, agy (falling back to grok when agy is absent), plus opencode, excluding the calling harness; missing CLIs warn and continue",
     )
     process.exit(2)
   }
