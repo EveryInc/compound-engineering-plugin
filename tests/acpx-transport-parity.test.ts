@@ -46,7 +46,7 @@ describe("acpx transport parity", () => {
   // acpx 0.22/0.23 still pin codex-acp 1.x, whose bundled core the Codex
   // service refuses for every gpt-6.1/6.2 model. The raw launch keeps the
   // adapter on the 2.x line that serves them (issue #2098).
-  test("the codex route launches a codex-acp version that serves gpt-6.1/6.2", async () => {
+  test("the codex route carries the codex-acp 2.x launch for POSIX hosts", async () => {
     for (const rel of MIGRATED_WORKERS) {
       const block = transportBlock(await readFile(path.join(PLUGIN_ROOT, rel), "utf8"), rel)
       expect(block, rel).toContain('--agent "npx -y @agentclientprotocol/codex-acp@2.12.0"')

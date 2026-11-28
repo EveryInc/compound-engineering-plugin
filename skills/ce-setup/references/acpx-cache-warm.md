@@ -1,6 +1,6 @@
 # Warm the npm cache for cross-model peers
 
-Cross-model peers resolve acpx within tested version bounds, preserving npm's release-age and date-cutoff policies. Warming downloads an eligible transport and the adapters associated with the newest validated release. An older policy-selected transport may fetch different adapter packages on its first run.
+Cross-model peers resolve acpx within tested version bounds, preserving npm's release-age and date-cutoff policies. Warming downloads an eligible transport, the adapters associated with the newest validated release, and the codex-acp version the codex peer route pins. An older policy-selected transport may fetch different adapter packages on its first run.
 
 Ask once. Say first what it gets the user: skills that consult another model, such as Codex or Claude, usually start without a download on first use. Then say in plain words what it does: it downloads now, into the user's npm cache, the npm packages those skills use to reach the other model, instead of on first use. Say too that npm runs any install scripts those packages declare, as it would on that first use. Name a package such as acpx only alongside that description. Run it only after the user approves; if they decline, fetch nothing.
 
