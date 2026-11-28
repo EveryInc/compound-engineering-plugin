@@ -89,6 +89,22 @@ describe("detectInstalledTools", () => {
     expect(results.find((t) => t.name === "antigravity")?.detected).toBe(true)
   })
 
+  test("detects antigravity at ~/.gemini/config/plugins and workspace .antigravity-plugin", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-agy-home3-"))
+    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-agy-cwd3-"))
+    await fs.mkdir(path.join(tempHome, ".gemini", "config", "plugins"), { recursive: true })
+
+    let results = await detectInstalledTools(tempHome, tempCwd)
+    expect(results.find((t) => t.name === "antigravity")?.detected).toBe(true)
+
+    const tempHome2 = await fs.mkdtemp(path.join(os.tmpdir(), "detect-agy-home4-"))
+    const tempCwd2 = await fs.mkdtemp(path.join(os.tmpdir(), "detect-agy-cwd4-"))
+    await fs.mkdir(path.join(tempCwd2, ".antigravity-plugin"), { recursive: true })
+
+    results = await detectInstalledTools(tempHome2, tempCwd2)
+    expect(results.find((t) => t.name === "antigravity")?.detected).toBe(true)
+  })
+
   describe("opencode OPENCODE_CONFIG_DIR", () => {
     const originalEnv = process.env.OPENCODE_CONFIG_DIR
 

@@ -202,7 +202,7 @@ describe("CLI", () => {
   test("install rejects native marketplace-only plugin targets", async () => {
     const repoRoot = path.join(import.meta.dir, "..")
 
-    for (const target of ["copilot", "droid", "qwen", "omp"]) {
+    for (const target of ["copilot", "droid", "qwen", "omp", "antigravity"]) {
       const proc = Bun.spawn([
         "bun",
         "run",
@@ -2029,7 +2029,7 @@ describe("CLI", () => {
     expect(stdout).toContain("Installed compound-engineering to codex")
     expect(stdout).toContain("Installed compound-engineering to opencode")
     expect(stdout).toContain("Installed compound-engineering to pi")
-    expect(stdout).toContain("Installed compound-engineering to antigravity")
+    expect(stdout).toContain("antigravity — native plugin install; skipped")
     expect(stdout).toContain("droid — native plugin install; skipped")
     expect(stdout).toContain("copilot — native plugin install; skipped")
     expect(stdout).toContain("qwen — native plugin install; skipped")
@@ -2042,7 +2042,7 @@ describe("CLI", () => {
     expect(await exists(path.join(tempHome, ".codex", "agents", "compound-engineering", "security-sentinel.toml"))).toBe(true)
     expect(await exists(path.join(tempHome, ".codex", "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(false)
     expect(await exists(path.join(tempHome, ".pi", "agent", "skills", "skill-one", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(tempCwd, ".agy", "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempCwd, ".agy", "skills", "skill-one", "SKILL.md"))).toBe(false)
     expect(await exists(path.join(tempCwd, ".kiro", "skills", "skill-one", "SKILL.md"))).toBe(false)
     expect(await exists(path.join(tempHome, ".qwen", "extensions", "compound-engineering", "qwen-extension.json"))).toBe(false)
   })

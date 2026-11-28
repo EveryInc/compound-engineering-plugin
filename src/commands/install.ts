@@ -28,7 +28,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | pi | antigravity | all)",
+      description: "Target format (opencode | codex | pi | all)",
     },
     output: {
       type: "string",
@@ -109,7 +109,7 @@ export default defineCommand({
         const activeTargets = detected.filter((t) => t.detected && targets[t.name]?.implemented)
 
         if (activeTargets.length === 0) {
-        console.log("No installable AI coding tools detected. Use native plugin install for Claude Code, Copilot, Droid, oh-my-pi (omp), OpenCode, Pi, and Qwen.")
+          console.log("No installable AI coding tools detected. Use native plugin install for Antigravity, Claude Code, Copilot, Droid, oh-my-pi (omp), OpenCode, Pi, and Qwen.")
           return
         }
 
@@ -268,8 +268,8 @@ function resolveOutputRoot(value: unknown): string {
   // Per-target defaults are applied in `resolveTargetOutputRoot` -- e.g.,
   // OpenCode falls back to `OPENCODE_CONFIG_DIR` / `~/.config/opencode`,
   // Codex falls back to `~/.codex`. Falling through to `process.cwd()` keeps
-  // workspace-rooted targets (antigravity) using the user's project root
-  // when neither `--output` nor a target-specific home flag was supplied.
+  // workspace-rooted targets using the user's project root when neither
+  // `--output` nor a target-specific home flag was supplied.
   return process.cwd()
 }
 
