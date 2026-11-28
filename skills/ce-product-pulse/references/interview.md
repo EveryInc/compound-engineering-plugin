@@ -226,7 +226,7 @@ Skipping this entirely is fine - the skill does not require a schedule to functi
 
 After the interview completes, merge a `pulse_*` block into `<repo-root>/.compound-engineering/config.local.yaml`. Resolve the repo root with `git rev-parse --show-toplevel`. Preserve any non-pulse keys that already exist in the file (e.g., `plan_*`); only add or update `pulse_*` keys.
 
-If the file does not yet exist, create the directory and file. If `.compound-engineering/config.local.yaml` is not already covered by `.gitignore`, offer to add the entry before writing.
+If the file does not yet exist, create the directory and file. When this checkout is a linked worktree and the primary worktree has a `config.local.yaml`, start the new file from that copy before merging the `pulse_*` block, so inherited settings are not shadowed. If `.compound-engineering/config.local.yaml` is not already covered by `.gitignore`, offer to add the entry before writing.
 
 The pulse block uses skill-prefixed flat keys so it can share the config file without owning unrelated settings:
 
