@@ -17,7 +17,7 @@
 
 Compound Engineering is a plugin of 38 skills for AI coding agents. It structures the work around a loop — brainstorm, plan, build, review, then **capture what you learned** — so the knowledge from each change is written down where the next change can read it.
 
-It runs on 14 agent hosts, including Claude Code, Cursor, and Codex.
+It runs on 15 agent hosts, including Claude Code, Cursor, and Codex.
 
 Maintained by [Kieran Klaassen](https://github.com/kieranklaassen) and [Trevin Chow](https://github.com/tmchow), with contributions from the open-source community.
 
@@ -105,7 +105,7 @@ CODEX_HOME="$HOME/.codex/profiles/work" codex plugin add compound-engineering@co
 
 The marketplace step only makes the plugin available; the plugin install is what activates the native CE skills for that profile.
 
-**Another editor or CLI?** Kimi Code CLI, Cline, Grok Build CLI, Devin CLI, GitHub Copilot, Factory Droid, Qwen Code, OpenCode, Pi, oh-my-pi (omp), and Antigravity CLI are all supported — see [More install options](#more-install-options).
+**Another editor or CLI?** Kimi Code CLI, Cline, DeepSeek Harness, Grok Build CLI, Devin CLI, GitHub Copilot, Factory Droid, Qwen Code, OpenCode, Pi, oh-my-pi (omp), and Antigravity CLI are all supported — see [More install options](#more-install-options).
 
 ---
 
@@ -234,6 +234,23 @@ Per-project install from a checkout:
 ```
 
 Start a new Cline task after installing or updating skills. See [`.cline/INSTALL.md`](.cline/INSTALL.md) for pinning, local development, and uninstall steps.
+
+### DeepSeek Harness (`dsh`)
+
+DSH loads CE skills from on-demand `SKILL.md` directories and honours `disable-model-invocation` natively, so manual-only skills need no special handling.
+
+```bash
+git clone https://github.com/EveryInc/compound-engineering-plugin
+./compound-engineering-plugin/.dsh/scripts/install-skills.sh --global
+```
+
+Per-project install from a checkout:
+
+```bash
+./compound-engineering-plugin/.dsh/scripts/install-skills.sh --project /path/to/project
+```
+
+Start a new DSH session after installing or updating skills. See [`.dsh/INSTALL.md`](.dsh/INSTALL.md) for pinning, local development, and uninstall steps.
 
 ### Grok Build CLI (`grok`)
 
