@@ -144,7 +144,7 @@ How it applies:
 
 ## Which model the reviewers run on
 
-In Codex, every subagent the review spawns runs on `gpt-6.1-terra` at high reasoning effort. That covers the reviewers, the trivial-PR check, the merge and report leaves, and the validator. On other hosts each reviewer keeps its own tier: in Claude Code, `correctness`, `security`, and `adversarial` run on the session model and the rest on the Sonnet class. The orchestrator always stays on the session model. `review_subagents` in CE config sets the model and effort per harness, and a model you name in conversation or project instructions wins over both. If the host refuses the model, that subagent runs once more on the session model and Coverage names the refused model. See the [configuration reference](./configuration.md).
+In Codex, every subagent the review spawns runs on `gpt-6.1-terra` at high reasoning effort. That covers the reviewers, the trivial-PR check, the merge and report leaves, and the validator. On other hosts each reviewer keeps its own tier: in Claude Code, `correctness`, `security`, and `adversarial` run on the session model and the rest on the Sonnet class; in Antigravity (`invoke_subagent`), session-model reviewers and leaves use `inherit`, mid-tier reviewers use `flash`, and trivial-PR triage uses `flash_lite`. The orchestrator always stays on the session model. `review_subagents` in CE config sets the model and effort per harness, and a model you name in conversation or project instructions wins over both. If the host refuses the model, that subagent runs once more on the session model and Coverage names the refused model. See the [configuration reference](./configuration.md).
 
 ## Cross-model adversarial pass
 
