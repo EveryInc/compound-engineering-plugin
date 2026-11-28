@@ -706,10 +706,10 @@ describe("ce-pov acpx transport preflight and launch", () => {
     expect(result.files).toEqual([])
   })
 
-  test.each(["read root .acpxrc.json", "HOME ~/.acpx/config.json"])("a codex agent override in the %s is a route pre-egress failure", (where) => {
+  test.each(["read root .acpxrc.json", "HOME ~/.acpx/config.json"])("a claude agent override in the %s is a route pre-egress failure", (where) => {
     const sb = sandbox(["codex", "claude"])
     const repo = temp("pov-acpxrc-repo-")
-    const override = JSON.stringify({ agents: { codex: { command: "/tmp/not-codex" } } })
+    const override = JSON.stringify({ agents: { claude: { command: "/tmp/not-claude" } } })
     if (where.startsWith("read root")) {
       writeFileSync(path.join(repo, ".acpxrc.json"), override)
     } else {
@@ -718,14 +718,27 @@ describe("ce-pov acpx transport preflight and launch", () => {
     }
     const env = { ...sb.env, CROSS_MODEL_REPO_ROOT: repo, CROSS_MODEL_READ_ROOT: repo }
     const dir = runDir()
-    const result = run(["claude", "codex", payload(), dir], dir, env)
+    const result = run(["codex", "claude", payload(), dir], dir, env)
     expect(result.stderr).toContain("transport unavailable (pre-egress, route)")
-    expect(result.stderr).toContain("'codex' agent launch")
+    expect(result.stderr).toContain("'claude' agent launch")
     expect(calls(sb)).toBe(0)
     expect(result.files).toEqual([])
 
-    const other = run(["codex", "claude", payload(), dir], dir, env)
+    const other = run(["claude", "codex", payload(), dir], dir, env)
     expect(other.stderr).not.toContain("pre-egress")
+    expect(calls(sb)).toBe(1)
+  })
+
+  // The POSIX codex launch passes its own --agent, so an acpx entry cannot
+  // replace it and must not take the route down.
+  test("a codex agent override does not block the POSIX codex route", () => {
+    const sb = sandbox(["codex"])
+    const repo = temp("pov-acpxrc-codex-")
+    writeFileSync(path.join(repo, ".acpxrc.json"), JSON.stringify({ agents: { codex: { command: "/tmp/not-codex" } } }))
+    const env = { ...sb.env, CROSS_MODEL_REPO_ROOT: repo, CROSS_MODEL_READ_ROOT: repo }
+    const dir = runDir()
+    const result = run(["claude", "codex", payload(), dir], dir, env)
+    expect(result.stderr).not.toContain("'codex' agent launch")
     expect(calls(sb)).toBe(1)
   })
 

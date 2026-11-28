@@ -257,6 +257,14 @@ acpx_unavailable() {   # <shared|route> <reason>
 acpx_config_guard() {   # <route> <cwd>
   local agent file
   [ "$1" = opencode ] && return 0
+  # The POSIX codex route launches its own --agent command, which no acpx config
+  # entry can replace; native Windows still uses acpx's built-in agent.
+  if [ "$1" = codex ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) ;;
+      *) return 0 ;;
+    esac
+  fi
   agent="$(acpx_agent "$1")" || return 1
   for file in "${HOME:-}/.acpx/config.json" "$2/.acpxrc.json"; do
     [ -e "$file" ] || continue

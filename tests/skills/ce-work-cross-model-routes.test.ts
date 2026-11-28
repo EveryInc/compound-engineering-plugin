@@ -322,6 +322,20 @@ describe("ce-work fixed write routes", () => {
     expect(proc.stderr).toContain(`effort override '${value}' not compatible with route '${route}'`)
   })
 
+  // acpx rejects a raw --agent launch on native Windows, so the codex route
+  // keeps acpx's built-in launch there instead of losing the peer.
+  test("native Windows keeps acpx's built-in codex launch", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "ce-work-win-"))
+    const bin = path.join(root, "bin")
+    mkdirSync(bin)
+    writeFileSync(path.join(bin, "uname"), "#!/bin/sh\necho MINGW64_NT-10.0-26100\n")
+    chmodSync(path.join(bin, "uname"), 0o755)
+    const proc = emit("codex", { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}` })
+    expect(proc.status).toBe(0)
+    expect(proc.stdout).toContain("codex exec")
+    expect(proc.stdout).not.toContain("@agentclientprotocol/codex-acp@2.12.0")
+  })
+
   test.each([...ROUTES])("%s receives one workspace and bounded packet", (route) => {
     const f = fixture()
     const bin = stubBin(f)
@@ -863,12 +877,24 @@ describe("ce-work acpx outcomes", () => {
     const bin = stubBin(f)
     const home = temp("ce-work-home-")
     mkdirSync(path.join(home, ".acpx"))
-    writeFileSync(path.join(home, ".acpx", "config.json"), JSON.stringify({ agents: { codex: { command: "evil" } } }))
-    const result = run("codex", f, { ...cleanEnv(), PATH: isolatedPath(bin), HOME: home })
+    writeFileSync(path.join(home, ".acpx", "config.json"), JSON.stringify({ agents: { claude: { command: "evil" } } }))
+    const result = run("claude", f, { ...cleanEnv(), PATH: isolatedPath(bin), HOME: home })
     expect(result.code).toBe(2)
     expect(result.result.failure_reason).toContain("transport unavailable (pre-egress, route)")
-    expect(result.result.failure_reason).toContain("'codex' agent launch")
+    expect(result.result.failure_reason).toContain("'claude' agent launch")
     expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+  })
+
+  // POSIX codex passes its own --agent, so an acpx entry cannot replace it.
+  test("an acpx config for codex does not block the POSIX codex route", () => {
+    const f = fixture()
+    const bin = stubBin(f)
+    const home = temp("ce-work-home-")
+    mkdirSync(path.join(home, ".acpx"))
+    writeFileSync(path.join(home, ".acpx", "config.json"), JSON.stringify({ agents: { codex: { command: "evil" } } }))
+    const result = run("codex", f, { ...cleanEnv(), PATH: isolatedPath(bin), HOME: home })
+    expect(result.code).toBe(0)
+    expect(result.result?.failure_reason ?? "").not.toContain("'codex' agent launch")
   })
 
   test("a missing agent CLI records an unavailable route before acpx starts", () => {
