@@ -20,7 +20,7 @@ allowed-tools:
 
 ## Boundaries
 
-- **Read-only, everywhere.** The skill does not mutate the product, the database, or any external system. Its only writes are pulse settings appended to `.compound-engineering/config.local.yaml` (interview and opt-out writes stay on the local override) and the report file. MCP and other data-source tools are invoked read-only; if a tool offers write modes, do not use them. A database source must be a read-only connection — the interview refuses read-write credentials, and DB access is optional, since many products complete the pulse with analytics and tracing alone.
+- **Read-only, everywhere.** The skill does not mutate the product, the database, or any external system. Its only writes are pulse settings appended to `.compound-engineering/config.local.yaml` (a new file is seeded from an inherited copy first) (interview and opt-out writes stay on the local override) and the report file. MCP and other data-source tools are invoked read-only; if a tool offers write modes, do not use them. A database source must be a read-only connection — the interview refuses read-write credentials, and DB access is optional, since many products complete the pulse with analytics and tracing alone.
 - **No PII in saved reports.** No user emails, account IDs, or message content in the file written to disk.
 - **Read it like a founder.** No hardcoded thresholds, no default "good"/"bad" labels, no alerting: present the numbers and let the reader judge.
 - **Single page.** Target 30-40 lines. If a section is thin, leave it thin; if the report is getting long, cut.

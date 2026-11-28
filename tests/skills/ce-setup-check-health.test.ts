@@ -70,17 +70,23 @@ async function initConfiguredRepo(root: string, localConfig: string): Promise<vo
 describe("ce-setup check-health", () => {
   test("a linked worktree reports the primary worktree's inherited local config", async () => {
     const primary = await mkdtemp(path.join(os.tmpdir(), "ce-health-primary-"))
-    await initConfiguredRepo(primary, "cross_model_peer: antigravity\n")
-    await Bun.$`git add -A`.cwd(primary).quiet()
-    await Bun.$`git -c user.email=test@example.test -c user.name=test commit -qm seed`.cwd(primary).quiet()
-    const linked = path.join(await mkdtemp(path.join(os.tmpdir(), "ce-health-linked-")), "wt")
-    await Bun.$`git worktree add -q ${linked}`.cwd(primary).quiet()
+    const linkedParent = await mkdtemp(path.join(os.tmpdir(), "ce-health-linked-"))
+    try {
+      await initConfiguredRepo(primary, "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: claude\n")
+      await Bun.$`git add -A`.cwd(primary).quiet()
+      await Bun.$`git -c user.email=test@example.test -c user.name=test -c commit.gpgsign=false commit -qm seed`.cwd(primary).quiet()
+      const linked = path.join(linkedParent, "wt")
+      await Bun.$`git worktree add -q ${linked}`.cwd(primary).quiet()
 
-    const result = await runCheckHealth(linked, process.env.PATH ?? "")
-    expect(result.stdout).toContain(".compound-engineering/config.local.yaml inherited from the primary worktree")
-    expect(result.stdout).toContain("Inherited local config is gitignored")
-    // cross_model_peer came from the inherited file, not this checkout.
-    expect(result.stdout).toContain("antigravity --")
+      const result = await runCheckHealth(linked, process.env.PATH ?? "")
+      expect(result.stdout).toContain(".compound-engineering/config.local.yaml inherited from the primary worktree")
+      expect(result.stdout).toContain("Inherited local config is gitignored")
+      // The engine preference came from the inherited file; this checkout has none.
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> claude@default")
+    } finally {
+      await rm(primary, { recursive: true, force: true })
+      await rm(linkedParent, { recursive: true, force: true })
+    }
   })
 
   async function runWithCodexAgents(contents: string): Promise<RunResult> {

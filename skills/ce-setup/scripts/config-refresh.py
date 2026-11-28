@@ -824,6 +824,10 @@ def describe_layer(bundle, repo, layer, local_repo=None):
 
 def cmd_status(bundle, repo, args):
     local_repo = getattr(args, "local_repo", None)
+    # The override exists for a checkout that has no local file; a present file
+    # always outranks the inherited one.
+    if local_repo and os.path.isfile(layer_path(repo, "local")):
+        local_repo = None
     return emit({
         "ok": True,
         "bundled_version": bundle.version,

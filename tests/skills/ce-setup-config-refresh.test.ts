@@ -458,6 +458,12 @@ describe("config-refresh of config.local.yaml", () => {
     expect(inherited.json.local.state).toBe("legacy")
   })
 
+  test("--local-repo never overrides a local file this checkout has", () => {
+    const root = makeRepo({ local: "plan_model: opus\n" })
+    const primary = makeRepo({ local: legacyLocal })
+    expect(run(root, ["status", "--local-repo", primary]).json.local.state).not.toBe("legacy")
+  })
+
   test("a legacy full-template copy is cut down to its settings and team comments", () => {
     const peer = "# cross_model_peer: codex          # codex | claude | grok | cursor | composer"
     const local = `${withPeer(legacyLocal, peer)}\nplan_use_fable: true\nwork_delegate: codex\n`

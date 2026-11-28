@@ -102,7 +102,7 @@ Every metric, event, and signal you propose gets checked for being specific, mea
 
 ### Read-only, and a trailing buffer
 
-The only writes are `pulse_*` keys in `.compound-engineering/config.local.yaml` and the report file. MCP and other tools are called read-only even when they offer a write mode.
+The only writes are `pulse_*` keys in `.compound-engineering/config.local.yaml` (seeding a new file from an inherited copy first) and the report file. MCP and other tools are called read-only even when they offer a write mode.
 
 Database access is optional. Many products finish the pulse on analytics and tracing alone. If you offer a read-write credential, the interview refuses and points at a read replica, a BI view, or a snapshot export.
 

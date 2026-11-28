@@ -807,10 +807,12 @@ if [ "$in_repo" = "yes" ]; then
 
   if [ "$local_cfg" = "present" ] && [ "$local_config_inherited" = "yes" ]; then
     ok ".compound-engineering/config.local.yaml inherited from the primary worktree"
+    detail "$local_config_path"
     if [ "$repo_cfg_gitignore" = "ok" ]; then
       ok "Inherited local config is gitignored"
     else
       warn "Inherited local config is not safely gitignored"
+      detail "Add '.compound-engineering/*.local.yaml' to $local_config_root/.gitignore"
       project_issues=$((project_issues + 1))
     fi
   elif [ "$local_cfg" = "present" ]; then
