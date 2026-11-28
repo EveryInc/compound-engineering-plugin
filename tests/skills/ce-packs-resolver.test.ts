@@ -113,6 +113,28 @@ describe("declaration and absence", () => {
     expect(ids(resolve(linked))).toEqual(["kk-style"])
   })
 
+  // A separate-git-dir primary has no checkout path git can name: the first
+  // `worktree list` record is the metadata dir, so the local layer stays absent
+  // instead of reading an unrelated directory.
+  test("a primary whose checkout git cannot name leaves the local layer absent", () => {
+    const meta = tempDir("sep-meta")
+    const main = tempDir("sep-main")
+    git(main, "init", "-q", "--separate-git-dir", meta)
+    mkdirSync(path.join(main, ".compound-engineering"))
+    writeFileSync(path.join(main, ".compound-engineering", "config.yaml"), "docs_root: docs\n")
+    writeFileSync(path.join(main, ".compound-engineering", "config.local.yaml"), "packs:\n  - source: ./packs\n")
+    writeFileSync(path.join(main, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+    writeKnowledgeFile(path.join(main, "packs", "kk-style"), "style.md", "kk style")
+    git(main, "add", ".gitignore", ".compound-engineering/config.yaml")
+    commit(main, "seed")
+    const linked = path.join(tempDir("sep-linked"), "wt")
+    git(main, "worktree", "add", "-q", linked)
+
+    const out = resolve(linked)
+    expect(out.entries).toBe(0)
+    expect(ids(out)).toEqual([])
+  })
+
   test("AE4: config.yaml and config.local.yaml entries concatenate", () => {
     const team = makePackRepo(["rails"])
     const personal = tempDir("personal")

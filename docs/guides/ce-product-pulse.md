@@ -175,7 +175,7 @@ Reports stay in `docs/pulse-reports/` as working memory: greppable, diffable, an
 | `24h`, `48h`, `72h`, `7d`, `30d`, `1h` | Trailing time window. Upper bound is always `now - 15m`. An unparseable argument asks you to clarify. |
 | `setup` / `reconfigure` / `edit config` | Re-run the interview regardless of config state, then run a pulse |
 
-Configuration lives in CE config (`config.local.yaml` then `config.yaml`; the interview writes local) under `pulse_*` keys: product name, default lookback, primary / value / completion events, quality scoring and dimension, analytics / tracing / payments sources, DB enabled, per-metric source overrides, pending metrics, excluded metrics. See the [configuration reference](./configuration.md).
+Configuration lives in CE config (`config.local.yaml`, inherited from the primary worktree in a linked worktree with none, then `config.yaml`; the interview writes local) under `pulse_*` keys: product name, default lookback, primary / value / completion events, quality scoring and dimension, analytics / tracing / payments sources, DB enabled, per-metric source overrides, pending metrics, excluded metrics. See the [configuration reference](./configuration.md).
 
 Default report path: `docs/pulse-reports/YYYY-MM-DD_HH-MM.md`. If `docs_root` is set, that folder moves with the other CE artifacts.
 

@@ -172,10 +172,10 @@ Skip it when:
 ## FAQ
 
 **What is `compound-engineering.local.md` and why is it obsolete?**
-It was the old machine-local config file. Team defaults now live in `.compound-engineering/config.yaml`, and `config.local.yaml` is the optional per-checkout override, which a linked worktree with none inherits from the primary worktree. Review-agent selection is automatic.
+It was the old machine-local config file. Team defaults now live in `.compound-engineering/config.yaml`, and `config.local.yaml` is the optional per-checkout override, which a linked worktree with none inherits from the primary worktree when git can name that checkout. Review-agent selection is automatic.
 
 **Why gitignore `.compound-engineering/config.local.yaml`?**
-It is a per-checkout override (a linked worktree with none inherits the primary worktree's), so committing it defeats the point. The committed `config.example.yaml` shows the available settings. Setup creates the repo file, never the override.
+It is a per-checkout override (a linked worktree with none inherits the primary worktree's when git can name that checkout), so committing it defeats the point. The committed `config.example.yaml` shows the available settings. Setup creates the repo file, never the override.
 
 ---
 

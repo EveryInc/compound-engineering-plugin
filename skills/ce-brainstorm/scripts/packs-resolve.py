@@ -21,8 +21,9 @@ Exit 0 whenever resolution ran (per-entry failures are data in `errors` /
 availability (e.g. an unreachable git source skipped per the warn-and-continue
 contract).
 
-`--declared-only` answers the config-only question without touching git or the
-cache: it parses both config layers, shape-checks each entry, and prints
+`--declared-only` answers the config-only question without resolving sources or
+touching the cache -- it still asks git for an inherited local layer. It parses
+both config layers, shape-checks each entry, and prints
 
     {"declared": <bool|null>, "entries": <n>, "errors": [...]}
 
@@ -667,7 +668,8 @@ def _primary_worktree_root(repo_root: str) -> str | None:
     if shutil.which("git") is None:
         return None
     proc = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=repo_root,
-                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                          encoding="utf-8", errors="surrogateescape")
     if proc.returncode != 0:
         return None
     for line in proc.stdout.splitlines():
@@ -676,7 +678,8 @@ def _primary_worktree_root(repo_root: str) -> str | None:
             if not main or os.path.realpath(main) == os.path.realpath(repo_root):
                 return None
             probe = subprocess.run(["git", "-C", main, "rev-parse", "--show-toplevel"],
-                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                   encoding="utf-8", errors="surrogateescape")
             if probe.returncode != 0 or os.path.realpath(probe.stdout.strip()) != os.path.realpath(main):
                 return None
             return main
@@ -690,7 +693,8 @@ def _repo_root() -> str | None:
     the working directory is not inside a checkout."""
     if shutil.which("git") is not None:
         proc = subprocess.run(["git", "rev-parse", "--show-toplevel"],
-                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                              encoding="utf-8", errors="surrogateescape")
         return proc.stdout.strip() if proc.returncode == 0 else None
     current = os.getcwd()
     while True:
@@ -706,7 +710,7 @@ def _main(argv: list) -> int:
     parser = argparse.ArgumentParser(description="Resolve the Compound Packs declared in CE config.")
     parser.add_argument(
         "--declared-only", action="store_true",
-        help="parse and shape-check the packs: entries only; no git or cache work",
+        help="parse and shape-check the packs: entries only, without resolving sources or touching the cache",
     )
     args = parser.parse_args(argv)
     warnings, errors, roots, entries = [], [], [], []
