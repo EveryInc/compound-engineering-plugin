@@ -1424,6 +1424,15 @@ describe("ce-simplify-code pipeline callers", () => {
     expect(skill).toContain("The proof-test path is context for Step 3, never scope")
   })
 
+  // A run with no subagent primitive, or one whose dispatch failed, still owes the
+  // reviewer its rubric. Without this the comment keep list never loads and the
+  // inline pass prunes reason-bearing comments the persona would have kept.
+  test("the inline fallback reads the same reviewer prompt asset", async () => {
+    const skill = await readRepoFile("skills/ce-simplify-code/SKILL.md")
+    expect(skill).toContain("Whether dispatched or inline, read the reviewer's prompt asset")
+    expect(skill).toContain("Read each file and use it verbatim")
+  })
+
   // The caller owns the threshold and the callee owns the measurement. Without the
   // token, a standalone or ce-work run keeps the full team at any size.
   test("lfg passes the size cutoff and scopes step 3 after ce-work's own pass", async () => {
