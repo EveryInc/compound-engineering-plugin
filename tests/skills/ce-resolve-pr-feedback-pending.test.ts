@@ -52,22 +52,23 @@ function publicationFixture(batch: Omit<ReturnType<typeof record>, "fix_commit">
 import json, os, sys
 with open(os.environ['FAKE_GH_CALLS'], 'a') as out:
     out.write(json.dumps(sys.argv[1:]) + '\\n')
-with open(os.environ['FAKE_GH_REMOTE']) as source:
+with open(os.environ['FAKE_GH_REMOTE'], encoding='utf-8') as source:
     data = json.load(source)
 key = 'comparison' if '/compare/' in sys.argv[-1] else 'metadata'
 value = data[key]
 if isinstance(value, str):
     print(value, file=sys.stderr)
     sys.exit(1)
-print(json.dumps(value))
+# Like gh, write the response as raw UTF-8 rather than ASCII escapes.
+sys.stdout.buffer.write(json.dumps(value, ensure_ascii=False).encode('utf-8') + b'\\n')
 `)
   chmodSync(path.join(dir, "gh"), 0o755)
   const bytes = readFileSync(handoff, "utf8")
-  const inspect = (freshMetadata = metadata, freshComparison: unknown = comparison) => {
+  const inspect = (freshMetadata = metadata, freshComparison: unknown = comparison, locale: Record<string, string> = {}) => {
     writeFileSync(remote, JSON.stringify({ metadata: freshMetadata, comparison: freshComparison }))
     return spawnSync("python3", [SCRIPT, "inspect-publication", "--path", handoff], {
       encoding: "utf8",
-      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, FAKE_GH_CALLS: calls, FAKE_GH_REMOTE: remote },
+      env: { ...process.env, ...locale, PATH: `${dir}:${process.env.PATH}`, FAKE_GH_CALLS: calls, FAKE_GH_REMOTE: remote },
     })
   }
   return { handoff, metadata, comparison, bytes, inspect, calls }
@@ -98,6 +99,15 @@ describe("resolver saved feedback", () => {
       ["api", "--hostname", "github.com", "--method", "GET", "repos/upstream/project/pulls/42"],
       ["api", "--hostname", "github.com", "--method", "GET", `repos/contributor/project/compare/${"a".repeat(40)}...${"d".repeat(40)}`],
     ])
+  })
+
+  test("publication inspection decodes gh output as UTF-8 under a non-UTF-8 locale", () => {
+    // PYTHONCOERCECLOCALE=0 and PYTHONUTF8=0 keep Python on the C locale's ascii codec, as cp1252 is on Windows.
+    const { metadata, comparison, inspect } = publicationFixture()
+    const locale = { LC_ALL: "C", LANG: "C", LC_CTYPE: "C", PYTHONUTF8: "0", PYTHONCOERCECLOCALE: "0" }
+    const result = inspect({ ...metadata, title: "Handle the “quoted” path" } as typeof metadata, comparison, locale)
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).publication).toMatchObject({ verified: true, comparison_status: "ahead" })
   })
 
   test("identical Enterprise heads require positive compare proof too", () => {
