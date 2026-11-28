@@ -7,7 +7,7 @@ Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-eng
 ## How keys resolve
 
 - **Ordinary keys:** read `config.local.yaml`, then `config.yaml`. The first active (non-commented) value wins. A missing file is skipped. Invalid or empty scalars continue to the next layer, then the skill default. A present list or map, including empty, replaces the whole key.
-- **Linked worktrees:** when this checkout is a linked worktree and has no `config.local.yaml`, the local layer is the primary worktree's copy — the main worktree `git worktree list --porcelain` reports first, and only when that path is a checkout itself — which also holds for `--separate-git-dir` clones. Otherwise the local layer is absent. A local file in this checkout still wins, and `config.yaml` stays this checkout's.
+- **Linked worktrees:** when this checkout is a linked worktree and has no `config.local.yaml`, the local layer is the primary worktree's copy — the main worktree `git worktree list --porcelain` reports first, and only when that path is a checkout itself. A primary whose checkout path git cannot name — for example one created with `--separate-git-dir` — leaves the local layer absent rather than reading another directory. A local file in this checkout still wins, and `config.yaml` stays this checkout's.
 - **`docs_root`:** read only from `config.yaml`. A `docs_root` in `config.local.yaml` is ignored.
 - **Gitignore does not change resolution.** Either file works whether ignored or committed.
 - A current-task instruction still wins over config. Session and project instructions already in context can override or narrow it.
