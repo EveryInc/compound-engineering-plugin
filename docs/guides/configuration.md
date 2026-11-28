@@ -1,12 +1,13 @@
 # Compound Engineering configuration
 
-Compound Engineering keeps optional repo defaults in `.compound-engineering/config.yaml`. Ordinary keys may also live in `.compound-engineering/config.local.yaml`, which overrides the repo file per key. Both files are visible to every supported harness that opens the same checkout.
+Compound Engineering keeps optional repo defaults in `.compound-engineering/config.yaml`. Ordinary keys may also live in `.compound-engineering/config.local.yaml`, which overrides the repo file per key. Both files are visible to every supported harness that opens the same checkout; a linked worktree with no `config.local.yaml` of its own reads the primary worktree's.
 
 Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-engineering/config.example.yaml`. Setup does not create `config.local.yaml`. The template's header carries a `# ce-config-template-version:` line. When `config.yaml` has an older version, setup rebuilds it on the current template with every setting kept (see the [ce-setup guide](./ce-setup.md#what-it-fixes)). Uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in either file.
 
 ## How keys resolve
 
 - **Ordinary keys:** read `config.local.yaml`, then `config.yaml`. The first active (non-commented) value wins. A missing file is skipped. Invalid or empty scalars continue to the next layer, then the skill default. A present list or map, including empty, replaces the whole key.
+- **Linked worktrees:** when this checkout is a linked worktree (`git rev-parse --git-dir` differs from `--git-common-dir`) and has no `config.local.yaml`, the local layer is the primary worktree's copy — the parent of the absolute `--git-common-dir`. A local file in this checkout still wins, and `config.yaml` stays this checkout's.
 - **`docs_root`:** read only from `config.yaml`. A `docs_root` in `config.local.yaml` is ignored.
 - **Gitignore does not change resolution.** Either file works whether ignored or committed.
 - A current-task instruction still wins over config. Session and project instructions already in context can override or narrow it.
@@ -81,7 +82,7 @@ Config is a default, not another agent-instructions file:
 - Each skill's runtime contract still decides whether a setting applies. For example, model elevation takes effect on whichever harness can reach the requested model.
 - Some skills define a more specific preference order for their own routing. Their skill page documents that order.
 
-Committed `config.yaml` is shared across worktrees of the same project. `config.local.yaml` is per-checkout. CE Work resolves delegation before it creates detached worker worktrees, so an already-selected route is carried into that run.
+Committed `config.yaml` is shared across worktrees of the same project. `config.local.yaml` is per-checkout, and a linked worktree with none inherits the primary worktree's. CE Work resolves delegation before it creates detached worker worktrees, so an already-selected route is carried into that run.
 
 ## Options
 

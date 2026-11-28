@@ -36,10 +36,10 @@ Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the f
 Claude Code, Codex, and Grok each serve their own model family, so the snippet takes the family from that harness's marker when it is the only such marker present. Another harness can copy one of those markers (oh-my-pi sets `CLAUDECODE=1` whatever model serves it), and a session started from inside another harness inherits that harness's marker. So the snippet leaves family `unknown` on a harness that serves any model (oh-my-pi or Pi) or when more than one of those markers is present. Pass a family the snippet names. When the snippet yields harness `omp` or `pi`, still pass `unknown` and start the job: the worker reads the serving family from the model that harness's session records and skips when it names no first-party model. Elsewhere, where the snippet leaves family `unknown`, set it only from a model id the runtime publishes as the model serving this session, and only when that id maps to `codex`, `claude`, `grok`, `composer`, or `gemini`. A requested model, the model's own claim, and the product name are not that id. Never infer serving family from the Cursor brand. Otherwise an unknown host family cannot pass the automatic same-family check, so skip the automatic cross-model pass.
 
 <!-- ce-config-layers:start -->
-**Resolve ordinary CE yaml keys from the two repo files.**
+**Resolve CE yaml keys from the config files.**
 
-- **Read** `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml` (`<repo-root>` = `git rev-parse --show-toplevel`). Missing files are skipped. Gitignore does not change resolution.
-- **Win** with the first active (non-commented) value. For scalars, empty is unset; an invalid value continues to the next layer, then the skill default. For lists and maps, a present key — including an empty list or map — replaces the whole key.
+- **Read** `<repo-root>/.compound-engineering/config.local.yaml` — or the primary worktree's copy of it when this checkout is a linked worktree with no local file — then `config.yaml` (`<repo-root>` = `git rev-parse --show-toplevel`). Missing files are skipped. Gitignore does not change resolution.
+- **Win** with the first active (non-commented) value: empty scalars are unset, an invalid value continues to the next layer, then the skill default; a present list or map — including an empty list or map — replaces the whole key.
 - **Do not** use this rule for `docs_root` — that key is `config.yaml` only.
 <!-- ce-config-layers:end -->
 
