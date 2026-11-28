@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { cleanup, HANDS_OFF, ME, SCRIPT, World } from "../helpers/afg-world"
 
@@ -870,6 +870,30 @@ test("a digest leaves out what a reader does not need", () => {
   const w = new World().begin()
   w.run(["park", "--token", w.token, "--item", "idea:x", "--why", "x", "--recommend", "y", "--needs", "later", "--tried", "a long account"])
   expect(Object.keys(w.run(["digest"]).json.parked[0]).sort()).toEqual(["at", "item", "needs", "recommend", "why"])
+})
+
+test("test and turn give checks a short TMPDIR when the caller's is long", () => {
+  const check = HANDS_OFF.replace("  - { run: true }", () => '  - run: test -d "$TMPDIR" && printf "%s" "$TMPDIR" > "$HOME/test-tmpdir.txt"')
+  const w = new World(check).begin()
+  const longTmp = path.join(w.root, "very-long-caller-tmpdir-segment-for-unix-socket-limit-test-1234567890")
+  mkdirSync(longTmp, { recursive: true })
+  w.env.TMPDIR = longTmp
+
+  const turnOut = path.join(w.env.HOME!, "turn-tmpdir.txt")
+  expect(w.run(["turn", "--run", 'test -d "$TMPDIR" && printf "%s" "$TMPDIR" > "$HOME/turn-tmpdir.txt"']).code).toBe(0)
+  const seenTurn = readFileSync(turnOut, "utf8")
+  expect(seenTurn.length).toBeGreaterThan(0)
+  expect(seenTurn.length).toBeLessThanOrEqual(40)
+  expect(existsSync(seenTurn)).toBe(false)
+
+  const job = w.run(["job", "--token", w.token, "--motion", "stack", "--what", "x", "--opens-pr"]).json.job
+  const head = w.pr(7, { "app.rb": "two\n" }, { login: ME })
+  expect(w.run(["adopt", "--token", w.token, "--job", job, "--pr", "7", "--head", head, "--via", "lfg"]).code).toBe(0)
+  expect(w.run(["test", "--token", w.token, "--pr", "7"]).code).toBe(0)
+  const seenTest = readFileSync(path.join(w.env.HOME!, "test-tmpdir.txt"), "utf8")
+  expect(seenTest.length).toBeGreaterThan(0)
+  expect(seenTest.length).toBeLessThanOrEqual(40)
+  expect(existsSync(seenTest)).toBe(false)
 })
 
 describe("recorded decisions", () => {

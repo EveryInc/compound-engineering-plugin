@@ -10,7 +10,7 @@ Whatever happens after a token is issued, finish with `end --token`. `heartbeat`
 
 ## The board
 
-`"$PY" "$SKILL_DIR/scripts/board.py"` right after `begin` and before `end` (`--all` for every repository). It lists everything in flight, derived from GitHub and the ledgers, so nothing depends on memory: every open pull request of this account, every commit and job not landed or ended, every parked item, each with one next step and who takes it, in `~/.compound-engineering/afg/board.md`.
+`"$PY" "$SKILL_DIR/scripts/board.py"` right after `begin`, before `end` to check nothing the run can move remains, and once more after `end` so the board no longer shows this run as active (`--all` for every repository). It lists everything in flight, derived from GitHub and the ledgers, so nothing depends on memory: every open pull request of this account, every commit and job not landed or ended, every parked item, each with one next step and who takes it, in `~/.compound-engineering/afg/board.md`.
 
 A pull request this mode opened is its own to finish: landed, or closed with a reason. Before starting a job, take the next step of each item the board gives to the run, oldest first; `job-end` what is gone or superseded, and re-park what no longer holds, or `drop` the idea a later landing finished. A run does not end while one of them can move.
 
@@ -33,7 +33,7 @@ Babysit only a PR that needs it: failing checks, unanswered review feedback, or 
 ## Start a job
 
 1. `job --motion <m> --what "<one line>"`, with `--opens-pr` when the result will be a PR (never on `direct`), and `--origin issue:<n>` or `--origin pr:<n>` when a person's request led to it. Use `--origin external` for any other outside report, and `--origin internal` only when you found the work yourself. A denial ends that job; Keep going says which ones end the run.
-2. Give it to a worker in its own worktree, never in the main checkout, through the host's own delegation when it gives a separate checkout. The running agent may do a small job itself the same way, but never reviews its own work or gives its guard verdict; where the project's instructions allow no reviewer this run may start, park the commit with `--needs access`. Pass the worker:
+2. Give it to a worker in its own worktree, never in the main checkout, through the host's own delegation when it gives a separate checkout, does not stop at host prompts, and does not exceed this run's permissions; if none qualifies for a larger job, park with `--needs access` and take other work. The running agent may do a small job itself the same way, but never reviews its own work or gives its guard verdict; where the project's instructions allow no reviewer this run may start, park the commit with `--needs access`. Pass the worker:
    - the job, its sources, the callee from `references/motions.md` and the end state;
    - the Authority section of SKILL.md, and what always waits for a person (`references/setup.md`, question 2), so it reports a need for one as soon as it sees it and stacks nothing on that work;
    - the repository for every `gh` command (`-R <origin owner/name>`), because in a fork `gh` picks the upstream;
@@ -47,7 +47,7 @@ Babysit only a PR that needs it: failing checks, unanswered review feedback, or 
 Other work uses this machine, live copies of this project included.
 
 - Keep scratch files in a folder of your own. Stop processes by the ids you started, never by name, and delete by exact path, never by a pattern: others use similar names. Before returning, confirm that everything you started has stopped; anything made to load the machine ends itself after a set time.
-- Run the tests your change needs. Whole suites run only through `test`. Anything heavy, such as browser checks, goes through `turn --run "<command>"`, which waits in the machine's line; nothing else takes that lock.
+- Run the tests your change needs. Whole suites run only through `test`. Anything heavy, such as browser checks, goes through `turn --run "<command>"`, which waits in the machine's line and removes its own `$TMPDIR` when done (keep outputs in your own scratch folder); nothing else takes that lock.
 - Before you or a skill you run boots the project, read what booting does to fixed ports, processes, files and services. When it would touch one in use, boot isolated or not at all.
 - Run tests without this shell's service credentials and addresses, as `test` does. Never print an environment, your own or another process's, or a file that holds credentials.
 

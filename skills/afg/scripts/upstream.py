@@ -12,7 +12,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import unicodedata
 import urllib.parse
 from datetime import timedelta
@@ -750,7 +749,7 @@ def cmd_reproduce(core, a, repo):
         return core.deny("expect-missing")
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, core.interrupted)
-    tmp, proc = tempfile.mkdtemp(prefix="afg-check-"), None
+    tmp, proc = core.short_temp_dir("afg-check-"), None
     tree, ran = os.path.join(tmp, "tree"), []
     env = core.scrubbed_env(tmp)
 

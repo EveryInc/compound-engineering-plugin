@@ -1906,12 +1906,25 @@ def is_own(a, repo, policy, rows):
     return a.pr is None or author_facts(repo, policy, rows, pr_view(repo, a.pr))[0] == "own"
 
 
+def short_temp_dir(prefix):
+    """Put check temp dirs under /tmp when the caller's temp path would make TMPDIR too long for UNIX sockets."""
+    if os.name == "posix" and os.path.isdir("/tmp") and os.access("/tmp", os.W_OK | os.X_OK) \
+            and len(os.path.join(tempfile.gettempdir(), prefix + "XXXXXXXX", "t")) > 36:
+        try:
+            return tempfile.mkdtemp(prefix=prefix, dir="/tmp")
+        except OSError:
+            pass
+    return tempfile.mkdtemp(prefix=prefix)
+
+
 def scrubbed_env(tmp):
     env = {k: v for k, v in os.environ.items()
            if not re.search(r"TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY|^GH_|^GITHUB_|^SSH_", k, re.I)
            # Nor anything that could point a test at a service in use or at its environment.
            and not re.search(r"DATABASE|REDIS|MONGO|(^|_)(DB|DSN)(_|$)|^PG[A-Z]+$|^MYSQL_|^(RAILS|RACK|NODE|APP)_ENV$|_(URL|URI)$", k, re.I)}
-    env.update(GH_CONFIG_DIR=os.path.join(tmp, "no-gh"), GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="true",
+    subtmp = os.path.join(tmp, "t")
+    os.makedirs(subtmp, exist_ok=True)
+    env.update(TMPDIR=subtmp, GH_CONFIG_DIR=os.path.join(tmp, "no-gh"), GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="true",
                GIT_SSH_COMMAND="false", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", CI="1")
     return env
 
@@ -1964,7 +1977,7 @@ def cmd_test(a, repo):
         if repo.tip(fresh=True) != base:
             # Nothing tested on the old tip could land.
             return deny("base-moved", base=base)
-        tmp = tempfile.mkdtemp(prefix="afg-test-")
+        tmp = short_temp_dir("afg-test-")
         tree, log, proc, code = os.path.join(tmp, "tree"), os.path.join(store_dir(repo), f"test-{head[:12]}.log"), None, "interrupted"
         ran = []
         for sig in (signal.SIGTERM, signal.SIGHUP):
@@ -2045,7 +2058,7 @@ def cmd_room(a, repo):
 
 def cmd_turn(a, repo):
     """Run one heavy command here, in this machine's turn, without credentials. For a worker's own checks."""
-    tmp, proc = tempfile.mkdtemp(prefix="afg-turn-"), None
+    tmp, proc = short_temp_dir("afg-turn-"), None
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, interrupted)
     try:
@@ -2065,7 +2078,7 @@ def cmd_turn(a, repo):
 
 def cmd_check(a, repo):
     """Run candidate checks on the default branch tip exactly as `test` would. Records nothing."""
-    head, tmp, proc, ran = repo.tip(), tempfile.mkdtemp(prefix="afg-check-"), None, []
+    head, tmp, proc, ran = repo.tip(), short_temp_dir("afg-check-"), None, []
     tree, log = os.path.join(tmp, "tree"), os.path.join(tmp, "log")
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, interrupted)
@@ -2183,7 +2196,7 @@ def cmd_guard(a, repo):
             return record("probe-text-not-new")
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, interrupted)
-    tmp, proc = tempfile.mkdtemp(prefix="afg-guard-"), None
+    tmp, proc = short_temp_dir("afg-guard-"), None
     tree, patch, out_path = (os.path.join(tmp, n) for n in ("tree", "patch", "log"))
     missed = []
     try:
