@@ -52,4 +52,18 @@ describe("acpx transport parity", () => {
       expect(block, rel).toContain('--agent "npx -y @agentclientprotocol/codex-acp@2.12.0"')
     }
   })
+
+  // The setup warm step must fetch the adapter the route launches; otherwise
+  // the first peer run still downloads it (issue #2098).
+  test("setup warms the codex adapter the route launches", async () => {
+    const block = transportBlock(
+      await readFile(path.join(PLUGIN_ROOT, MIGRATED_WORKERS[0]), "utf8"),
+      MIGRATED_WORKERS[0],
+    )
+    const spec = block.match(/--agent "npx -y (@agentclientprotocol\/codex-acp@[\d.]+)"/)?.[1]
+    expect(spec).toBeDefined()
+    const health = await readFile(path.join(process.cwd(), "skills", "ce-setup", "scripts", "check-health"), "utf8")
+    expect(health).toContain(`CODEX_PEER_ADAPTER_SPEC="${spec}"`)
+    expect(health).toContain("$CODEX_PEER_ADAPTER_SPEC; do")
+  })
 })

@@ -370,8 +370,13 @@ acpx_agent_argv() {   # <route>
   # --emit-adapter output readable on a machine without it.
   case "$1" in
     # acpx pins codex-acp 1.x, whose bundled core the service refuses for every
-    # gpt-6.1/6.2 model; launch the 2.x adapter that serves them (#2098).
-    codex) printf '%s\0' --agent "npx -y @agentclientprotocol/codex-acp@2.12.0" exec ;;
+    # gpt-6.1/6.2 model; launch the 2.x adapter that serves them (#2098). acpx
+    # rejects a raw --agent launch on native Windows, so keep its own there.
+    codex)
+      case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*) printf '%s\0' "$(acpx_agent codex)" exec ;;
+        *) printf '%s\0' --agent "npx -y @agentclientprotocol/codex-acp@2.12.0" exec ;;
+      esac ;;
     opencode) printf '%s\0' --agent "$(command -v opencode || printf opencode) acp" exec ;;
     *) printf '%s\0' "$(acpx_agent "$1")" exec ;;
   esac

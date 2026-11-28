@@ -22,6 +22,8 @@ deps=(
 ACPX_VERSION="0.22.0"
 ACPX_MIN_VERSION="0.18.0"
 ACPX_ADAPTER_SPECS="@agentclientprotocol/codex-acp@^1.1.5 @agentclientprotocol/claude-agent-acp@^0.95.0"
+# The codex peer route launches this adapter itself, outside acpx's pin.
+CODEX_PEER_ADAPTER_SPEC="@agentclientprotocol/codex-acp@2.12.0"
 
 # =====================================================
 #  Args
@@ -394,7 +396,7 @@ if [ "$warm_acpx" = "yes" ]; then
   # Run from an empty directory, as the peer workers do: npx resolves packages
   # from its working directory's node_modules and .npmrc first.
   warm_dir="$(mktemp -d "${TMPDIR:-/tmp}/ce-acpx-warm-XXXXXX")" || { warn "Cannot warm the npm cache: no temporary directory"; echo ""; exit 1; }
-  for spec in "acpx@>=$ACPX_MIN_VERSION <=$ACPX_VERSION" $ACPX_ADAPTER_SPECS; do
+  for spec in "acpx@>=$ACPX_MIN_VERSION <=$ACPX_VERSION" $ACPX_ADAPTER_SPECS $CODEX_PEER_ADAPTER_SPEC; do
     if (cd "$warm_dir" && npx --yes --package="$spec" -- node --version >/dev/null); then
       ok "cached $spec"
     else
