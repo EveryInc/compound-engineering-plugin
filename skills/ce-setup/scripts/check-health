@@ -701,7 +701,7 @@ if [ "$in_repo" = "yes" ]; then
   config_refresh="$script_dir/config-refresh.py"
   config_status_report=""
   if [ -n "$cfg_python" ] && [ -f "$config_refresh" ] && [ "$have_repo_config" = "yes" ]; then
-    config_status_report="$(cd "$repo_root" && "$cfg_python" "$config_refresh" status --repo "$repo_root" 2>/dev/null | "$cfg_python" -c '
+    config_status_report="$(cd "$repo_root" && "$cfg_python" "$config_refresh" status --repo "$repo_root" --local-repo "$local_config_root" 2>/dev/null | "$cfg_python" -c '
 import json, sys
 try:
     data = json.load(sys.stdin)
