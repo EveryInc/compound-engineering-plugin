@@ -265,7 +265,7 @@ describe("cross-model-doc-review route safety (R17)", () => {
   })
 
   test.each([
-    ["codex", "--model gpt-6.1-terra codex exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
+    ["codex", process.platform === "win32" ? "--model gpt-6.1-terra codex exec" : "--model gpt-6.1-terra --agent npx -y @agentclientprotocol/codex-acp@2.12.0 exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
     ["claude", "--max-turns 15 --model claude-opus-5-5 claude exec", ["--config-option mode=default", "--config-option effort=high"]],
     ["grok-cli", "--model grok-4.7 grok-build exec", ["--config-option reasoning_effort=xhigh"]],
     ["grok-cursor", "--model grok-4.7[context=256k,reasoning_effort=high,fast=true] cursor exec", ["--config-option mode=ask"]],
@@ -957,21 +957,31 @@ describe("cross-model-doc-review acpx transport preflight", () => {
     expect(r.files).not.toContain("adversarial-codex.json")
   })
 
-  test("a codex agent override in ~/.acpx/config.json fails only that route; a replacement route still runs", () => {
+  test("a claude agent override in ~/.acpx/config.json fails only that route; a replacement route still runs", () => {
     const sb = sandbox(["codex", "claude"])
+    mkdirSync(path.join(sb.home, ".acpx"))
+    writeFileSync(path.join(sb.home, ".acpx", "config.json"), JSON.stringify({ agents: { claude: { command: "/tmp/not-claude" } } }))
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(r.stderr).toContain("transport unavailable (pre-egress, route)")
+    expect(r.stderr).toContain("'claude' agent launch")
+    expect(calls(sb)).toBe(0)
+    expect(r.files).toEqual([])
+
+    const replacement = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(replacement.stderr).not.toContain("pre-egress")
+    expect(calls(sb)).toBe(1)
+    expect(replacement.files).toContain("adversarial-codex.json")
+  })
+
+  test("a codex agent override does not block the POSIX codex route", () => {
+    const sb = sandbox(["codex"])
     mkdirSync(path.join(sb.home, ".acpx"))
     writeFileSync(path.join(sb.home, ".acpx", "config.json"), JSON.stringify({ agents: { codex: { command: "/tmp/not-codex" } } }))
     const runDir = makeRunDir()
     const r = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
-    expect(r.stderr).toContain("transport unavailable (pre-egress, route)")
-    expect(r.stderr).toContain("'codex' agent launch")
-    expect(calls(sb)).toBe(0)
-    expect(r.files).toEqual([])
-
-    const replacement = run(["codex", "claude", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
-    expect(replacement.stderr).not.toContain("pre-egress")
+    expect(r.stderr).not.toContain("'codex' agent launch")
     expect(calls(sb)).toBe(1)
-    expect(replacement.files).toContain("adversarial-claude.json")
   })
 
   test("an unknown model is a route pre-egress failure naming the available models", () => {

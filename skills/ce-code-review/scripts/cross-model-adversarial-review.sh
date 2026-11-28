@@ -238,12 +238,24 @@ acpx_unavailable() {   # <shared|route> <reason>
   return 1
 }
 
+# acpx rejects a raw --agent launch on native Windows, so the codex route keeps
+# acpx's built-in agent there; the launch and the config guard share this test.
+acpx_codex_builtin_launch() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # acpx lets ~/.acpx/config.json and <cwd>/.acpxrc.json replace a built-in
 # agent's launch command; a route that would run something else is skipped.
 # opencode launches the installed CLI by path, which no config entry overrides.
 acpx_config_guard() {   # <route> <cwd>
   local agent file
   [ "$1" = opencode ] && return 0
+  # The POSIX codex route launches its own --agent command, which no acpx config
+  # entry can replace; native Windows still uses acpx's built-in agent.
+  if [ "$1" = codex ] && ! acpx_codex_builtin_launch; then return 0; fi
   agent="$(acpx_agent "$1")" || return 1
   for file in "${HOME:-}/.acpx/config.json" "$2/.acpxrc.json"; do
     [ -e "$file" ] || continue
@@ -355,8 +367,16 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
 acpx_agent_argv() {   # <route>
   # The preflight refuses opencode when it is not installed; the bare name keeps
   # --emit-adapter output readable on a machine without it.
-  if [ "$1" = opencode ]; then printf '%s\0' --agent "$(command -v opencode || printf opencode) acp" exec
-  else printf '%s\0' "$(acpx_agent "$1")" exec; fi
+  case "$1" in
+    # acpx pins codex-acp 1.x, whose bundled core the service refuses for every
+    # gpt-6.1/6.2 model; launch the 2.x adapter that serves them (#2098). acpx
+    # rejects a raw --agent launch on native Windows, so keep its own there.
+    codex)
+      if acpx_codex_builtin_launch; then printf '%s\0' "$(acpx_agent codex)" exec
+      else printf '%s\0' --agent "npx -y @agentclientprotocol/codex-acp@2.12.0" exec; fi ;;
+    opencode) printf '%s\0' --agent "$(command -v opencode || printf opencode) acp" exec ;;
+    *) printf '%s\0' "$(acpx_agent "$1")" exec ;;
+  esac
 }
 
 # The run's outcome is the result of its own session/prompt request, matched by

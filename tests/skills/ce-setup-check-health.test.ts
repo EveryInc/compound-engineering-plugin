@@ -1274,7 +1274,7 @@ describe("ce-setup check-health cross-model peers prerequisite", () => {
   })
 
   async function runWithNode(
-    opts: { nodeVersion?: string; npx?: boolean; args?: string[] },
+    opts: { nodeVersion?: string; npx?: boolean; args?: string[]; uname?: string },
   ): Promise<RunResult & { npxCalls: string[]; npxDirs: string[]; root: string }> {
     const root = await mkdtemp(path.join(sandbox, "run-"))
     const stubBin = path.join(root, "stub-bin")
@@ -1286,6 +1286,7 @@ describe("ce-setup check-health cross-model peers prerequisite", () => {
     await mkdir(stubBin)
     if (opts.nodeVersion !== undefined) await writeStub("node", `echo '${opts.nodeVersion}'`)
     if (opts.npx) await writeStub("npx", `echo "$*" >> '${npxLog}'; pwd -P >> '${npxLog}.pwd'`)
+    if (opts.uname) await writeStub("uname", `echo '${opts.uname}'`)
     const result = await runCheckHealth(root, `${stubBin}:${systemBin}`, {}, opts.args)
     const npxCalls = (await readFile(npxLog, "utf8").catch(() => "")).split("\n").filter(Boolean)
     const npxDirs = (await readFile(`${npxLog}.pwd`, "utf8").catch(() => "")).split("\n").filter(Boolean)
@@ -1326,18 +1327,29 @@ describe("ce-setup check-health cross-model peers prerequisite", () => {
   test("the warm step caches exactly the pinned acpx and adapter specs", async () => {
     const script = await readFile(checkHealthScript, "utf8")
     const adapterSpecs = script.match(/^ACPX_ADAPTER_SPECS="([^"]+)"$/m)?.[1].split(" ") ?? []
+    const codexPeerSpec = script.match(/^CODEX_PEER_ADAPTER_SPEC="([^"]+)"$/m)?.[1]
     const result = await runWithNode({ nodeVersion: "24.17.0", npx: true, args: ["--warm-acpx"] })
 
     expect(result.exitCode).toBe(0)
     expect(adapterSpecs.length).toBeGreaterThan(0)
+    expect(codexPeerSpec).toBeDefined()
     expect(result.npxCalls).toEqual(
-      [ACPX_RANGE, ...adapterSpecs].map((spec) => `--yes --package=${spec} -- node --version`),
+      [ACPX_RANGE, ...adapterSpecs, codexPeerSpec!].map((spec) => `--yes --package=${spec} -- node --version`),
     )
     expect(result.stdout).not.toContain("Optional capabilities")
     // npx resolves packages from its working directory first, so the warm must
     // not run from the user's project.
     expect(result.npxDirs.length).toBe(result.npxCalls.length)
     for (const dir of result.npxDirs) expect(dir.startsWith(await realpath(result.root))).toBe(false)
+  })
+
+  test("native Windows does not warm the codex 2.x adapter", async () => {
+    const result = await runWithNode({
+      nodeVersion: "24.17.0", npx: true, uname: "MINGW64_NT-10.0-26100", args: ["--warm-acpx"],
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.npxCalls.some((call) => call.includes("@agentclientprotocol/codex-acp@2.12.0"))).toBe(false)
+    expect(result.npxCalls.some((call) => call.includes("@agentclientprotocol/codex-acp@^1.1.5"))).toBe(true)
   })
 
   test("the warm step fetches nothing when the Node prerequisite is unmet", async () => {

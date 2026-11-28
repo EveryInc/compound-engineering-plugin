@@ -42,4 +42,29 @@ describe("acpx transport parity", () => {
       expect(block, rel).toContain(`ACPX_MIN_VERSION="${ACPX_MIN_VERSION}"`)
     }
   })
+
+  // acpx 0.22/0.23 still pin codex-acp 1.x, whose bundled core the Codex
+  // service refuses for every gpt-6.1/6.2 model. The raw launch keeps the
+  // adapter on the 2.x line that serves them (issue #2098).
+  test("the codex route carries the codex-acp 2.x launch for POSIX hosts", async () => {
+    for (const rel of MIGRATED_WORKERS) {
+      const block = transportBlock(await readFile(path.join(PLUGIN_ROOT, rel), "utf8"), rel)
+      expect(block, rel).toContain('--agent "npx -y @agentclientprotocol/codex-acp@2.12.0"')
+    }
+  })
+
+  // The setup warm step must fetch the adapter the route launches; otherwise
+  // the first peer run still downloads it (issue #2098).
+  test("setup warms the codex adapter the route launches", async () => {
+    const block = transportBlock(
+      await readFile(path.join(PLUGIN_ROOT, MIGRATED_WORKERS[0]), "utf8"),
+      MIGRATED_WORKERS[0],
+    )
+    const spec = block.match(/--agent "npx -y (@agentclientprotocol\/codex-acp@[\d.]+)"/)?.[1]
+    expect(spec).toBeDefined()
+    const health = await readFile(path.join(process.cwd(), "skills", "ce-setup", "scripts", "check-health"), "utf8")
+    expect(health).toContain(`CODEX_PEER_ADAPTER_SPEC="${spec}"`)
+    expect(health).toContain('warm_specs="$warm_specs $CODEX_PEER_ADAPTER_SPEC"')
+    expect(health).toContain("MINGW*|MSYS*|CYGWIN*) ;;")
+  })
 })

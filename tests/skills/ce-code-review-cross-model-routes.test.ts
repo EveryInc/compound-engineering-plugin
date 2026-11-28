@@ -320,7 +320,7 @@ describe("cross-model-adversarial-review route safety", () => {
   })
 
   test.each([
-    ["codex", "--model gpt-6.1-terra codex exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
+    ["codex", process.platform === "win32" ? "--model gpt-6.1-terra codex exec" : "--model gpt-6.1-terra --agent npx -y @agentclientprotocol/codex-acp@2.12.0 exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
     ["claude", "--max-turns 25 --model claude-opus-5-5 claude exec", ["--config-option mode=default", "--config-option effort=high"]],
     ["grok-cli", "--model grok-4.7 grok-build exec", ["--config-option reasoning_effort=xhigh"]],
     ["grok-cursor", "--model grok-4.7[context=256k,reasoning_effort=high,fast=true] cursor exec", ["--config-option mode=ask"]],
@@ -1191,8 +1191,32 @@ describe("cross-model-adversarial-review acpx transport preflight", () => {
     expect(peerOutputs(r.files)).toEqual([])
   })
 
-  test("a codex agent override in the repository's .acpxrc.json fails only that route; a replacement route still runs", () => {
+  test("a claude agent override in the repository's .acpxrc.json fails only that route; a replacement route still runs", () => {
     const repo = temp("xmodel-cr-acpxrc-")
+    fixtureGit(repo, "init", "-b", "main")
+    fixtureGit(repo, "config", "user.email", "test@test")
+    fixtureGit(repo, "config", "user.name", "test")
+    writeFileSync(path.join(repo, ".acpxrc.json"), JSON.stringify({ agents: { claude: { command: "/tmp/not-claude" } } }))
+    writeFileSync(path.join(repo, "f.ts"), "x\n")
+    fixtureGit(repo, "add", "-A")
+    fixtureGit(repo, "commit", "-m", "init")
+    writeFileSync(path.join(repo, "f.ts"), "y\n")
+    const sb = sandbox(["codex", "claude"])
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, sb.env, repo)
+    expect(r.stderr).toContain("transport unavailable (pre-egress, route)")
+    expect(r.stderr).toContain("'claude' agent launch")
+    expect(calls(sb)).toBe(0)
+    expect(peerOutputs(r.files)).toEqual([])
+
+    const replacement = run(["claude", "codex", "HEAD", runDir], runDir, sb.env, repo)
+    expect(replacement.stderr).not.toContain("pre-egress")
+    expect(calls(sb)).toBe(1)
+    expect(replacement.files).toContain("adversarial-codex.json")
+  })
+
+  test("a codex agent override does not block the POSIX codex route", () => {
+    const repo = temp("xmodel-cr-acpxrc-codex-")
     fixtureGit(repo, "init", "-b", "main")
     fixtureGit(repo, "config", "user.email", "test@test")
     fixtureGit(repo, "config", "user.name", "test")
@@ -1201,18 +1225,11 @@ describe("cross-model-adversarial-review acpx transport preflight", () => {
     fixtureGit(repo, "add", "-A")
     fixtureGit(repo, "commit", "-m", "init")
     writeFileSync(path.join(repo, "f.ts"), "y\n")
-    const sb = sandbox(["codex", "claude"])
+    const sb = sandbox(["codex"])
     const runDir = makeRunDir()
     const r = run(["claude", "codex", "HEAD", runDir], runDir, sb.env, repo)
-    expect(r.stderr).toContain("transport unavailable (pre-egress, route)")
-    expect(r.stderr).toContain("'codex' agent launch")
-    expect(calls(sb)).toBe(0)
-    expect(peerOutputs(r.files)).toEqual([])
-
-    const replacement = run(["codex", "claude", "HEAD", runDir], runDir, sb.env, repo)
-    expect(replacement.stderr).not.toContain("pre-egress")
+    expect(r.stderr).not.toContain("'codex' agent launch")
     expect(calls(sb)).toBe(1)
-    expect(replacement.files).toContain("adversarial-claude.json")
   })
 
   test("an unknown model is a route pre-egress failure naming the available models", () => {
