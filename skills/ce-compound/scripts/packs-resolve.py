@@ -673,7 +673,13 @@ def _primary_worktree_root(repo_root: str) -> str | None:
     for line in proc.stdout.splitlines():
         if line.startswith("worktree "):
             main = line[len("worktree "):].strip()
-            return main if main and os.path.realpath(main) != os.path.realpath(repo_root) else None
+            if not main or os.path.realpath(main) == os.path.realpath(repo_root):
+                return None
+            probe = subprocess.run(["git", "-C", main, "rev-parse", "--show-toplevel"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            if probe.returncode != 0 or os.path.realpath(probe.stdout.strip()) != os.path.realpath(main):
+                return None
+            return main
     return None
 
 

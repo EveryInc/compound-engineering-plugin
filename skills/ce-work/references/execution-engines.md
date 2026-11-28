@@ -39,7 +39,7 @@ A validated recovery run id selects durable state. It never authorizes a fresh d
 
 
 
-Standing configuration selects cross-model execution only when `work_engine_mode` resolves to `prefer` or `require` (`off | prefer | require`) from the two repo files, `config.local.yaml` then `config.yaml`. `off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding.
+Standing configuration selects cross-model execution only when `work_engine_mode` resolves to `prefer` or `require` (`off | prefer | require`) by the config-layers rule above — this checkout's `config.local.yaml`, or the primary worktree's for a linked worktree with none, then `config.yaml`. `off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding.
 
 When no source applies, run native execution and do not load the cross-model reference. When one does, read `references/cross-model-execution.md` and resolve the route there before any content or authority leaves the host. It owns route strength, the target vocabulary, the `work_engine_preferences` and `work_engine_effort` schema, candidate traversal, and preflight. If no candidate qualifies there, continue natively as that reference directs.
 
